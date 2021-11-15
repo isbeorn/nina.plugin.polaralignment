@@ -1,0 +1,109 @@
+﻿# Changelog
+
+## Version 1.5.1.0
+
+- Added dome support by waiting for the dome to sync after moving the axis for both automated mode as well as manual mode when both the mount and dome is connected
+- Improved manual mode when mount is connected to only get a plate solved image after movement is complete
+- Adjusted status report slightly
+
+## Version 1.5.0.0
+
+- When moving near the pole in automated mode and having multiple degrees of PA error, the warning that the mount did not move far enough was shown, even when the mount did indeed travel far enough
+	- This was caused by comparing the actual solved image RA with the starting RA, but now it will compare the drivers reported RA where the mount thinks it is
+	- Comparing the actual solved RA does lead to this error, as the axis of the mount is shifted and the circle is not perfectly aligned with the pole
+- Fixed an issue when solving succeeded, but star detection did not detect any stars, that the algorithm should no longer fail but use the center of the image instead
+
+## Version 1.4.1.0
+
+- With nightly 1.11 #165 the star detector became incompatible. This version will make it compatible again.
+
+## Version 1.4.0.0
+
+- The plugin now logs the amount of error into `User Documents >> N.I.N.A >> PolarAlignment` when activated in the options
+- Added validation when telescope is connected but at park
+- Fixed that filter is not saved when saving the instruction as part of an advanced sequence
+
+## Version 1.3.7.0
+
+- In addition to left/right the error display will also include east/west
+- Fixed that the altitude error for southern hemisphere was flipped
+- Added a toggle to be able to start from the current mount position instead of slewing to a specific alt/az
+- Added an expander to the imaging tab tool panel to collapse the options
+
+## Version 1.3.6.0
+
+- Added the individual steps as progress and mark them visually as completed to give the user a better indication of the completion of individual steps
+- Added a new color option for the completed steps color
+
+## Version 1.3.5.0
+
+- The manual mode now also works in full blind mode without any telescope connection. A blind solver needs to be setup - but it must not be astrometry.net due to being too slow.
+- Added the validation messages to imaging dock to see why the routine cannot be started
+
+## Version 1.3.4.0
+
+- Adjusted plugin description with new markdown syntax
+
+## Version 1.3.3.0
+
+- Fix DefaultAzimuthOffset to be correctly applied in the southern hemisphere as azimuth 180° + offset (instead of 0° + offset)
+
+## Version 1.3.2.0
+
+- Remove the compensation when the automated slew did not reach the expected distance. The various mount drivers differ too much to determine a clever compensation model
+- Instead the slew timeout factor can be adjusted. See the [FAQ for details](https://bitbucket.org/Isbeorn/nina.plugins/src/master/NINA.Plugin.Notification/NINA.Plugins.PolarAlignment/FAQ.md)
+- In manual mode, wait for the telescope to not report *slewing* before trying to solve
+
+## Version 1.3.1.0
+
+- Improved the target distance check for more tolerance and better compensation
+
+## Version 1.3.0.0
+
+- Added a new "Manual Mode", for mounts that are either no goto mounts or do not implement the necessary interfaces for automated point retrieval
+- Further refactoring to reduce code duplication
+
+## Version 1.2.2.0
+
+- Added a check, when the target distance was not reached within one degree to reslew again until the target distance is reached. This can happen when the move rate is less than advertised inside the mount driver.
+- Fix an issue when running Three Point Polar Alignment on the imaging tab that it won't be started again after the first iteration.
+
+## Version 1.2.1.0
+
+- Reveal "Default Altitude Offset" and "Default Azimuth Offset" to alter the initial coordinates that are getting preset
+- Optimize some of the default settings
+- Internal refactorings to reduce code duplications as well as layout improvements
+- Check if the camera is free to use when starting the routine out of the imaging tab. If the camera is in use, the play button will be disabled.
+- When starting the polar alignment out of framing the camera will be blocked during the routine, to not allow other areas to take control of the camera.
+
+## Version 1.2.0.1
+
+- Fixed an issue when moving the axis would traverse over 24h right ascension - leading to an incorrect distance moved
+
+## Version 1.2.0.0
+
+- The plugin is now also available in the imaging tab to be started directly there instead of inside the sequence.
+- A new button inside the tools pane in the imaging tab on the top right is available to open the polar alignment tool
+
+## Version 1.1.0.0
+
+- Complete rewrite of the error determination and correction logic to allow for locations further off from celestial pole and meridian
+- Show the initial error amount in smaller numbers below the adjusted error
+- Display a shadow rectangle showing the original error for reference behind the adjustet error rectangle
+
+## Version 1.0.0.8
+
+- Added a dedicated changelog file to the repository
+- Fix: When using debayered images the plugin would close on the final step with an error
+
+## Version 1.0.0.7
+
+- Fix: Azimuth error could sometimes exceed 180° instead of showing a negative error instead
+
+## Version 1.0.0.6
+
+- Fix: Azimuth error for southern hemisphere was calculated incorrectly
+
+## Version 1.0.0.5
+
+- Initial release using the new plugin manager approach, making the plugin available for download inside N.I.N.A.
