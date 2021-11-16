@@ -478,7 +478,7 @@ namespace NINA.Plugins.PolarAlignment {
             get {
                 if (CurrentMountAxisAltitudeError.Degree > 0) {
                     if (Northern) {
-                        return "Move down 🠗";
+                        return "🠗 Move down";
                     } else {
                         return "Move up 🠕";
                     }
@@ -486,7 +486,7 @@ namespace NINA.Plugins.PolarAlignment {
                     if (Northern) {
                         return "Move up 🠕";
                     } else {
-                        return "Move down 🠗";
+                        return "🠗 Move down";
                     }
                 } else {
                     return string.Empty;
@@ -497,9 +497,9 @@ namespace NINA.Plugins.PolarAlignment {
             get {
                 if (CurrentMountAxisAzimuthError.Degree > 0) {
                 if (Northern) {
-                    return "Move left/west 🠔";
+                    return "🠔 Move left/west";
                 } else {
-                        return "Move left/east 🠔";
+                        return "🠔 Move left/east";
                 }
             } else if (CurrentMountAxisAzimuthError.Degree < 0) {
                 if (Northern) {
