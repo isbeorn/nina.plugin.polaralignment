@@ -6,15 +6,13 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("Three Point Polar Alignment")]
-[assembly: AssemblyDescription("Three Point Auto Polar Alignment almost anywhere in the sky")]
+[assembly: AssemblyDescription("Three Point Polar Alignment almost anywhere in the sky")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Stefan Berg")]
 [assembly: AssemblyProduct("NINA.Plugins")]
 [assembly: AssemblyCopyright("Copyright ©  2021")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
-
-[assembly: InternalsVisibleTo("NINA.Plugins.Test")]
 
 // Setting ComVisible to false makes the types in this assembly not visible
 // to COM components.  If you need to access a type in this assembly from
@@ -26,8 +24,8 @@ using System.Runtime.InteropServices;
 
 //The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("1.5.2.0")]
-[assembly: AssemblyFileVersion("1.5.2.0")]
+[assembly: AssemblyVersion("1.5.2.1")]
+[assembly: AssemblyFileVersion("1.5.2.1")]
 
 //The minimum Version of N.I.N.A. that this plugin is compatible with
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "2.0.0.2001")]
@@ -39,19 +37,19 @@ using System.Runtime.InteropServices;
 //The url to the license
 [assembly: AssemblyMetadata("LicenseURL", "https://www.mozilla.org/en-US/MPL/2.0/")]
 //The repository where your pluggin is hosted
-[assembly: AssemblyMetadata("Repository", "https://bitbucket.org/Isbeorn/nina.plugins/src/master/NINA.Plugin.Notification/NINA.Plugins.PolarAlignment/")]
+[assembly: AssemblyMetadata("Repository", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/")]
 
-[assembly: AssemblyMetadata("ChangelogURL", "https://bitbucket.org/Isbeorn/nina.plugins/src/master/NINA.Plugin.Notification/NINA.Plugins.PolarAlignment/Changelog.md")]
+[assembly: AssemblyMetadata("ChangelogURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/src/master/PolarAlignment/Changelog.md")]
 
 //Common tags that quickly describe your plugin
 [assembly: AssemblyMetadata("Tags", "Polar alignment,Sequencer")]
 
 //The featured logo that will be displayed in the plugin list next to the name
-[assembly: AssemblyMetadata("FeaturedImageURL", "https://bitbucket.org/Isbeorn/nina.plugins/downloads/logo.png")]
+[assembly: AssemblyMetadata("FeaturedImageURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/downloads/logo.png")]
 //An example screenshot of your plugin in action
-[assembly: AssemblyMetadata("ScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugins/downloads/Starlock2.png")]
+[assembly: AssemblyMetadata("ScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/downloads/Starlock2.png")]
 //An additional example screenshot of your plugin in action
-[assembly: AssemblyMetadata("AltScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugins/downloads/Imaging.png")]
+[assembly: AssemblyMetadata("AltScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/downloads/Imaging.png")]
 [assembly: AssemblyMetadata("LongDescription", @"Three Point Auto Polar Alignment almost anywhere in the sky  
 
 A new instruction will be available for the advanced sequencer as well as a new tool pane inside the imaging tab that will assist in polar alignment.  
@@ -59,7 +57,7 @@ A new instruction will be available for the advanced sequencer as well as a new 
 When the instruction is called, a new window will be visible, that will guide you through the process.   
 Inside the imaging tab there will be a button inside the tool pane to show the polar alignment assistant with parameters and a button to start the process.  
 
-[*Frequently Asked Questions*](https://bitbucket.org/Isbeorn/nina.plugins/src/master/NINA.Plugin.Notification/NINA.Plugins.PolarAlignment/FAQ.md)
+[*Frequently Asked Questions*](https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/src/master/PolarAlignment/FAQ.md)
 
 *Prerequisites*  
 * Camera has to be connected and ready
