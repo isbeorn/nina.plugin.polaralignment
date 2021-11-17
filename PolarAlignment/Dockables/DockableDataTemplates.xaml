@@ -32,7 +32,7 @@
             <Expander
                 VerticalAlignment="Center"
                 Header="Options"
-                IsExpanded="True">
+                IsExpanded="{Binding OptionsExpanded}">
                 <ContentPresenter Content="{Binding PolarAlignment}" ContentTemplate="{DynamicResource PolarAlignmentInstructionSettings}" />
             </Expander>
             <Grid Grid.Column="1">

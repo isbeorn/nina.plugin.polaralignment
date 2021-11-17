@@ -35,7 +35,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
         [ImportingConstructor]
         public DockablePolarAlignmentVM(IProfileService profileService, IApplicationStatusMediator applicationStatusMediator, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IDomeMediator domeMediator, IPlateSolverFactory plateSolveFactory) : base(profileService) {
             Title = "Three Point Polar Alignment";
-
+            OptionsExpanded = true;
             var dict = new ResourceDictionary();
             dict.Source = new Uri("NINA.Plugins.PolarAlignment;component/Options.xaml", UriKind.RelativeOrAbsolute);
             ImageGeometry = (System.Windows.Media.GeometryGroup)dict["ThreePointsSVG"];
@@ -77,12 +77,22 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
         public ICommand CancelExecuteCommand { get; }
 
         public override bool IsTool { get; } = true;
+
+        private bool optionsExpanded;
+        public bool OptionsExpanded {
+            get => optionsExpanded;
+            set {
+                optionsExpanded = value;
+                RaisePropertyChanged();
+            }
+        }
         private ApplicationStatus GetStatus(string status) {
             return new ApplicationStatus { Source = "TPPA", Status = status };
         }
 
         public async Task<bool> Execute(IProgress<ApplicationStatus> externalProgress, CancellationToken token) {
             try {
+                OptionsExpanded = false;
                 cameraMediator.RegisterCaptureBlock(this);
                 PolarAlignment.ResetProgress();
                 using (var localCTS = CancellationTokenSource.CreateLinkedTokenSource(token)) {
@@ -93,6 +103,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
                 Logger.Error(ex);
                 Notification.ShowError(ex.Message);
             } finally {
+                OptionsExpanded = true;
                 cameraMediator.ReleaseCaptureBlock(this);
                 externalProgress?.Report(GetStatus(string.Empty));
                 (PolarAlignment as Instructions.PolarAlignment).TPAPAVM = new TPAPAVM(profileService);
