@@ -266,6 +266,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     progress.Report(new ApplicationStatus() { Status = "Moved far enough. Stop axis rotation now!" });
                     await Task.Delay(500, token);
                 }
+                telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
                 telescopeMediator.SetTrackingEnabled(true);
                 await CoreUtil.Wait(TimeSpan.FromSeconds(profileService.ActiveProfile.TelescopeSettings.SettleTime), token, progress, "Settling");
                 if (domeMediator.GetInfo().Connected) {
@@ -307,8 +308,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     if(!ManualMode) { 
                         if(!StartFromCurrentPosition) {
                             Logger.Info($"Slewing to initial position {Coordinates.Coordinates}");
-                            await telescopeMediator.SlewToCoordinatesAsync(Coordinates.Coordinates, localCTS.Token);
+                            telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
                             telescopeMediator.SetTrackingEnabled(true);
+                            await telescopeMediator.SlewToCoordinatesAsync(Coordinates.Coordinates, localCTS.Token);
                         } else {
                             Logger.Info($"Starting from current position {telescopeMediator.GetCurrentPosition()}");
                         }
@@ -316,6 +318,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     } else {
                         if(telescopeMediator.GetInfo().Connected) {
                             Logger.Info($"Manual mode engaged with mount connection available. Running in semi manual mode with standard plate solver.");
+                            telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
                             telescopeMediator.SetTrackingEnabled(true);
                         } else {
                             Logger.Info($"Manual mode engaged without any mount connection. Running in complete blind mode using blind solver.");
