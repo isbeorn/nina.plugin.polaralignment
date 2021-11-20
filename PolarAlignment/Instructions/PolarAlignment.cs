@@ -434,7 +434,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private int gain;
 
         [JsonProperty]
-        public int Gain { get => gain; set { gain = value; RaisePropertyChanged(); } }
+        public int Gain { get => gain; 
+            set { 
+                gain = value; 
+                RaisePropertyChanged(); 
+            } 
+        }
 
         private int offset;
 

@@ -13,7 +13,12 @@
     xmlns:rules="clr-namespace:NINA.Core.Utility.ValidationRules;assembly=NINA.Core"
     xmlns:util="clr-namespace:NINA.Core.Utility;assembly=NINA.Core"
     xmlns:xceed="http://schemas.xceed.com/wpf/xaml/toolkit">
+    <converter:InverseCollectionContainsItemsToVisibilityConverter x:Key="InverseCollectionContainsItemsToVisibilityConverter" />
+    <converter:MinusOneToEmptyStringConverter x:Key="MinusOneToEmptyStringConverter" />
     <converter:InverseBooleanToVisibilityCollapsedConverter x:Key="InverseBooleanToVisibilityCollapsedConverter" />
+    <converter:BooleanToVisibilityCollapsedConverter x:Key="BooleanToVisibilityCollapsedConverter" />
+    <converter:CameraDefaultValueConverter x:Key="CameraDefaultValueConverter" />
+
     <DataTemplate x:Key="PolarAlignmentInstructionSettings">
         <StackPanel x:Name="PART_StackPanel" Orientation="Vertical">
             <WrapPanel Orientation="Horizontal">
@@ -252,7 +257,7 @@
                             <MultiBinding
                                 Converter="{StaticResource MinusOneToBaseValueConverter}"
                                 Mode="TwoWay"
-                                UpdateSourceTrigger="PropertyChanged">
+                                UpdateSourceTrigger="LostFocus">
                                 <Binding
                                     Mode="TwoWay"
                                     Path="Gain"
