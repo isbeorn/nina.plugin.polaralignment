@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## Version 1.5.3.0
+
+- Gain should now be prepopulated by plate solve gain setting
+
 ## Version 1.5.1.0
 
 - Added dome support by waiting for the dome to sync after moving the axis for both automated mode as well as manual mode when both the mount and dome is connected
