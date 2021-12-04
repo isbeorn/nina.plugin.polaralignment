@@ -30,6 +30,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
     public class DockablePolarAlignmentVM : DockableVM , ICameraConsumer{
         private IApplicationStatusMediator applicationStatusMediator;
         private ICameraMediator cameraMediator;
+        private IWeatherDataMediator weatherDataMediator;
         private CancellationTokenSource executeCTS;
 
         [ImportingConstructor]
@@ -44,6 +45,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
             this.profileService = profileService;
             this.applicationStatusMediator = applicationStatusMediator;
             this.cameraMediator = cameraMediator;
+            this.weatherDataMediator = weatherDataMediator;
 
             this.PolarAlignment = new Instructions.PolarAlignment(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolveFactory, domeMediator, weatherDataMediator, new DummyService());
 
@@ -106,7 +108,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
                 OptionsExpanded = true;
                 cameraMediator.ReleaseCaptureBlock(this);
                 externalProgress?.Report(GetStatus(string.Empty));
-                (PolarAlignment as Instructions.PolarAlignment).TPAPAVM = new TPAPAVM(profileService);
+                (PolarAlignment as Instructions.PolarAlignment).TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
             }
             return false;
         }

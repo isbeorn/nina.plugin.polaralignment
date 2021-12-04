@@ -27,8 +27,9 @@ using System.Windows.Media;
 namespace NINA.Plugins.PolarAlignment {
     public class TPAPAVM : BaseINPC, IDisposable {
 
-        public TPAPAVM(IProfileService profileService) {
+        public TPAPAVM(IProfileService profileService, IWeatherDataMediator weatherDataMediator) {
             this.profileService = profileService;
+            this.weatherDataMediator = weatherDataMediator;
             Status = new ApplicationStatus();
 
             Steps = new List<TPPAStep>() {                
@@ -115,7 +116,38 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
+        private RefrectionParameters GetRefrectionParameters() {
+            if(Properties.Settings.Default.RefractionAdjustment) {
+                // https://en.wikipedia.org/wiki/Standard_temperature_and_pressure
+                const double standardPressure = 1013.25;
+                const double standardTemperature = 15;
+                const double standardHumidity = 0;
+
+                var info = weatherDataMediator.GetInfo();
+                if(info.Connected) {
+                    var pressure = info.Pressure;
+                    if(double.IsNaN(pressure)) {
+                        pressure = standardPressure;
+                    }
+                    var temperature = info.Temperature;
+                    if(double.IsNaN(temperature)) {
+                        temperature = standardTemperature;
+                    }
+                    var humidity = info.Humidity;
+                    if(double.IsNaN(humidity)) {
+                        humidity = standardHumidity;
+                    }
+                    return new RefrectionParameters(Properties.Settings.Default.Elevation, pressure, temperature, humidity);
+                } else {
+                    return new RefrectionParameters(Properties.Settings.Default.Elevation, standardPressure, standardTemperature, standardHumidity);
+                }                
+            }
+            return null;
+        }
+
         private void CalculateErrorDetails() {
+
+            var refractionParams = GetRefrectionParameters();
             var currentCenter = PolarErrorDetermination.CurrentReferenceFrame;
 
             var originPixel = PolarErrorDetermination.InitialReferenceFrame.Coordinates.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
@@ -124,13 +156,12 @@ namespace NINA.Plugins.PolarAlignment {
             var pointShift = Center - originPixel;
             originPixel = originPixel + pointShift * 2;
 
-            var destinationAltAz = PolarErrorDetermination.GetDestinationCoordinates(-PolarErrorDetermination.InitialMountAxisAzimuthError.Degree, -PolarErrorDetermination.InitialMountAxisAltitudeError.Degree, PolarErrorDetermination.WeatherDataInfo).Transform(Epoch.J2000);
+            var destinationAltAz = PolarErrorDetermination.GetDestinationCoordinates(-PolarErrorDetermination.InitialMountAxisAzimuthError.Degree, -PolarErrorDetermination.InitialMountAxisAltitudeError.Degree, refractionParams).Transform(Epoch.J2000);
             var destinationPixel = destinationAltAz.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
             destinationPixel = destinationPixel + pointShift * 2;
 
-
             // Azimuth
-            var originalAzimuthAltAz = PolarErrorDetermination.GetDestinationCoordinates(-PolarErrorDetermination.InitialMountAxisAzimuthError.Degree, 0, PolarErrorDetermination.WeatherDataInfo).Transform(Epoch.J2000);
+            var originalAzimuthAltAz = PolarErrorDetermination.GetDestinationCoordinates(-PolarErrorDetermination.InitialMountAxisAzimuthError.Degree, 0, refractionParams).Transform(Epoch.J2000);
             var originalAzimuthPixel = originalAzimuthAltAz.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
             originalAzimuthPixel = originalAzimuthPixel + pointShift * 2;
 
@@ -146,7 +177,7 @@ namespace NINA.Plugins.PolarAlignment {
             var originalAzimuthDistance = ToAccordPoint(originalAzimuthPixel).DistanceTo(ToAccordPoint(originPixel)); // az orig
 
             // Altitude
-            var originalAltitudeAltAz = PolarErrorDetermination.GetDestinationCoordinates(0, -PolarErrorDetermination.InitialMountAxisAltitudeError.Degree, PolarErrorDetermination.WeatherDataInfo).Transform(Epoch.J2000);
+            var originalAltitudeAltAz = PolarErrorDetermination.GetDestinationCoordinates(0, -PolarErrorDetermination.InitialMountAxisAltitudeError.Degree, refractionParams).Transform(Epoch.J2000);
             var originalAltitudePixel = originalAltitudeAltAz.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
             originalAltitudePixel = originalAltitudePixel + pointShift * 2;
 
@@ -311,6 +342,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         private ApplicationStatus status;
         private IProfileService profileService;
+        private IWeatherDataMediator weatherDataMediator;
 
         public ApplicationStatus Status { get => status; set { status = value; RaisePropertyChanged(); } }
 
@@ -405,11 +437,10 @@ namespace NINA.Plugins.PolarAlignment {
 
 
     public class PolarErrorDetermination : BaseINPC {
-        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude, double elevation, WeatherDataInfo weatherDataInfo) {
+        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude, double elevation) {
             Latitude = latitude;
             Longitude = longitude;
             Elevation = elevation;
-            WeatherDataInfo = weatherDataInfo;
 
             InitialReferenceFrame = referenceFrame;
             FirstPosition = position1;
@@ -432,7 +463,6 @@ namespace NINA.Plugins.PolarAlignment {
         public Angle Latitude { get; }
         public Angle Longitude { get; }
         public double Elevation { get; }
-        public WeatherDataInfo WeatherDataInfo { get; }
 
         public bool Northern {
             get => Latitude.Degree > 0;
@@ -552,15 +582,16 @@ namespace NINA.Plugins.PolarAlignment {
             CurrentReferenceFrame = InitialReferenceFrame;
         }
 
-        public TopocentricCoordinates GetDestinationCoordinates(double azAngle, double altAngle, WeatherDataInfo weatherDataInfo) {
+        public TopocentricCoordinates GetDestinationCoordinates(double azAngle, double altAngle, RefrectionParameters refrectionParameters) {
             TopocentricCoordinates referenceTopo;
-            if (weatherDataInfo?.Connected == true) {
-                double pressurehPa = weatherDataInfo.Pressure;
-                double temperature = weatherDataInfo.Temperature;
-                double relativeHumidity = weatherDataInfo.Humidity;
+            if (refrectionParameters != null) {
+                double pressurehPa = refrectionParameters.PressureHPa;
+                double temperature = refrectionParameters.Temperature;
+                double relativeHumidity = refrectionParameters.RelativeHumidity;
+                double elevation = refrectionParameters.Elevation;
                 const double wavelength = 0.55d;
                 Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
-                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, Elevation, pressurehPa, temperature, relativeHumidity, wavelength);
+                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
             } else {
                 referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, Elevation);
             }
@@ -574,13 +605,26 @@ namespace NINA.Plugins.PolarAlignment {
             var rotatedAltAxis = Vector3.RotateByRodrigues(new Vector3(0, 1, 0), new Vector3(0, 0, 1), azRotation);
 
             var finalDest = Vector3.RotateByRodrigues(azDest, rotatedAltAxis, altRotation); //combination of first az then applied alt
-            if (weatherDataInfo?.Connected == true) {
-
-            }
 
             return finalDest.ToTopocentric(Latitude, Longitude, Elevation);
         }
 
+    }
+
+
+    public class RefrectionParameters {
+        public RefrectionParameters(double elevation, double pressureHPa, double temperature, double relativeHumidity) {
+            Elevation = elevation;
+            PressureHPa = pressureHPa;
+            Temperature = temperature;
+            RelativeHumidity = relativeHumidity;
+        }
+
+        public double Elevation { get; }
+        public double PressureHPa { get; }
+
+        public double Temperature { get; }
+        public double RelativeHumidity { get; }
     }
     
     public class Position {

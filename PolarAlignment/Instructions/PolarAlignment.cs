@@ -98,10 +98,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             SearchRadius = Properties.Settings.Default.DefaultSearchRadius;
 
             CameraInfo = this.cameraMediator.GetInfo();
-            WeatherDataInfo = this.weatherDataMediator.GetInfo();
             var telescopeInfo = this.telescopeMediator.GetInfo();
             Elevation = telescopeInfo.SiteElevation;
-            WeatherDataInfo = Properties.Settings.Default.RefractionAdjustment ? weatherDataMediator.GetInfo() : null;
 
             if (Northern) {
                 Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(Properties.Settings.Default.DefaultAzimuthOffset), Latitude + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, Elevation, new SystemDateTime())); ;
@@ -109,7 +107,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(180 + Properties.Settings.Default.DefaultAzimuthOffset), Angle.ByDegree(Math.Abs(Latitude.Degree)) + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, Elevation, new SystemDateTime()));
             }
 
-            TPAPAVM = new TPAPAVM(profileService);
+            TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
         }
 
         private PolarAlignment(PolarAlignment copyMe): this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator) {
@@ -301,7 +299,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         TPAPAVM?.Dispose();
                     } catch(Exception) { }
                     
-                    TPAPAVM = new TPAPAVM(profileService);
+                    TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
                     IProgress<ApplicationStatus> progress = new Progress<ApplicationStatus>(p => { TPAPAVM.Status = p; externalProgress?.Report(p); });
 
                     windowService.Show(TPAPAVM, Loc.Instance["LblPolarAlignment"], System.Windows.ResizeMode.CanResizeWithGrip, System.Windows.WindowStyle.SingleBorderWindow);
@@ -374,7 +372,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     progress?.Report(GetStatus("Calculating Error"));
 
 
-                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, Elevation, WeatherDataInfo);
+                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, Elevation);
 
                     Logger.Info($"Calculated Error: Az: { TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: { TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: { TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 
@@ -468,10 +466,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private CameraInfo cameraInfo;
 
         public CameraInfo CameraInfo { get => cameraInfo; private set { cameraInfo = value; RaisePropertyChanged(); } }
-
-        private WeatherDataInfo weatherDataInfo;
-
-        public WeatherDataInfo WeatherDataInfo { get => weatherDataInfo; private set { weatherDataInfo = value; RaisePropertyChanged(); } }
 
         private async Task<PlateSolveResult> Solve(TPAPAVM context, IProgress<ApplicationStatus> progress, CancellationToken token) {
             PlateSolveResult result = new PlateSolveResult { Success = false };
@@ -622,8 +616,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     i.Add(string.Format(Loc.Instance["Lbl_SequenceItem_Imaging_TakeExposure_Validation_Offset"], CameraInfo.OffsetMin, CameraInfo.OffsetMax, Offset));
                 }
             }
-
-            WeatherDataInfo = Properties.Settings.Default.RefractionAdjustment ? weatherDataMediator.GetInfo() : null;
 
             //Filter wheel
             if (filter != null && !fwMediator.GetInfo().Connected) {
