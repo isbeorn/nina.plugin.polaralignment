@@ -337,7 +337,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     var telescopeInfo = telescopeMediator.GetInfo();
                     var elevation = telescopeInfo.SiteElevation;
 
-                    var position1 = new Position(solve1.Coordinates, Latitude, Longitude, RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo());
+                    var position1 = new Position(solve1.Coordinates, Latitude, Longitude, RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo()));
 
                     Logger.Info($"First measurement point {solve1.Coordinates} - Vector: {position1.Vector}");
 
@@ -350,7 +350,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         solve2 = await ManualNextPoint(solve1, progress, localCTS.Token);
                     }
 
-                    var position2 = new Position(solve2.Coordinates, Latitude, Longitude, RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo());
+                    var position2 = new Position(solve2.Coordinates, Latitude, Longitude, RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo()));
 
                     Logger.Info($"Second measurement point {solve2.Coordinates} - Vector: {position2.Vector}");
 
@@ -365,7 +365,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         solve3 = await Solve(TPAPAVM, progress, localCTS.Token);
                     }
 
-                    var position3 = new Position(solve3.Coordinates, Latitude, Longitude, RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo());
+                    var position3 = new Position(solve3.Coordinates, Latitude, Longitude, RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo()));
 
                     Logger.Info($"Third measurement point {solve3.Coordinates} - Vector: {position3.Vector}");
 
