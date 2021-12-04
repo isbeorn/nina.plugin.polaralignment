@@ -190,5 +190,17 @@ namespace NINA.Plugins.PolarAlignment.Properties {
                 this["LogError"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool DefaultRefractionAdjustment {
+            get {
+                return ((bool)(this["DefaultRefractionAdjustment"]));
+            }
+            set {
+                this["DefaultRefractionAdjustment"] = value;
+            }
+        }
     }
 }

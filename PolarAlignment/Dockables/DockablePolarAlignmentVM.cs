@@ -33,7 +33,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
         private CancellationTokenSource executeCTS;
 
         [ImportingConstructor]
-        public DockablePolarAlignmentVM(IProfileService profileService, IApplicationStatusMediator applicationStatusMediator, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IDomeMediator domeMediator, IPlateSolverFactory plateSolveFactory) : base(profileService) {
+        public DockablePolarAlignmentVM(IProfileService profileService, IApplicationStatusMediator applicationStatusMediator, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IDomeMediator domeMediator, IPlateSolverFactory plateSolveFactory, IWeatherDataMediator weatherDataMediator) : base(profileService) {
             Title = "Three Point Polar Alignment";
             OptionsExpanded = true;
             var dict = new ResourceDictionary();
@@ -45,7 +45,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
             this.applicationStatusMediator = applicationStatusMediator;
             this.cameraMediator = cameraMediator;
 
-            this.PolarAlignment = new Instructions.PolarAlignment(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolveFactory, domeMediator, new DummyService());
+            this.PolarAlignment = new Instructions.PolarAlignment(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolveFactory, domeMediator, weatherDataMediator, new DummyService());
 
             ExecuteCommand = new AsyncCommand<bool>(
                 async () => { using (executeCTS = new CancellationTokenSource()) { return await Execute(new Progress<ApplicationStatus>(p => Status = p), executeCTS.Token); } },

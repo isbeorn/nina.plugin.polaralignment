@@ -32,6 +32,16 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
+        public bool DefaultRefractionAdjustment {
+            get {
+                return Properties.Settings.Default.DefaultRefractionAdjustment;
+            }
+            set {
+                Properties.Settings.Default.DefaultRefractionAdjustment = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+            }
+        }
+
         public double DefaultMoveRate {
             get {
                 return Properties.Settings.Default.DefaultMoveRate;
