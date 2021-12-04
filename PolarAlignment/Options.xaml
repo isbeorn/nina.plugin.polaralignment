@@ -12,6 +12,7 @@
     xmlns:rules="clr-namespace:NINA.Core.Utility.ValidationRules;assembly=NINA.Core"
     xmlns:util="clr-namespace:NINA.Core.Utility;assembly=NINA.Core"
     xmlns:xceed="http://schemas.xceed.com/wpf/xaml/toolkit">
+    <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     <DataTemplate x:Key="Three Point Polar Alignment_Options">
         <Grid DataContext="{Binding}">
             <Grid.ColumnDefinitions>
@@ -19,6 +20,7 @@
                 <ColumnDefinition />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
+                <RowDefinition MinHeight="25" />
                 <RowDefinition MinHeight="25" />
                 <RowDefinition MinHeight="25" />
                 <RowDefinition MinHeight="25" />
@@ -199,7 +201,7 @@
             <TextBlock
                 Grid.Row="13"
                 VerticalAlignment="Center"
-                Text="Default Refraction Adjustment" />
+                Text="Adjust for refraction?" />
             <CheckBox
                 Grid.Row="13"
                 Grid.Column="1"
@@ -207,7 +209,22 @@
                 Margin="5,0,0,0"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
-                IsChecked="{Binding DefaultRefractionAdjustment}" />
+                IsChecked="{Binding RefractionAdjustment}" />
+            <TextBlock
+                Grid.Row="14"
+                VerticalAlignment="Center"
+                Text="Elevation"
+                Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <ninactrl:UnitTextBox
+                Grid.Row="14"
+                Grid.Column="1"
+                MinWidth="80"
+                Margin="5,0,0,0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Text="{Binding Elevation}"
+                Unit="m"
+                Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
         </Grid>
     </DataTemplate>
 

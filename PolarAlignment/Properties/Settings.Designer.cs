@@ -194,12 +194,24 @@ namespace NINA.Plugins.PolarAlignment.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool DefaultRefractionAdjustment {
+        public bool RefractionAdjustment {
             get {
-                return ((bool)(this["DefaultRefractionAdjustment"]));
+                return ((bool)(this["RefractionAdjustment"]));
             }
             set {
-                this["DefaultRefractionAdjustment"] = value;
+                this["RefractionAdjustment"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int Elevation {
+            get {
+                return ((int)(this["Elevation"]));
+            }
+            set {
+                this["Elevation"] = value;
             }
         }
     }

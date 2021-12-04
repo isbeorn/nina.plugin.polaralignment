@@ -63,7 +63,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private double searchRadius;
         private int targetDistance;
         private bool eastDirection;
-        private bool refractionAdjustment;
         private bool manualMode;
         private bool startFromCurrentPosition;
         private IList<string> issues = new List<string>();
@@ -94,7 +93,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             Binning = new BinningMode(profileService.ActiveProfile.PlateSolveSettings.Binning, profileService.ActiveProfile.PlateSolveSettings.Binning);
 
             EastDirection = Properties.Settings.Default.DefaultEastDirection;
-            RefractionAdjustment = Properties.Settings.Default.DefaultRefractionAdjustment;
             MoveRate = Properties.Settings.Default.DefaultMoveRate;
             TargetDistance = Properties.Settings.Default.DefaultTargetDistance;
             SearchRadius = Properties.Settings.Default.DefaultSearchRadius;
@@ -103,7 +101,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             WeatherDataInfo = this.weatherDataMediator.GetInfo();
             var telescopeInfo = this.telescopeMediator.GetInfo();
             Elevation = telescopeInfo.SiteElevation;
-            WeatherDataInfo = this.RefractionAdjustment ? weatherDataMediator.GetInfo() : null;
+            WeatherDataInfo = Properties.Settings.Default.RefractionAdjustment ? weatherDataMediator.GetInfo() : null;
 
             if (Northern) {
                 Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(Properties.Settings.Default.DefaultAzimuthOffset), Latitude + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, Elevation, new SystemDateTime())); ;
@@ -171,15 +169,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             get => eastDirection;
             set {
                 eastDirection = value;
-                RaisePropertyChanged();
-            }
-        }
-
-        [JsonProperty]
-        public bool RefractionAdjustment {
-            get => refractionAdjustment;
-            set {
-                refractionAdjustment = value;
                 RaisePropertyChanged();
             }
         }
@@ -634,7 +623,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 }
             }
 
-            WeatherDataInfo = this.RefractionAdjustment ? weatherDataMediator.GetInfo() : null;
+            WeatherDataInfo = Properties.Settings.Default.RefractionAdjustment ? weatherDataMediator.GetInfo() : null;
 
             //Filter wheel
             if (filter != null && !fwMediator.GetInfo().Connected) {

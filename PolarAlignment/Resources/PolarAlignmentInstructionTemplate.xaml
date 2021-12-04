@@ -60,11 +60,6 @@
                         VerticalAlignment="Center"
                         Text="Direction East" />
                     <CheckBox VerticalAlignment="Center" IsChecked="{Binding EastDirection, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock
-                        Margin="5,0,0,0"
-                        VerticalAlignment="Center"
-                        Text="Refraction Adjustment" />
-                    <CheckBox VerticalAlignment="Center" IsChecked="{Binding RefractionAdjustment, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding WeatherDataInfo.Connected}"/>
                 </StackPanel>
             </WrapPanel>
             <WrapPanel
