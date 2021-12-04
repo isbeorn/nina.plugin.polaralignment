@@ -22,7 +22,7 @@ namespace NINA.Plugins.PolarAlignment {
                 const double standardTemperature = 15;
                 const double standardHumidity = 0;
                                 
-                if (info.Connected) {
+                if (info?.Connected == true) {
                     var pressure = info.Pressure;
                     if (double.IsNaN(pressure)) {
                         pressure = standardPressure;
