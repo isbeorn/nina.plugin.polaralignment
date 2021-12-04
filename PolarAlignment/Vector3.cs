@@ -45,17 +45,18 @@ namespace NINA.Plugins.PolarAlignment {
         /// </summary>
         /// <param name="coordinates"></param>
         /// <returns></returns>
-        public static Vector3 CoordinatesToUnitVector(Coordinates coordinates, Angle latitude, Angle longitude, double elevation, WeatherDataInfo weatherDataInfo) {
+        public static Vector3 CoordinatesToUnitVector(Coordinates coordinates, Angle latitude, Angle longitude, RefrectionParameters refrectionParameters) {
             TopocentricCoordinates topo;
-            if (weatherDataInfo?.Connected == true) {
-                double pressurehPa = weatherDataInfo.Pressure;
-                double temperature = weatherDataInfo.Temperature;
-                double relativeHumidity = weatherDataInfo.Humidity;
+            if (refrectionParameters != null) {
+                double pressurehPa = refrectionParameters.PressureHPa;
+                double temperature = refrectionParameters.Temperature;
+                double relativeHumidity = refrectionParameters.RelativeHumidity;
+                double elevation = refrectionParameters.Elevation;
                 const double wavelength = 0.55d;
                 Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
                 topo = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
             } else {
-                topo = coordinates.Transform(latitude, longitude, elevation);
+                topo = coordinates.Transform(latitude, longitude);
             }
 
             return CoordinatesToUnitVector(topo);

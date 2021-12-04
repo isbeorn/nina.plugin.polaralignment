@@ -306,6 +306,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Locale.resx</DependentUpon>
     </Compile>
+    <Compile Include="RefrectionParameters.cs" />
     <Compile Include="TPAPAVM.cs" />
     <Compile Include="Vector3.cs" />
     <Compile Include="Options.xaml.cs">

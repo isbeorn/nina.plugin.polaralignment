@@ -5,7 +5,6 @@ using NINA.Astrometry;
 using NINA.Core.Model;
 using NINA.Core.Utility;
 using NINA.Core.Utility.Notification;
-using NINA.Equipment.Equipment.MyWeatherData;
 using NINA.Equipment.Interfaces.Mediator;
 using NINA.Image.ImageAnalysis;
 using NINA.Image.Interfaces;
@@ -116,38 +115,11 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
-        private RefrectionParameters GetRefrectionParameters() {
-            if(Properties.Settings.Default.RefractionAdjustment) {
-                // https://en.wikipedia.org/wiki/Standard_temperature_and_pressure
-                const double standardPressure = 1013.25;
-                const double standardTemperature = 15;
-                const double standardHumidity = 0;
-
-                var info = weatherDataMediator.GetInfo();
-                if(info.Connected) {
-                    var pressure = info.Pressure;
-                    if(double.IsNaN(pressure)) {
-                        pressure = standardPressure;
-                    }
-                    var temperature = info.Temperature;
-                    if(double.IsNaN(temperature)) {
-                        temperature = standardTemperature;
-                    }
-                    var humidity = info.Humidity;
-                    if(double.IsNaN(humidity)) {
-                        humidity = standardHumidity;
-                    }
-                    return new RefrectionParameters(Properties.Settings.Default.Elevation, pressure, temperature, humidity);
-                } else {
-                    return new RefrectionParameters(Properties.Settings.Default.Elevation, standardPressure, standardTemperature, standardHumidity);
-                }                
-            }
-            return null;
-        }
+        
 
         private void CalculateErrorDetails() {
 
-            var refractionParams = GetRefrectionParameters();
+            var refractionParams = RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo());
             var currentCenter = PolarErrorDetermination.CurrentReferenceFrame;
 
             var originPixel = PolarErrorDetermination.InitialReferenceFrame.Coordinates.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
@@ -610,26 +582,20 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
     }
-
-
-    public class RefrectionParameters {
-        public RefrectionParameters(double elevation, double pressureHPa, double temperature, double relativeHumidity) {
-            Elevation = elevation;
-            PressureHPa = pressureHPa;
-            Temperature = temperature;
-            RelativeHumidity = relativeHumidity;
-        }
-
-        public double Elevation { get; }
-        public double PressureHPa { get; }
-
-        public double Temperature { get; }
-        public double RelativeHumidity { get; }
-    }
     
     public class Position {
-        public Position(Coordinates coordinates, Angle latitude, Angle longitude, double elevation) {     
-            Topocentric = coordinates.Transform(latitude, longitude, elevation);
+        public Position(Coordinates coordinates, Angle latitude, Angle longitude, RefrectionParameters refrectionParameters) {
+            if (refrectionParameters != null) {
+                double pressurehPa = refrectionParameters.PressureHPa;
+                double temperature = refrectionParameters.Temperature;
+                double relativeHumidity = refrectionParameters.RelativeHumidity;
+                double elevation = refrectionParameters.Elevation;
+                const double wavelength = 0.55d;
+                Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
+                Topocentric = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
+            } else {
+                Topocentric = coordinates.Transform(latitude, longitude);
+            }
             Vector = Vector3.CoordinatesToUnitVector(Topocentric);
         }
         public Position(Vector3 vector, Angle latitude, Angle longitude, double elevation) {
