@@ -7,6 +7,7 @@ using NINA.Core.Utility;
 using NINA.Core.Utility.Notification;
 using NINA.Core.Utility.WindowService;
 using NINA.Equipment.Equipment.MyCamera;
+using NINA.Equipment.Equipment.MyWeatherData;
 using NINA.Equipment.Interfaces.Mediator;
 using NINA.Equipment.Model;
 using NINA.Image.ImageAnalysis;
@@ -57,10 +58,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private IWindowService windowService;
         private IPlateSolverFactory plateSolverFactory;
         private IDomeMediator domeMediator;
+        private IWeatherDataMediator weatherDataMediator;
         private double moveRate;
         private double searchRadius;
         private int targetDistance;
         private bool eastDirection;
+        private bool refractionAdjustment;
         private bool manualMode;
         private bool startFromCurrentPosition;
         private IList<string> issues = new List<string>();
@@ -71,10 +74,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
 
         [ImportingConstructor]
-        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator) :this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, new CustomWindowService()) {            
+        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator) :this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService()) {            
         }
 
-        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWindowService windowService) {
+        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator, IWindowService windowService) {
             this.profileService = profileService;
             this.cameraMediator = cameraMediator;
             this.imagingMediator = imagingMediator;
@@ -83,6 +86,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             this.windowService = windowService;
             this.plateSolverFactory = plateSolverFactory;
             this.domeMediator = domeMediator;
+            this.weatherDataMediator = weatherDataMediator;
 
             Gain = profileService.ActiveProfile.PlateSolveSettings.Gain;
             Offset = -1;
@@ -90,22 +94,27 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             Binning = new BinningMode(profileService.ActiveProfile.PlateSolveSettings.Binning, profileService.ActiveProfile.PlateSolveSettings.Binning);
 
             EastDirection = Properties.Settings.Default.DefaultEastDirection;
+            RefractionAdjustment = Properties.Settings.Default.DefaultRefractionAdjustment;
             MoveRate = Properties.Settings.Default.DefaultMoveRate;
             TargetDistance = Properties.Settings.Default.DefaultTargetDistance;
             SearchRadius = Properties.Settings.Default.DefaultSearchRadius;
 
             CameraInfo = this.cameraMediator.GetInfo();
+            WeatherDataInfo = this.weatherDataMediator.GetInfo();
+            var telescopeInfo = this.telescopeMediator.GetInfo();
+            Elevation = telescopeInfo.SiteElevation;
+            WeatherDataInfo = this.RefractionAdjustment ? weatherDataMediator.GetInfo() : null;
 
             if (Northern) {
-                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(Properties.Settings.Default.DefaultAzimuthOffset), Latitude + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude));
+                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(Properties.Settings.Default.DefaultAzimuthOffset), Latitude + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, Elevation, new SystemDateTime())); ;
             } else {
-                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(180 + Properties.Settings.Default.DefaultAzimuthOffset), Angle.ByDegree(Math.Abs(Latitude.Degree)) + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude));
+                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(180 + Properties.Settings.Default.DefaultAzimuthOffset), Angle.ByDegree(Math.Abs(Latitude.Degree)) + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, Elevation, new SystemDateTime()));
             }
 
             TPAPAVM = new TPAPAVM(profileService);
         }
 
-        private PolarAlignment(PolarAlignment copyMe): this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator) {
+        private PolarAlignment(PolarAlignment copyMe): this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator) {
             CopyMetaData(copyMe);
         }
 
@@ -126,6 +135,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 ManualMode = ManualMode,
                 StartFromCurrentPosition = StartFromCurrentPosition,
                 Coordinates = new InputTopocentricCoordinates(Coordinates.Coordinates.Copy()),
+                Elevation = Elevation
             };
 
             if (clone.Binning == null) {
@@ -161,6 +171,15 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             get => eastDirection;
             set {
                 eastDirection = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        [JsonProperty]
+        public bool RefractionAdjustment {
+            get => refractionAdjustment;
+            set {
+                refractionAdjustment = value;
                 RaisePropertyChanged();
             }
         }
@@ -328,7 +347,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     var solve1 = await Solve(TPAPAVM, progress, localCTS.Token);
 
-                    var position1 = new Position(solve1.Coordinates, Latitude, Longitude);
+                    var telescopeInfo = telescopeMediator.GetInfo();
+                    var elevation = telescopeInfo.SiteElevation;
+
+                    var position1 = new Position(solve1.Coordinates, Latitude, Longitude, elevation);
 
                     Logger.Info($"First measurement point {solve1.Coordinates} - Vector: {position1.Vector}");
 
@@ -341,7 +363,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         solve2 = await ManualNextPoint(solve1, progress, localCTS.Token);
                     }
 
-                    var position2 = new Position(solve2.Coordinates, Latitude, Longitude);
+                    var position2 = new Position(solve2.Coordinates, Latitude, Longitude, elevation);
 
                     Logger.Info($"Second measurement point {solve2.Coordinates} - Vector: {position2.Vector}");
 
@@ -356,14 +378,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         solve3 = await Solve(TPAPAVM, progress, localCTS.Token);
                     }
 
-                    var position3 = new Position(solve3.Coordinates, Latitude, Longitude);
+                    var position3 = new Position(solve3.Coordinates, Latitude, Longitude, elevation);
 
                     Logger.Info($"Third measurement point {solve3.Coordinates} - Vector: {position3.Vector}");
 
                     progress?.Report(GetStatus("Calculating Error"));
 
 
-                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude);
+                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, Elevation, WeatherDataInfo);
 
                     Logger.Info($"Calculated Error: Az: { TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: { TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: { TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 
@@ -457,6 +479,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private CameraInfo cameraInfo;
 
         public CameraInfo CameraInfo { get => cameraInfo; private set { cameraInfo = value; RaisePropertyChanged(); } }
+
+        private WeatherDataInfo weatherDataInfo;
+
+        public WeatherDataInfo WeatherDataInfo { get => weatherDataInfo; private set { weatherDataInfo = value; RaisePropertyChanged(); } }
 
         private async Task<PlateSolveResult> Solve(TPAPAVM context, IProgress<ApplicationStatus> progress, CancellationToken token) {
             PlateSolveResult result = new PlateSolveResult { Success = false };
@@ -580,6 +606,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             get => Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Longitude);
         }
 
+        public double Elevation { get; private set; }
+
         /// <summary>
         /// This string will be used for logging
         /// </summary>
@@ -605,6 +633,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     i.Add(string.Format(Loc.Instance["Lbl_SequenceItem_Imaging_TakeExposure_Validation_Offset"], CameraInfo.OffsetMin, CameraInfo.OffsetMax, Offset));
                 }
             }
+
+            WeatherDataInfo = this.RefractionAdjustment ? weatherDataMediator.GetInfo() : null;
 
             //Filter wheel
             if (filter != null && !fwMediator.GetInfo().Connected) {

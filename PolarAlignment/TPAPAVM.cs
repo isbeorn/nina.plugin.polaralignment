@@ -5,6 +5,8 @@ using NINA.Astrometry;
 using NINA.Core.Model;
 using NINA.Core.Utility;
 using NINA.Core.Utility.Notification;
+using NINA.Equipment.Equipment.MyWeatherData;
+using NINA.Equipment.Interfaces.Mediator;
 using NINA.Image.ImageAnalysis;
 using NINA.Image.Interfaces;
 using NINA.PlateSolving;
@@ -122,13 +124,13 @@ namespace NINA.Plugins.PolarAlignment {
             var pointShift = Center - originPixel;
             originPixel = originPixel + pointShift * 2;
 
-            var destinationAltAz = PolarErrorDetermination.GetDestinationCoordinates(-PolarErrorDetermination.InitialMountAxisAzimuthError.Degree, -PolarErrorDetermination.InitialMountAxisAltitudeError.Degree).Transform(Epoch.J2000);
+            var destinationAltAz = PolarErrorDetermination.GetDestinationCoordinates(-PolarErrorDetermination.InitialMountAxisAzimuthError.Degree, -PolarErrorDetermination.InitialMountAxisAltitudeError.Degree, PolarErrorDetermination.WeatherDataInfo).Transform(Epoch.J2000);
             var destinationPixel = destinationAltAz.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
             destinationPixel = destinationPixel + pointShift * 2;
 
 
             // Azimuth
-            var originalAzimuthAltAz = PolarErrorDetermination.GetDestinationCoordinates(-PolarErrorDetermination.InitialMountAxisAzimuthError.Degree, 0).Transform(Epoch.J2000);
+            var originalAzimuthAltAz = PolarErrorDetermination.GetDestinationCoordinates(-PolarErrorDetermination.InitialMountAxisAzimuthError.Degree, 0, PolarErrorDetermination.WeatherDataInfo).Transform(Epoch.J2000);
             var originalAzimuthPixel = originalAzimuthAltAz.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
             originalAzimuthPixel = originalAzimuthPixel + pointShift * 2;
 
@@ -144,7 +146,7 @@ namespace NINA.Plugins.PolarAlignment {
             var originalAzimuthDistance = ToAccordPoint(originalAzimuthPixel).DistanceTo(ToAccordPoint(originPixel)); // az orig
 
             // Altitude
-            var originalAltitudeAltAz = PolarErrorDetermination.GetDestinationCoordinates(0, -PolarErrorDetermination.InitialMountAxisAltitudeError.Degree).Transform(Epoch.J2000);
+            var originalAltitudeAltAz = PolarErrorDetermination.GetDestinationCoordinates(0, -PolarErrorDetermination.InitialMountAxisAltitudeError.Degree, PolarErrorDetermination.WeatherDataInfo).Transform(Epoch.J2000);
             var originalAltitudePixel = originalAltitudeAltAz.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
             originalAltitudePixel = originalAltitudePixel + pointShift * 2;
 
@@ -403,9 +405,11 @@ namespace NINA.Plugins.PolarAlignment {
 
 
     public class PolarErrorDetermination : BaseINPC {
-        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude) {
+        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude, double elevation, WeatherDataInfo weatherDataInfo) {
             Latitude = latitude;
             Longitude = longitude;
+            Elevation = elevation;
+            WeatherDataInfo = weatherDataInfo;
 
             InitialReferenceFrame = referenceFrame;
             FirstPosition = position1;
@@ -420,13 +424,15 @@ namespace NINA.Plugins.PolarAlignment {
             }
 
 
-            InitialMountAxisErrorPosition = new Position(planeVector, Latitude, Longitude);
+            InitialMountAxisErrorPosition = new Position(planeVector, Latitude, Longitude, elevation);
 
             CalculateMountAxisError();
         }
 
         public Angle Latitude { get; }
         public Angle Longitude { get; }
+        public double Elevation { get; }
+        public WeatherDataInfo WeatherDataInfo { get; }
 
         public bool Northern {
             get => Latitude.Degree > 0;
@@ -546,9 +552,18 @@ namespace NINA.Plugins.PolarAlignment {
             CurrentReferenceFrame = InitialReferenceFrame;
         }
 
-        public TopocentricCoordinates GetDestinationCoordinates(double azAngle, double altAngle) {
-            var referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude);
-
+        public TopocentricCoordinates GetDestinationCoordinates(double azAngle, double altAngle, WeatherDataInfo weatherDataInfo) {
+            TopocentricCoordinates referenceTopo;
+            if (weatherDataInfo?.Connected == true) {
+                double pressurehPa = weatherDataInfo.Pressure;
+                double temperature = weatherDataInfo.Temperature;
+                double relativeHumidity = weatherDataInfo.Humidity;
+                const double wavelength = 0.55d;
+                Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
+                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, Elevation, pressurehPa, temperature, relativeHumidity, wavelength);
+            } else {
+                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, Elevation);
+            }
             var vRef = Vector3.CoordinatesToUnitVector(referenceTopo);
 
             var azRotation = Angle.ByDegree(azAngle);
@@ -559,19 +574,22 @@ namespace NINA.Plugins.PolarAlignment {
             var rotatedAltAxis = Vector3.RotateByRodrigues(new Vector3(0, 1, 0), new Vector3(0, 0, 1), azRotation);
 
             var finalDest = Vector3.RotateByRodrigues(azDest, rotatedAltAxis, altRotation); //combination of first az then applied alt
+            if (weatherDataInfo?.Connected == true) {
 
-            return finalDest.ToTopocentric(Latitude, Longitude);
+            }
+
+            return finalDest.ToTopocentric(Latitude, Longitude, Elevation);
         }
 
     }
     
     public class Position {
-        public Position(Coordinates coordinates, Angle latitude, Angle longitude) {     
-            Topocentric = coordinates.Transform(latitude, longitude);
+        public Position(Coordinates coordinates, Angle latitude, Angle longitude, double elevation) {     
+            Topocentric = coordinates.Transform(latitude, longitude, elevation);
             Vector = Vector3.CoordinatesToUnitVector(Topocentric);
         }
-        public Position(Vector3 vector, Angle latitude, Angle longitude) {
-            Topocentric = vector.ToTopocentric(latitude, longitude);
+        public Position(Vector3 vector, Angle latitude, Angle longitude, double elevation) {
+            Topocentric = vector.ToTopocentric(latitude, longitude, elevation);
             Vector = vector;
         }
 

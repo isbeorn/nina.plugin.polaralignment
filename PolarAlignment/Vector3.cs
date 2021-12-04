@@ -1,4 +1,6 @@
 ﻿using NINA.Astrometry;
+using NINA.Core.Utility;
+using NINA.Equipment.Equipment.MyWeatherData;
 using System;
 
 namespace NINA.Plugins.PolarAlignment {
@@ -28,13 +30,13 @@ namespace NINA.Plugins.PolarAlignment {
             return new Vector3(X / Length, Y / Length, Z / Length);
         }
 
-        public TopocentricCoordinates ToTopocentric(Angle latitude, Angle longitude) {
-            if (X == 0 && Y == 0) { return new TopocentricCoordinates(Angle.ByDegree(0), Angle.ByDegree(90), latitude, longitude); }
+        public TopocentricCoordinates ToTopocentric(Angle latitude, Angle longitude, double elevation) {
+            if (X == 0 && Y == 0) { return new TopocentricCoordinates(Angle.ByDegree(0), Angle.ByDegree(90), latitude, longitude, elevation, new SystemDateTime()); }
 
             var azRad = Y == 0 ? 0 : -Math.Atan2(Y, X);
             var altRad = (Math.PI / 2d) - Math.Acos(Z);
 
-            return new TopocentricCoordinates(Angle.ByRadians(azRad), Angle.ByRadians(altRad), latitude, longitude);
+            return new TopocentricCoordinates(Angle.ByRadians(azRad), Angle.ByRadians(altRad), latitude, longitude, elevation, new SystemDateTime());
         }
 
         /// <summary>
@@ -43,8 +45,18 @@ namespace NINA.Plugins.PolarAlignment {
         /// </summary>
         /// <param name="coordinates"></param>
         /// <returns></returns>
-        public static Vector3 CoordinatesToUnitVector(Coordinates coordinates, Angle latitude, Angle longitude) {
-            var topo = coordinates.Transform(latitude, longitude);
+        public static Vector3 CoordinatesToUnitVector(Coordinates coordinates, Angle latitude, Angle longitude, double elevation, WeatherDataInfo weatherDataInfo) {
+            TopocentricCoordinates topo;
+            if (weatherDataInfo?.Connected == true) {
+                double pressurehPa = weatherDataInfo.Pressure;
+                double temperature = weatherDataInfo.Temperature;
+                double relativeHumidity = weatherDataInfo.Humidity;
+                const double wavelength = 0.55d;
+                Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
+                topo = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
+            } else {
+                topo = coordinates.Transform(latitude, longitude, elevation);
+            }
 
             return CoordinatesToUnitVector(topo);
         }
