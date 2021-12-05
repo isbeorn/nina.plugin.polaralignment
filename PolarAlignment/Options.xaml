@@ -331,17 +331,22 @@
                                                 <ColumnDefinition />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                FontSize="14"
-                                                Text="{Binding Name}"
-                                                Visibility="{Binding Completed, Converter={StaticResource InverseBooleanToVisibilityCollapsedConverter}}" />
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                FontSize="14"
-                                                Foreground="{StaticResource SuccessColor}"
-                                                Text="{Binding Name}"
-                                                Visibility="{Binding Completed, Converter={StaticResource VisibilityConverter}}" />
+
+                                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="14"
+                                                    Text="{Binding Name}"
+                                                    Visibility="{Binding Completed, Converter={StaticResource InverseBooleanToVisibilityCollapsedConverter}}" />
+                                            </Viewbox>
+                                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="14"
+                                                    Foreground="{StaticResource SuccessColor}"
+                                                    Text="{Binding Name}"
+                                                    Visibility="{Binding Completed, Converter={StaticResource VisibilityConverter}}" />
+                                            </Viewbox>
                                             <ninactrl:LoadingControl
                                                 Grid.Column="1"
                                                 Margin="2.5"
