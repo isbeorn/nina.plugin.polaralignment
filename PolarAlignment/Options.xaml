@@ -202,14 +202,22 @@
                 Grid.Row="13"
                 VerticalAlignment="Center"
                 Text="Adjust for refraction?" />
-            <CheckBox
+            <StackPanel
                 Grid.Row="13"
                 Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                IsChecked="{Binding RefractionAdjustment}" />
+                Orientation="Horizontal">
+                <CheckBox
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    IsChecked="{Binding RefractionAdjustment}" />
+                <TextBlock
+                    Margin="5,0,0,0"
+                    Text="This option is currently under test. Feedback if this results in better polar alignment is appreciated!"
+                    Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </StackPanel>
+
         </Grid>
     </DataTemplate>
 

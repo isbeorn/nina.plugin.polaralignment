@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## Version 1.6.0.0
+
+- Enhanced the scaling of the error text for smaller resolutions
+- Added an option to account for refraction (which needs further testing in live conditions)
+
 ## Version 1.5.3.0
 
 - Gain should now be prepopulated by plate solve gain setting
