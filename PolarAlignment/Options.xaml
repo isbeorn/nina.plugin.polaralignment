@@ -708,11 +708,16 @@
                     BorderThickness="0,0,1,0">
                     <GroupBox>
                         <GroupBox.Header>
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="36"
-                                Foreground="{StaticResource AzimuthErrorColor}"
-                                Text="Azimuth Error ⬌" />
+                            <Viewbox
+                                Height="40"
+                                Stretch="Uniform"
+                                StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="36"
+                                    Foreground="{StaticResource AzimuthErrorColor}"
+                                    Text="Azimuth Error ⬌" />
+                            </Viewbox>
                         </GroupBox.Header>
                         <UniformGrid VerticalAlignment="Center" Rows="3">
                             <TextBlock
@@ -742,11 +747,16 @@
                     BorderThickness="0,0,1,0">
                     <GroupBox>
                         <GroupBox.Header>
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="36"
-                                Foreground="{StaticResource AltitudeErrorColor}"
-                                Text="Altitude Error ⬍" />
+                            <Viewbox
+                                Height="40"
+                                Stretch="Uniform"
+                                StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="36"
+                                    Foreground="{StaticResource AltitudeErrorColor}"
+                                    Text="Altitude Error ⬍" />
+                            </Viewbox>
                         </GroupBox.Header>
                         <UniformGrid VerticalAlignment="Center" Rows="3">
                             <TextBlock
@@ -776,11 +786,16 @@
                     BorderThickness="0,0,0,0">
                     <GroupBox>
                         <GroupBox.Header>
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="36"
-                                Foreground="{StaticResource TotalErrorColor}"
-                                Text="Total Error" />
+                            <Viewbox
+                                Height="40"
+                                Stretch="Uniform"
+                                StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="36"
+                                    Foreground="{StaticResource TotalErrorColor}"
+                                    Text="Total Error" />
+                            </Viewbox>
                         </GroupBox.Header>
 
                         <UniformGrid VerticalAlignment="Center" Rows="3">
