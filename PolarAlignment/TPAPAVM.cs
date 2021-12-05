@@ -565,7 +565,7 @@ namespace NINA.Plugins.PolarAlignment {
                 Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
                 referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
             } else {
-                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, Elevation);
+                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude);
             }
             var vRef = Vector3.CoordinatesToUnitVector(referenceTopo);
 

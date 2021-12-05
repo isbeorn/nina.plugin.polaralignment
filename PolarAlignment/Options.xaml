@@ -724,25 +724,33 @@
                                     Text="Azimuth Error ⬌" />
                             </Viewbox>
                         </GroupBox.Header>
+
                         <UniformGrid VerticalAlignment="Center" Rows="3">
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="36"
-                                Foreground="{StaticResource AzimuthErrorColor}"
-                                Text="{Binding PolarErrorDetermination.CurrentMountAxisAzimuthError}" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="36"
-                                Foreground="{StaticResource AzimuthErrorColor}"
-                                Text="{Binding PolarErrorDetermination.CurrentMountAxisAzimuthErrorDirection}" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="16"
-                                Foreground="{StaticResource AzimuthErrorColor}"
-                                Text="{Binding PolarErrorDetermination.InitialMountAxisAzimuthError}" />
+
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="36"
+                                    Foreground="{StaticResource AzimuthErrorColor}"
+                                    Text="{Binding PolarErrorDetermination.CurrentMountAxisAzimuthError}" />
+                            </Viewbox>
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="36"
+                                    Foreground="{StaticResource AzimuthErrorColor}"
+                                    Text="{Binding PolarErrorDetermination.CurrentMountAxisAzimuthErrorDirection}" />
+                            </Viewbox>
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="16"
+                                    Foreground="{StaticResource AzimuthErrorColor}"
+                                    Text="{Binding PolarErrorDetermination.InitialMountAxisAzimuthError}" />
+                            </Viewbox>
                         </UniformGrid>
                     </GroupBox>
                 </Border>
@@ -764,24 +772,30 @@
                             </Viewbox>
                         </GroupBox.Header>
                         <UniformGrid VerticalAlignment="Center" Rows="3">
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="36"
-                                Foreground="{StaticResource AltitudeErrorColor}"
-                                Text="{Binding PolarErrorDetermination.CurrentMountAxisAltitudeError}" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="36"
-                                Foreground="{StaticResource AltitudeErrorColor}"
-                                Text="{Binding PolarErrorDetermination.CurrentMountAxisAltitudeErrorDirection}" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="16"
-                                Foreground="{StaticResource AltitudeErrorColor}"
-                                Text="{Binding PolarErrorDetermination.InitialMountAxisAltitudeError}" />
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="36"
+                                    Foreground="{StaticResource AltitudeErrorColor}"
+                                    Text="{Binding PolarErrorDetermination.CurrentMountAxisAltitudeError}" />
+                            </Viewbox>
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="36"
+                                    Foreground="{StaticResource AltitudeErrorColor}"
+                                    Text="{Binding PolarErrorDetermination.CurrentMountAxisAltitudeErrorDirection}" />
+                            </Viewbox>
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="16"
+                                    Foreground="{StaticResource AltitudeErrorColor}"
+                                    Text="{Binding PolarErrorDetermination.InitialMountAxisAltitudeError}" />
+                            </Viewbox>
                         </UniformGrid>
                     </GroupBox>
                 </Border>
@@ -804,19 +818,24 @@
                         </GroupBox.Header>
 
                         <UniformGrid VerticalAlignment="Center" Rows="3">
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="36"
-                                Foreground="{StaticResource TotalErrorColor}"
-                                Text="{Binding PolarErrorDetermination.CurrentMountAxisTotalError}" />
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="36"
+                                    Foreground="{StaticResource TotalErrorColor}"
+                                    Text="{Binding PolarErrorDetermination.CurrentMountAxisTotalError}" />
+                            </Viewbox>
                             <Grid />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="16"
-                                Foreground="{StaticResource TotalErrorColor}"
-                                Text="{Binding PolarErrorDetermination.InitialMountAxisTotalError}" />
+
+                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="16"
+                                    Foreground="{StaticResource TotalErrorColor}"
+                                    Text="{Binding PolarErrorDetermination.InitialMountAxisTotalError}" />
+                            </Viewbox>
                         </UniformGrid>
                     </GroupBox>
                 </Border>
