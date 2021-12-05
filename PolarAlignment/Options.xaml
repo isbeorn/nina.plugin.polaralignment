@@ -210,21 +210,6 @@
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
                 IsChecked="{Binding RefractionAdjustment}" />
-            <TextBlock
-                Grid.Row="14"
-                VerticalAlignment="Center"
-                Text="Elevation"
-                Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            <ninactrl:UnitTextBox
-                Grid.Row="14"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                Text="{Binding Elevation}"
-                Unit="m"
-                Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
         </Grid>
     </DataTemplate>
 

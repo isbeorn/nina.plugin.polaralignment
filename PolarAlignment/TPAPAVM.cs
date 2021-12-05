@@ -119,7 +119,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         private void CalculateErrorDetails() {
 
-            var refractionParams = RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo());
+            var refractionParams = RefrectionParameters.GetRefrectionParameters(profileService.ActiveProfile.AstrometrySettings.Elevation, weatherDataMediator.GetInfo());
             var currentCenter = PolarErrorDetermination.CurrentReferenceFrame;
 
             var originPixel = PolarErrorDetermination.InitialReferenceFrame.Coordinates.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);

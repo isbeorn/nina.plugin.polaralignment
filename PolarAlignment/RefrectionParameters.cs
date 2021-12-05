@@ -15,7 +15,7 @@ namespace NINA.Plugins.PolarAlignment {
         public double Temperature { get; }
         public double RelativeHumidity { get; }
 
-        public static RefrectionParameters GetRefrectionParameters(WeatherDataInfo info = null) {
+        public static RefrectionParameters GetRefrectionParameters(double elevation, WeatherDataInfo info = null) {
             if (Properties.Settings.Default.RefractionAdjustment) {
                 // https://en.wikipedia.org/wiki/Standard_temperature_and_pressure
                 const double standardPressure = 1013.25;
@@ -35,9 +35,9 @@ namespace NINA.Plugins.PolarAlignment {
                     if (double.IsNaN(humidity)) {
                         humidity = standardHumidity;
                     }
-                    return new RefrectionParameters(Properties.Settings.Default.Elevation, pressure, temperature, humidity);
+                    return new RefrectionParameters(elevation, pressure, temperature, humidity);
                 } else {
-                    return new RefrectionParameters(Properties.Settings.Default.Elevation, standardPressure, standardTemperature, standardHumidity);
+                    return new RefrectionParameters(elevation, standardPressure, standardTemperature, standardHumidity);
                 }
             }
             return null;

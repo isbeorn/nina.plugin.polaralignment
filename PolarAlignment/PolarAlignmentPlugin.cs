@@ -42,16 +42,6 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
-        public int Elevation {
-            get {
-                return Properties.Settings.Default.Elevation;
-            }
-            set {
-                Properties.Settings.Default.Elevation = value;
-                CoreUtil.SaveSettings(Properties.Settings.Default);
-            }
-        }
-
         public double DefaultMoveRate {
             get {
                 return Properties.Settings.Default.DefaultMoveRate;
