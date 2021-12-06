@@ -433,7 +433,6 @@ namespace NINA.Plugins.PolarAlignment {
 
         public Angle Latitude { get; }
         public Angle Longitude { get; }
-        public double Elevation { get; }
 
         public bool Northern {
             get => Latitude.Degree > 0;
