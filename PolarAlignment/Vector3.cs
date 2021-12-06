@@ -30,13 +30,13 @@ namespace NINA.Plugins.PolarAlignment {
             return new Vector3(X / Length, Y / Length, Z / Length);
         }
 
-        public TopocentricCoordinates ToTopocentric(Angle latitude, Angle longitude, double elevation) {
-            if (X == 0 && Y == 0) { return new TopocentricCoordinates(Angle.ByDegree(0), Angle.ByDegree(90), latitude, longitude, elevation, new SystemDateTime()); }
+        public TopocentricCoordinates ToTopocentric(Angle latitude, Angle longitude) {
+            if (X == 0 && Y == 0) { return new TopocentricCoordinates(Angle.ByDegree(0), Angle.ByDegree(90), latitude, longitude); }
 
             var azRad = Y == 0 ? 0 : -Math.Atan2(Y, X);
             var altRad = (Math.PI / 2d) - Math.Acos(Z);
 
-            return new TopocentricCoordinates(Angle.ByRadians(azRad), Angle.ByRadians(altRad), latitude, longitude, elevation, new SystemDateTime());
+            return new TopocentricCoordinates(Angle.ByRadians(azRad), Angle.ByRadians(altRad), latitude, longitude);
         }
 
         /// <summary>

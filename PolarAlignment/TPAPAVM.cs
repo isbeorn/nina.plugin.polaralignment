@@ -427,7 +427,7 @@ namespace NINA.Plugins.PolarAlignment {
             }
 
 
-            InitialMountAxisErrorPosition = new Position(planeVector, Latitude, Longitude, elevation);
+            InitialMountAxisErrorPosition = new Position(planeVector, Latitude, Longitude);
 
             CalculateMountAxisError();
         }
@@ -578,7 +578,7 @@ namespace NINA.Plugins.PolarAlignment {
 
             var finalDest = Vector3.RotateByRodrigues(azDest, rotatedAltAxis, altRotation); //combination of first az then applied alt
 
-            return finalDest.ToTopocentric(Latitude, Longitude, Elevation);
+            return finalDest.ToTopocentric(Latitude, Longitude);
         }
 
     }
@@ -598,8 +598,8 @@ namespace NINA.Plugins.PolarAlignment {
             }
             Vector = Vector3.CoordinatesToUnitVector(Topocentric);
         }
-        public Position(Vector3 vector, Angle latitude, Angle longitude, double elevation) {
-            Topocentric = vector.ToTopocentric(latitude, longitude, elevation);
+        public Position(Vector3 vector, Angle latitude, Angle longitude) {
+            Topocentric = vector.ToTopocentric(latitude, longitude);
             Vector = vector;
         }
 
