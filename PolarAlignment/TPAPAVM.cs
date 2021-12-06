@@ -409,10 +409,9 @@ namespace NINA.Plugins.PolarAlignment {
 
 
     public class PolarErrorDetermination : BaseINPC {
-        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude, double elevation) {
+        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude) {
             Latitude = latitude;
             Longitude = longitude;
-            Elevation = elevation;
 
             InitialReferenceFrame = referenceFrame;
             FirstPosition = position1;

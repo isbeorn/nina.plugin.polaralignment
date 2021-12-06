@@ -98,13 +98,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             SearchRadius = Properties.Settings.Default.DefaultSearchRadius;
 
             CameraInfo = this.cameraMediator.GetInfo();
-            var telescopeInfo = this.telescopeMediator.GetInfo();
-            Elevation = telescopeInfo.SiteElevation;
 
             if (Northern) {
-                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(Properties.Settings.Default.DefaultAzimuthOffset), Latitude + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, Elevation, new SystemDateTime())); ;
+                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(Properties.Settings.Default.DefaultAzimuthOffset), Latitude + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, profileService.ActiveProfile.AstrometrySettings.Elevation, new SystemDateTime())); ;
             } else {
-                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(180 + Properties.Settings.Default.DefaultAzimuthOffset), Angle.ByDegree(Math.Abs(Latitude.Degree)) + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, Elevation, new SystemDateTime()));
+                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(180 + Properties.Settings.Default.DefaultAzimuthOffset), Angle.ByDegree(Math.Abs(Latitude.Degree)) + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, profileService.ActiveProfile.AstrometrySettings.Elevation, new SystemDateTime()));
             }
 
             TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
@@ -130,8 +128,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 Offset = Offset,
                 ManualMode = ManualMode,
                 StartFromCurrentPosition = StartFromCurrentPosition,
-                Coordinates = new InputTopocentricCoordinates(Coordinates.Coordinates.Copy()),
-                Elevation = Elevation
+                Coordinates = new InputTopocentricCoordinates(Coordinates.Coordinates.Copy())
             };
 
             if (clone.Binning == null) {
@@ -335,7 +332,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     var solve1 = await Solve(TPAPAVM, progress, localCTS.Token);
 
                     var telescopeInfo = telescopeMediator.GetInfo();
-                    var elevation = telescopeInfo.SiteElevation;
 
                     var position1 = new Position(solve1.Coordinates, Latitude, Longitude, RefrectionParameters.GetRefrectionParameters(profileService.ActiveProfile.AstrometrySettings.Elevation, weatherDataMediator.GetInfo()));
 
@@ -372,7 +368,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     progress?.Report(GetStatus("Calculating Error"));
 
 
-                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, Elevation);
+                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude);
 
                     Logger.Info($"Calculated Error: Az: { TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: { TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: { TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 
@@ -588,8 +584,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public Angle Longitude {
             get => Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Longitude);
         }
-
-        public double Elevation { get; private set; }
 
         /// <summary>
         /// This string will be used for logging
