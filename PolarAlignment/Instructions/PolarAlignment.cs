@@ -385,8 +385,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     do {
                         var continuousSolve = await Solve(TPAPAVM, progress, localCTS.Token);
                         if (continuousSolve.Success) {
-
-
                             await TPAPAVM.UpdateDetails(continuousSolve);
                         }
                     } while (!localCTS.Token.IsCancellationRequested);
@@ -395,7 +393,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     return;
                 }
             } catch (OperationCanceledException) {
-            } catch (Exception) {
+            } catch (Exception ex) {
+                Logger.Error(ex);
+                Notification.ShowError("Three Point Polar Alignment failed - " + ex.Message);
                 await windowService?.Close();
                 throw;
             } finally {
