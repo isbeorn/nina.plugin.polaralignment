@@ -271,10 +271,12 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <TextBlock
+                        <Viewbox
                             Grid.Row="1"
-                            FontSize="16"
-                            Text="{Binding Status.Status}" />
+                            Stretch="Uniform"
+                            StretchDirection="DownOnly">
+                            <TextBlock FontSize="16" Text="{Binding Status.Status}" />
+                        </Viewbox>
                         <Grid
                             Grid.Row="2"
                             Height="20"
