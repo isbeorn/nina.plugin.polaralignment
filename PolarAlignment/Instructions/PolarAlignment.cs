@@ -269,8 +269,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     progress.Report(new ApplicationStatus() { Status = "Moved far enough. Stop axis rotation now!" });
                     await Task.Delay(500, token);
                 }
-                telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
-                telescopeMediator.SetTrackingEnabled(true);
+                SetTrackingSidereal(true);
                 await CoreUtil.Wait(TimeSpan.FromSeconds(profileService.ActiveProfile.TelescopeSettings.SettleTime), token, progress, "Settling");
                 if (domeMediator.GetInfo().Connected) {
                     progress.Report(new ApplicationStatus() { Status = $"Waiting for dome to synchronize" });
@@ -280,6 +279,16 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
 
             return solve;
+        }
+
+        private void SetTrackingSidereal(bool onOff) {
+            try {
+
+                telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
+            } catch(Exception) { }
+            try {
+                telescopeMediator.SetTrackingEnabled(onOff);
+            } catch(Exception) { }            
         }
 
         /// <summary>
@@ -311,8 +320,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     if(!ManualMode) { 
                         if(!StartFromCurrentPosition) {
                             Logger.Info($"Slewing to initial position {Coordinates.Coordinates}");
-                            telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
-                            telescopeMediator.SetTrackingEnabled(true);
+                            SetTrackingSidereal(true);
                             await telescopeMediator.SlewToCoordinatesAsync(Coordinates.Coordinates, localCTS.Token);
                         } else {
                             Logger.Info($"Starting from current position {telescopeMediator.GetCurrentPosition()}");
@@ -321,8 +329,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     } else {
                         if(telescopeMediator.GetInfo().Connected) {
                             Logger.Info($"Manual mode engaged with mount connection available. Running in semi manual mode with standard plate solver.");
-                            telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
-                            telescopeMediator.SetTrackingEnabled(true);
+                            SetTrackingSidereal(true);
                         } else {
                             Logger.Info($"Manual mode engaged without any mount connection. Running in complete blind mode using blind solver.");
                         }
@@ -400,8 +407,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 throw;
             } finally {
                 externalProgress?.Report(GetStatus(string.Empty));
-                telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
-                telescopeMediator.SetTrackingEnabled(false);
+                SetTrackingSidereal(false);
             }
         }
 
@@ -567,8 +573,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 telescopeMediator.MoveAxis(Core.Enum.TelescopeAxes.Primary, 0);
 
                 await CoreUtil.Wait(TimeSpan.FromSeconds(profileService.ActiveProfile.TelescopeSettings.SettleTime), token, progress, "Settling");
-                telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
-                telescopeMediator.SetTrackingEnabled(true);
+                SetTrackingSidereal(true);
 
                 progress?.Report(new ApplicationStatus() { Status = string.Empty });
             } catch (Exception ex) {
