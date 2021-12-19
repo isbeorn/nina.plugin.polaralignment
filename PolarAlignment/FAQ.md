@@ -98,9 +98,9 @@ The azimuth offset in degrees from the pole position to start from for the first
 The altitude offset in degrees from the pole position to start from for the first point  
 **Various Error Colors**  
 Here you can adjust the error colors for the guide numbers that will show you the error amount  
-**Log polar alignment error adjustments**
+**Log polar alignment error adjustments**  
 When this is enabled, a log file will be created at `\Documents\N.I.N.A\TPPA` and filled with the polar alignment error and the continuous errors after adjustments.  
-**Adjust for refraction**
+**Adjust for refraction**  
 When this is enabled, the application will factor in refraction based on your location, elevation and current weather conditions.  
 If no weather source is connected a [standard parameter set](https://en.wikipedia.org/wiki/Standard_temperature_and_pressure) for pressure (1013.25HPa), humidity (0%) and temperature (15°C) is used instead.
 
