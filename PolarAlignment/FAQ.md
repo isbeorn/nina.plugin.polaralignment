@@ -10,7 +10,8 @@ Yes.
 
 ## Does it account for refraction?
 
-No, not explicitly. You might get small differences with different locations in the sky. A *perfect* polar alignment is inherently difficult, due to constant changing atmosphere conditions, but the procedure will give you a good alignment.
+There is an option to enable this in the plugin page and it is currently under test. 
+Keep in mind however that a *perfect* polar alignment is inherently difficult, due to constant changing atmosphere conditions, but the procedure will give you a good alignment with and without refraction corrections.
 
 ## How does the procedure work?
 
