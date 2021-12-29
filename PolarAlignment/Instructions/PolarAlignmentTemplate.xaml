@@ -13,7 +13,7 @@
         <DataTemplate.Resources>
             <BooleanToVisibilityConverter x:Key="VisibilityConverter" />
         </DataTemplate.Resources>
-        <nina:SequenceBlockView DataContext="{Binding}">
+        <nina:SequenceBlockView>
             <nina:SequenceBlockView.SequenceItemContent>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{DynamicResource PolarAlignmentInstructionSettings}" />
             </nina:SequenceBlockView.SequenceItemContent>
@@ -25,22 +25,7 @@
     <DataTemplate x:Key="NINA.Plugins.PolarAlignment.Instructions.PolarAlignment_Mini">
         <mini:MiniSequenceItem>
             <mini:MiniSequenceItem.SequenceItemProgressContent>
-                <StackPanel Orientation="Vertical">
-                    <!--<StackPanel Orientation="Horizontal">
-                        <TextBlock>Altitude Error</TextBlock>
-                        <TextBlock Margin="5,0,0,0" Text="{Binding AltitudeError}" />
-                        <TextBlock Margin="5,0,0,0" Text="{Binding AltitudeErrorAdjustment}" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock>Azimuth Error</TextBlock>
-                        <TextBlock Margin="5,0,0,0" Text="{Binding AzimuthError}" />
-                        <TextBlock Margin="5,0,0,0" Text="{Binding AzimuthErrorAdjustment}" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock>Total Error</TextBlock>
-                        <TextBlock Margin="5,0,0,0" Text="{Binding TotalError}" />
-                    </StackPanel>-->
-                </StackPanel>
+                <StackPanel Orientation="Vertical" />
             </mini:MiniSequenceItem.SequenceItemProgressContent>
         </mini:MiniSequenceItem>
     </DataTemplate>

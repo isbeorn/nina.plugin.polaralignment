@@ -14,7 +14,7 @@
     xmlns:xceed="http://schemas.xceed.com/wpf/xaml/toolkit">
     <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     <DataTemplate x:Key="Three Point Polar Alignment_Options">
-        <Grid DataContext="{Binding}">
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition />
