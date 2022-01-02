@@ -120,3 +120,9 @@ The polar alignment will then start on the current position and will tell you wh
 There are two ways to start it. From within an advanced sequence and directly inside the imaging tab.  
 **Inside advanced sequence**: Just drag the `Three Point Polar Alignment` instruction to the location inside your advanced sequence where you think it will fit best. Once the instruction is executed a new window will appear that will guide you through the process.  
 **From imaging tab**: Open the panel from the available tools on the top right corner. A new panel will appear that will guide you through the process.
+
+## My error keeps changing when not adjusting anything. Why?
+
+The routine relies on the mount to be tracking and any change of the frame will be added to the error corrections.  
+When the mount is not aligned or just ran through some periodic error it will not track perfectly and therefore some error margin will be introduced.  
+As already stated above, don't worry about a few arcseconds of error. If it takes a long time for you to dial in the alignment you can also restart the alignment routine to recalculate the initial error and fine tune the alignment further.

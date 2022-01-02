@@ -232,7 +232,6 @@ namespace NINA.Plugins.PolarAlignment {
             var logFilePath = Path.Combine(logDir, $"{logDate}-PolarAlignment.log");
             this.logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-              .WriteTo.Console()
               .WriteTo.File(logFilePath,
                     rollingInterval: RollingInterval.Infinite,
                     outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} - {Message:lj}{NewLine}",

@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## Version 1.6.2.0
+
+- Fixed an issue where the polar alignment would fail when output logging was enabled
+
 ## Version 1.6.0.0
 
 - Enhanced the scaling of the error text for smaller resolutions
