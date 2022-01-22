@@ -35,6 +35,7 @@
                 <RowDefinition MinHeight="25" />
                 <RowDefinition MinHeight="25" />
                 <RowDefinition MinHeight="25" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <TextBlock VerticalAlignment="Center" Text="Default Move Rate" />
             <TextBox
@@ -217,7 +218,15 @@
                     Text="This option is currently under test. Feedback if this results in better polar alignment is appreciated!"
                     Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </StackPanel>
-
+            <Button
+                Grid.Row="14"
+                Margin="0,5,0,0"
+                Command="{Binding ResetSettingsCommand}">
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource ButtonForegroundBrush}"
+                    Text="Reset All Settings" />
+            </Button>
         </Grid>
     </DataTemplate>
 

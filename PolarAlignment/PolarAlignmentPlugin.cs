@@ -1,18 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.ComponentModel.Composition;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using System.Windows.Media;
 using NINA.Core;
+using NINA.Core.MyMessageBox;
 using NINA.Core.Utility;
 using NINA.Plugin;
 using NINA.Plugin.Interfaces;
 
 namespace NINA.Plugins.PolarAlignment {
     [Export(typeof(IPluginManifest))]
-    class PolarAlignmentPlugin : PluginBase {
+    class PolarAlignmentPlugin : PluginBase, INotifyPropertyChanged {
         [ImportingConstructor]
         public PolarAlignmentPlugin() {
             if (Properties.Settings.Default.UpdateSettings) {
@@ -20,6 +24,22 @@ namespace NINA.Plugins.PolarAlignment {
                 Properties.Settings.Default.UpdateSettings = false;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
             }
+            ResetSettingsCommand = new GalaSoft.MvvmLight.Command.RelayCommand(ResetSettings);
+        }
+
+        public ICommand ResetSettingsCommand { get; }
+
+        private void ResetSettings() {
+            try {
+                if(MyMessageBox.Show($"This will reset all TPPA settings to their defaults. {Environment.NewLine}Are you sure?", "Reset All Settings", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxResult.No) == System.Windows.MessageBoxResult.Yes) { 
+                    Properties.Settings.Default.Reset();
+                    CoreUtil.SaveSettings(Properties.Settings.Default);
+                    RaisePropertyChanged(null);
+                }
+            } catch(Exception ex) {
+                Logger.Error(ex);
+            }
+            
         }
 
         public bool DefaultEastDirection {
@@ -29,6 +49,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.DefaultEastDirection = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -39,6 +60,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.RefractionAdjustment = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -49,6 +71,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.DefaultMoveRate = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -59,6 +82,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.DefaultTargetDistance = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -69,6 +93,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.DefaultSearchRadius = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -79,6 +104,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.DefaultAltitudeOffset = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -89,6 +115,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.DefaultAzimuthOffset = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -99,6 +126,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.MoveTimeoutFactor = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
         
@@ -109,6 +137,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.AltitudeErrorColor = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -119,6 +148,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.AzimuthErrorColor = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -129,6 +159,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.TotalErrorColor = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
         
@@ -139,6 +170,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.TargetCircleColor = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
         public Color SuccessColor {
@@ -148,6 +180,7 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.SuccessColor = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
 
@@ -158,8 +191,14 @@ namespace NINA.Plugins.PolarAlignment {
             set {
                 Properties.Settings.Default.LogError = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
             }
         }
-        
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void RaisePropertyChanged([CallerMemberName] string propertyName = null) {
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
     }
 }

@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 1.6.3.0
+- Added a reset to defaults button
+
 ## Version 1.6.2.0
 
 - Fixed an issue where the polar alignment would fail when output logging was enabled
