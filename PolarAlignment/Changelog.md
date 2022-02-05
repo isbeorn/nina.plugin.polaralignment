@@ -2,6 +2,7 @@
 
 ## Version 1.6.3.0
 - Added a reset to defaults button
+- Added an alignment tolerance to automatically finish polar alignment when below the given threshold
 
 ## Version 1.6.2.0
 

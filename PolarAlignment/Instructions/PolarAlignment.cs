@@ -393,6 +393,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         var continuousSolve = await Solve(TPAPAVM, progress, localCTS.Token);
                         if (continuousSolve.Success) {
                             await TPAPAVM.UpdateDetails(continuousSolve);
+
+
+                            var totalErrorMinutes = Math.Abs(AstroUtil.DegreeToArcmin(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.Degree));
+                            if (totalErrorMinutes <= Properties.Settings.Default.AlignmentTolerance) {
+                                Logger.Info($"Total Error is below alignment tolerance ({totalErrorMinutes}'' / {Properties.Settings.Default.AlignmentTolerance}''). Automatically finishing polar alignment.");
+                                Notification.ShowSuccess($"Total Error is below alignment tolerance ({Math.Round(totalErrorMinutes, 2)}'' / {Properties.Settings.Default.AlignmentTolerance}''). Automatically finishing polar alignment.");
+                                localCTS.Cancel();
+                            }
                         }
                     } while (!localCTS.Token.IsCancellationRequested);
 

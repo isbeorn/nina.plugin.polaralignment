@@ -184,6 +184,18 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
+        public double AlignmentTolerance {
+            get {
+                return Properties.Settings.Default.AlignmentTolerance;
+            }
+            set {
+                if(value < 0) { value = 0; }
+                Properties.Settings.Default.AlignmentTolerance = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
         public bool LogError {
             get {
                 return Properties.Settings.Default.LogError;

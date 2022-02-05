@@ -96,6 +96,8 @@ After ([Measure Point Distance] / [Telescope Move Rate] * [Axis move timeout fac
 The azimuth offset in degrees from the pole position to start from for the first point  
 **Default altitude offset from pole**  
 The altitude offset in degrees from the pole position to start from for the first point  
+**Polar Alignment Tolerance**
+Setting this value to non-zero will specify a tolerance in arcminutes where the polar alignment routine automatically completes when below the threshold
 **Various Error Colors**  
 Here you can adjust the error colors for the guide numbers that will show you the error amount  
 **Log polar alignment error adjustments**  

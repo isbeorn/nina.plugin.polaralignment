@@ -202,5 +202,17 @@ namespace NINA.Plugins.PolarAlignment.Properties {
                 this["RefractionAdjustment"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public double AlignmentTolerance {
+            get {
+                return ((double)(this["AlignmentTolerance"]));
+            }
+            set {
+                this["AlignmentTolerance"] = value;
+            }
+        }
     }
 }
