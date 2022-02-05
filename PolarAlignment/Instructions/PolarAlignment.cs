@@ -395,10 +395,21 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                             await TPAPAVM.UpdateDetails(continuousSolve);
 
 
-                            var totalErrorMinutes = Math.Abs(AstroUtil.DegreeToArcmin(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.Degree));
+                            var totalErrorMinutes = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
                             if (totalErrorMinutes <= Properties.Settings.Default.AlignmentTolerance) {
-                                Logger.Info($"Total Error is below alignment tolerance ({totalErrorMinutes}'' / {Properties.Settings.Default.AlignmentTolerance}''). Automatically finishing polar alignment.");
-                                Notification.ShowSuccess($"Total Error is below alignment tolerance ({Math.Round(totalErrorMinutes, 2)}'' / {Properties.Settings.Default.AlignmentTolerance}''). Automatically finishing polar alignment.");
+                                Logger.Info($"Total Error is below alignment tolerance ({Properties.Settings.Default.AlignmentTolerance}'). " +
+                                    $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'. " +
+                                    $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'. " +
+                                    $"Total Error: {Math.Round(totalErrorMinutes, 2)}'. " +
+                                    $"Automatically finishing polar alignment.");
+                                Notification.ShowInformation(
+                                    $"Total Error is below alignment tolerance.{Environment.NewLine}" +
+                                    $"Tolerance: {Properties.Settings.Default.AlignmentTolerance}{Environment.NewLine}'" +
+                                    $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
+                                    $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
+                                    $"Total Error: {Math.Round(totalErrorMinutes, 2)}'{Environment.NewLine}" +
+                                    $"Automatically finishing polar alignment.", 
+                                    TimeSpan.FromMinutes(1));
                                 localCTS.Cancel();
                             }
                         }
