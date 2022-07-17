@@ -62,10 +62,12 @@ Inside the imaging tab there will be a button inside the tool pane to show the p
 *Prerequisites*  
 * Latitude and Longitude has to be set in options
 * Camera has to be connected and ready
-* A goto equatorial mount that can move along the right ascension axis via its ASCOM driver has to be connected
-    + Alternatively a manual mode can be enabled to manually move the mount along the right ascension axis
-    + Manual mode works with either a connected telescope or without any telescope connection at all
+* A goto mount that can move along the right ascension axis using one of three methods:
+    + Fully Automated - Requires the mount to be connected via its ASCOM driver and the tool will move the mount
+    + Manual mode with mount connected via its ASCOM driver - You need to move the mount via the hand controls or via the mount software, but leave the clutches engaged
+    + Manual mode without the mount being connected - You need to manually move the mount either by hand controller or by loosening the clutches
+    
 * Platesolving must be setup (Astrometry.NET is not supported as primary solver for this, as it is too slow)
-    + When using manual mode and there is no telescope connected, the blind solver will be used
+    + When using manual mode and there is no mount connected, the blind solver will be used
 
 This method will use platesolving in combination with mount and camera control to automatically determine the polar alignment error.")]
