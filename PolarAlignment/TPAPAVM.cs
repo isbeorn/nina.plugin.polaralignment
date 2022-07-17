@@ -339,7 +339,14 @@ namespace NINA.Plugins.PolarAlignment {
         public Point ReferenceStar { get; private set; }
         public Coordinates ReferenceStarCoordinates { get; internal set; }
         public Point Center { get; internal set; }
-        public double ArcsecPerPix { get; internal set; }
+        private double arcsecPerPix;
+        public double ArcsecPerPix {
+            get => arcsecPerPix;
+            internal set {
+                arcsecPerPix = value;
+                RaisePropertyChanged();
+            }
+        }
     }
 
     public class ErrorDetail : BaseINPC {

@@ -445,23 +445,101 @@
                                     Y2="{Binding ErrorDetail.Total.Y}" />
 
                                 <!--  Destination Circle  -->
+                                <!--  30 Arcsec Circle  -->
                                 <Ellipse
-                                    Canvas.Left="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X1|20}"
-                                    Canvas.Top="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y1|20}"
-                                    Width="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X2|20}"
-                                    Height="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y2|20}"
                                     Stroke="{StaticResource TargetCircleColor}"
                                     StrokeThickness="3"
-                                    Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}" />
+                                    Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
+                                    <Canvas.Left>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X1|30">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Canvas.Left>
+                                    <Canvas.Top>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y1|30">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Canvas.Top>
+                                    <Ellipse.Width>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X2|30">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Ellipse.Width>
+                                    <Ellipse.Height>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y2|30">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Ellipse.Height>
+                                </Ellipse>
 
+                                <!--  1 Arcmin Circle  -->
                                 <Ellipse
-                                    Canvas.Left="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X1|50}"
-                                    Canvas.Top="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y1|50}"
-                                    Width="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X2|50}"
-                                    Height="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y2|50}"
                                     Stroke="{StaticResource TargetCircleColor}"
+                                    StrokeDashArray="3 1"
                                     StrokeThickness="3"
-                                    Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}" />
+                                    Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
+
+                                    <Canvas.Left>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X1|60">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Canvas.Left>
+                                    <Canvas.Top>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y1|60">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Canvas.Top>
+                                    <Ellipse.Width>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X2|60">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Ellipse.Width>
+                                    <Ellipse.Height>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y2|60">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Ellipse.Height>
+                                </Ellipse>
+
+                                <!--  5 Arcmin Circle  -->
+                                <Ellipse
+                                    Stroke="{StaticResource TargetCircleColor}"
+                                    StrokeDashArray="1"
+                                    StrokeThickness="3"
+                                    Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
+                                    <Canvas.Left>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X1|300">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Canvas.Left>
+                                    <Canvas.Top>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y1|300">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Canvas.Top>
+                                    <Ellipse.Width>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X2|300">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Ellipse.Width>
+                                    <Ellipse.Height>
+                                        <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y2|300">
+                                            <Binding Path="ErrorDetail.Total" />
+                                            <Binding Path="ArcsecPerPix" />
+                                        </MultiBinding>
+                                    </Ellipse.Height>
+                                </Ellipse>
 
                                 <!--  X Starting point  -->
                                 <Line
@@ -584,23 +662,102 @@
                                 Y2="{Binding ErrorDetail.Total.Y}" />
 
                             <!--  Destination Circle  -->
+                            <!--  30 Arcsec Circle  -->
                             <Ellipse
-                                Canvas.Left="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X1|20}"
-                                Canvas.Top="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y1|20}"
-                                Width="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X2|20}"
-                                Height="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y2|20}"
                                 Stroke="{StaticResource TargetCircleColor}"
                                 StrokeThickness="3"
-                                Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}" />
+                                Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
 
+                                <Canvas.Left>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X1|30">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Canvas.Left>
+                                <Canvas.Top>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y1|30">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Canvas.Top>
+                                <Ellipse.Width>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X2|30">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Ellipse.Width>
+                                <Ellipse.Height>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y2|30">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Ellipse.Height>
+
+                            </Ellipse>
+
+                            <!--  1 Arcmin Circle  -->
                             <Ellipse
-                                Canvas.Left="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X1|50}"
-                                Canvas.Top="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y1|50}"
-                                Width="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X2|50}"
-                                Height="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y2|50}"
                                 Stroke="{StaticResource TargetCircleColor}"
+                                StrokeDashArray="3 1"
                                 StrokeThickness="3"
-                                Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}" />
+                                Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
+                                <Canvas.Left>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X1|60">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Canvas.Left>
+                                <Canvas.Top>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y1|60">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Canvas.Top>
+                                <Ellipse.Width>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X2|60">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Ellipse.Width>
+                                <Ellipse.Height>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y2|60">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Ellipse.Height>
+                            </Ellipse>
+
+                            <!--  5 Arcmin Circle  -->
+                            <Ellipse
+                                Stroke="{StaticResource TargetCircleColor}"
+                                StrokeDashArray="1"
+                                StrokeThickness="3"
+                                Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
+                                <Canvas.Left>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X1|300">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Canvas.Left>
+                                <Canvas.Top>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y1|300">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Canvas.Top>
+                                <Ellipse.Width>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="X2|300">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Ellipse.Width>
+                                <Ellipse.Height>
+                                    <MultiBinding Converter="{StaticResource PointToCircleParameterConverter}" ConverterParameter="Y2|300">
+                                        <Binding Path="ErrorDetail.Total" />
+                                        <Binding Path="ArcsecPerPix" />
+                                    </MultiBinding>
+                                </Ellipse.Height>
+                            </Ellipse>
 
                             <!--  X Starting point  -->
                             <Line
@@ -659,27 +816,6 @@
                                 X2="{Binding ErrorDetail2.Total.X}"
                                 Y1="{Binding ErrorDetail2.Origin.Y}"
                                 Y2="{Binding ErrorDetail2.Total.Y}" />
-
-                            <!--  Destination Circle  -->
-                            <Ellipse
-                                Canvas.Left="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X1|20}"
-                                Canvas.Top="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y1|20}"
-                                Width="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X2|20}"
-                                Height="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y2|20}"
-                                Opacity="0.2"
-                                Stroke="{StaticResource TargetCircleColor}"
-                                StrokeThickness="3"
-                                Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}" />
-
-                            <Ellipse
-                                Canvas.Left="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X1|50}"
-                                Canvas.Top="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y1|50}"
-                                Width="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=X2|50}"
-                                Height="{Binding ErrorDetail.Total, Converter={StaticResource PointToCircleParameterConverter}, ConverterParameter=Y2|50}"
-                                Opacity="0.2"
-                                Stroke="{StaticResource TargetCircleColor}"
-                                StrokeThickness="3"
-                                Visibility="{Binding ErrorDetail, Converter={StaticResource NullToVisibilityCollapsedConverter}}" />
 
                             <!--  X Starting point  -->
                             <Line

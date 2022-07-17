@@ -75,7 +75,9 @@ For the manual mode to work properly follow these instructions:
 
 While the polar alignment in itself will work anywhere above your horizon, the further away you are from the celestial equator (which is at declination 0°) 
 the less error prone the correction calculation will be, as things like tracking errors will be less pronounced then.  
-There are also two additional locations, that should be avoided - azimuth exactly at 90° and 270° for the correction adjustments, as there the correction for altitude is impossible to calculate.
+There are also locations, that should be avoided due to geometrical constraints
+  - pointing to azimuth exactly at 90° and 270° for the correction adjustments, as there the correction for altitude is impossible to calculate.
+  - pointing directly to the zenith for the correction adjustments, as there the correction for azimuth is impossible to calculate.
 
 ## What does setting xyz do?
 
@@ -132,3 +134,7 @@ There are two ways to start it. From within an advanced sequence and directly in
 The routine relies on the mount to be tracking and any change of the frame will be added to the error corrections.  
 When the mount is not aligned or just ran through some periodic error it will not track perfectly and therefore some error margin will be introduced.  
 As already stated above, don't worry about a few arcseconds of error. If it takes a long time for you to dial in the alignment you can also restart the alignment routine to recalculate the initial error and fine tune the alignment further.
+
+## What is the size of the target circle?
+
+The circle size will be rendered based on your image scale and there will be circles drawn at 30 arcseconds, 1 arcminute and 5 arcminutes.
