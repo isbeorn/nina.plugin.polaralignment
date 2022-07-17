@@ -901,6 +901,20 @@
                     </StackPanel>
 
                 </Viewbox>
+
+                <Viewbox
+                    Height="40"
+                    Stretch="Uniform"
+                    StretchDirection="DownOnly"
+                    Visibility="{Binding PolarErrorDetermination.InitialErrorHuge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock HorizontalAlignment="Center" FontSize="36">
+                            Calculated error is huge. Either the mount is far off alignment or the polar alignment calculation was unable to determine the result.
+                        </TextBlock>
+                        <TextBlock HorizontalAlignment="Center" FontSize="36">Make sure your location is set correctly, that the mount is roughly pointing to the pole and that only the right ascension axis was moved in between the three points!</TextBlock>
+                    </StackPanel>
+
+                </Viewbox>
             </Grid>
         </Grid>
     </DataTemplate>
