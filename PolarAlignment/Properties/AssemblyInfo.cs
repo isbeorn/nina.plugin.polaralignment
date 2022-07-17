@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Stefan Berg")]
 [assembly: AssemblyProduct("NINA.Plugins")]
-[assembly: AssemblyCopyright("Copyright ©  2021")]
+[assembly: AssemblyCopyright("Copyright ©  2021-2022")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -28,7 +28,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyFileVersion("1.6.3.1")]
 
 //The minimum Version of N.I.N.A. that this plugin is compatible with
-[assembly: AssemblyMetadata("MinimumApplicationVersion", "2.0.0.2021")]
+[assembly: AssemblyMetadata("MinimumApplicationVersion", "2.0.0.9001")]
 
 //Your plugin homepage - omit if not applicaple
 [assembly: AssemblyMetadata("Homepage", "https://www.patreon.com/stefanberg/")]
@@ -50,20 +50,22 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyMetadata("ScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/downloads/Starlock2.png")]
 //An additional example screenshot of your plugin in action
 [assembly: AssemblyMetadata("AltScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/downloads/Imaging.png")]
-[assembly: AssemblyMetadata("LongDescription", @"Three Point Auto Polar Alignment almost anywhere in the sky  
+[assembly: AssemblyMetadata("LongDescription", @"Three Point Polar Alignment almost anywhere in the sky  
 
 A new instruction will be available for the advanced sequencer as well as a new tool pane inside the imaging tab that will assist in polar alignment.  
 
-When the instruction is called, a new window will be visible, that will guide you through the process.   
+When the instruction is called from within the sequencer, a new window will be visible, that will guide you through the process.   
 Inside the imaging tab there will be a button inside the tool pane to show the polar alignment assistant with parameters and a button to start the process.  
 
 [*Frequently Asked Questions*](https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/src/master/PolarAlignment/FAQ.md)
 
 *Prerequisites*  
+* Latitude and Longitude has to be set in options
 * Camera has to be connected and ready
-* A goto mount that can move along the right ascension axis via its ASCOM driver has to be connected
+* A goto equatorial mount that can move along the right ascension axis via its ASCOM driver has to be connected
     + Alternatively a manual mode can be enabled to manually move the mount along the right ascension axis
     + Manual mode works with either a connected telescope or without any telescope connection at all
 * Platesolving must be setup (Astrometry.NET is not supported as primary solver for this, as it is too slow)
+    + When using manual mode and there is no telescope connected, the blind solver will be used
 
 This method will use platesolving in combination with mount and camera control to automatically determine the polar alignment error.")]
