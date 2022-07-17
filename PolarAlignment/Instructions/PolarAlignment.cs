@@ -622,6 +622,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public bool Validate() {
             var i = new List<string>();
 
+            //Location
+            if(profileService.ActiveProfile.AstrometrySettings.Latitude == 0 && profileService.ActiveProfile.AstrometrySettings.Longitude == 0) {
+                i.Add("No location has been set. Please set your latitude and longitude first as it is critical for the calculation to work!");
+            }
+
             //Camera
             CameraInfo = this.cameraMediator.GetInfo();
             if (!CameraInfo.Connected) {
