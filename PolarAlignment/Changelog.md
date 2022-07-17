@@ -2,7 +2,8 @@
 
 ## Version tbd
 - Changed the error circle indicator to draw based on the image scale at 30 arcseconds, 1 arcminute and 5 arcminutes
-- Add a warning when initial error exceeds 2 degrees, that the adjustment phase will be error prone
+- When latitude and longitude is set to 0 it was most likely never set (as these coordinates are inside the atlantic ocean). A validation will now check for this and notify to set these values.
+- Add a warning when initial error exceeds 2 degrees, that the adjustment phase will be error prone and that it is adviced to run it again once the error was reduced
 - A further warning when the error exceeds 10 degrees is shown, that the mount is too far off, the location is incorrect or that the RA axis was not moved exclusively
 
 ## Version 1.6.3.0
