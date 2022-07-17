@@ -282,6 +282,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0" Grid.Column="0">
@@ -739,7 +740,10 @@
             </Border>
 
             <!--  Text Error Details  -->
-            <Grid Grid.Row="1" Grid.ColumnSpan="3">
+            <Grid
+                Grid.Row="1"
+                Grid.ColumnSpan="3"
+                Visibility="{Binding PolarErrorDetermination, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition />
                     <ColumnDefinition />
@@ -877,6 +881,26 @@
                         </UniformGrid>
                     </GroupBox>
                 </Border>
+            </Grid>
+
+            <Grid
+                Grid.Row="2"
+                Grid.ColumnSpan="3"
+                Visibility="{Binding PolarErrorDetermination, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
+
+                <Viewbox
+                    Height="40"
+                    Stretch="Uniform"
+                    StretchDirection="DownOnly"
+                    Visibility="{Binding PolarErrorDetermination.InitialErrorLarge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock HorizontalAlignment="Center" FontSize="36">
+                            Initial Polar Alignment error is large. Correction phase will be unreliable.
+                        </TextBlock>
+                        <TextBlock HorizontalAlignment="Center" FontSize="36">Please bring the mount closer to polar alignment and do another run to verify the result!</TextBlock>
+                    </StackPanel>
+
+                </Viewbox>
             </Grid>
         </Grid>
     </DataTemplate>

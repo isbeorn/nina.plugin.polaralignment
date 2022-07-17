@@ -479,6 +479,10 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
+        public bool InitialErrorLarge {
+            get => InitialMountAxisTotalError.Degree > 1;
+        }
+
         public string CurrentMountAxisAltitudeErrorDirection { 
             get {
                 if (CurrentMountAxisAltitudeError.Degree > 0) {
