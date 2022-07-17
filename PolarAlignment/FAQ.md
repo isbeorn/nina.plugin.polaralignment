@@ -18,17 +18,17 @@ Keep in mind however that a *perfect* polar alignment is inherently difficult, d
 The procedure consists of the following steps  
 
 * Step 1  
-    + Slew to the specified alt/az coordinates
+    + Slew to the specified alt/az coordinates - or start from current position
     + Start telescope tracking  
 * Step 2  
     + Take an image of current position
     + Plate solve current position  
 * Step 3  
-    + Move the telescope by the [Move Rate] in East or West direction along the Right Ascension axis, based on [East Direction] until at least moved by [Target Distance]°
+    + Move the telescope by the [Move Rate] (automatic mode) or manually in East or West direction along the Right Ascension axis, based on [East Direction] setting until at least moved by [Target Distance]°
     + Take an image of current position
     + Plate solve current position  
 * Step 4  
-    + Move the telescope by the [Move Rate] in East or West direction along the Right Ascension axis, based on [East Direction] until at least moved by [Target Distance]°
+    + Move the telescope by the [Move Rate] (automatic mode) or manually in East or West direction along the Right Ascension axis, based on [East Direction] setting until at least moved by [Target Distance]°
     + Take an image of current position
     + Plate solve current position  
 * Step 5  
@@ -106,6 +106,10 @@ When this is enabled, a log file will be created at `\Documents\N.I.N.A\TPPA` an
 When this is enabled, the application will factor in refraction based on your location, elevation and current weather conditions.  
 If no weather source is connected a [standard parameter set](https://en.wikipedia.org/wiki/Standard_temperature_and_pressure) for pressure (1013.25HPa), humidity (0%) and temperature (15°C) is used instead.
 
+## The solver keeps failing, even though solving works in other places. How can I fix this?
+
+To speed up the solving process, TPPA has a separate setting for the solver [Search Radius]. This value has to be higher than your polar alignment and pointing error combined, otherwise the solve will fail. 
+Increase this setting in case you are not able to solve successfully during TPPA, but solving is working in other places.
 
 ## Do I need the guider or the main imaging camera for this to work?
 
