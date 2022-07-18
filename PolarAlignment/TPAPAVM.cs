@@ -77,6 +77,8 @@ namespace NINA.Plugins.PolarAlignment {
 
             Steps[3].Active = true;
             Steps[3].Relevant = true;
+
+            WaitingForUpdate = false;
         }
 
 
@@ -113,6 +115,7 @@ namespace NINA.Plugins.PolarAlignment {
                 ReferenceStar = ReferenceStarCoordinates.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
                 CalculateErrorDetails();
             }
+            WaitingForUpdate = false;
         }
 
         
@@ -334,7 +337,14 @@ namespace NINA.Plugins.PolarAlignment {
         public Angle Longitude {
             get => Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Longitude);
         }
-        public IRenderedImage Image { get => image; internal set { image = value; RaisePropertyChanged(); } }
+        public IRenderedImage Image { 
+            get => image; 
+            internal set { 
+                image = value;
+                WaitingForUpdate = true;
+                RaisePropertyChanged(); 
+            } 
+        }        
 
         public Point ReferenceStar { get; private set; }
         public Coordinates ReferenceStarCoordinates { get; internal set; }
@@ -344,6 +354,17 @@ namespace NINA.Plugins.PolarAlignment {
             get => arcsecPerPix;
             internal set {
                 arcsecPerPix = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        private bool waitingForUpdate;
+        public bool WaitingForUpdate { 
+            get => waitingForUpdate; 
+            private set {
+
+
+                waitingForUpdate = value;
                 RaisePropertyChanged();
             }
         }

@@ -24,8 +24,8 @@ using System.Runtime.InteropServices;
 
 //The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("1.6.3.1")]
-[assembly: AssemblyFileVersion("1.6.3.1")]
+[assembly: AssemblyVersion("1.7.0.0")]
+[assembly: AssemblyFileVersion("1.7.0.0")]
 
 //The minimum Version of N.I.N.A. that this plugin is compatible with
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "2.0.0.9001")]
@@ -60,7 +60,7 @@ Inside the imaging tab there will be a button inside the tool pane to show the p
 [*Frequently Asked Questions*](https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/src/master/PolarAlignment/FAQ.md)
 
 *Prerequisites*  
-* Latitude and Longitude has to be set in options
+* Latitude and Longitude has to be set in options. You can use [www.latlong.net](https://www.latlong.net/) to easily determine your location.
 * Camera has to be connected and ready
 * A goto mount that can move along the right ascension axis using one of three methods:
     + Fully Automated - Requires the mount to be connected via its ASCOM driver and the tool will move the mount

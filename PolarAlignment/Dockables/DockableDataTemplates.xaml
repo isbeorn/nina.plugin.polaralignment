@@ -64,11 +64,15 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <ContentPresenter
+            <Border
                 Grid.Row="2"
                 Grid.ColumnSpan="2"
+                Margin="0,5,0,0"
                 VerticalAlignment="Stretch"
-                Content="{Binding PolarAlignment.TPAPAVM}" />
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+                <ContentPresenter Content="{Binding PolarAlignment.TPAPAVM}" />
+            </Border>
         </Grid>
     </DataTemplate>
 
