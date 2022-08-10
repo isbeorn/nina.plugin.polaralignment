@@ -2,6 +2,7 @@
 
 ## Version 1.7.1.0
 - Add an option to continue tracking when TPPA is done. Use with caution to not run into pier collisions!
+- Prepopulate the filter with the platesolving filter for defaults
 
 ## Version 1.7.0.0
 - Show a loading spinner while a new image is waiting for a solve to update the error details. The spinner is shown in the total error details. 

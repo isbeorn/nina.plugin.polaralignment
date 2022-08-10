@@ -87,6 +87,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             this.domeMediator = domeMediator;
             this.weatherDataMediator = weatherDataMediator;
 
+            Filter = profileService.ActiveProfile.PlateSolveSettings.Filter;
             Gain = profileService.ActiveProfile.PlateSolveSettings.Gain;
             Offset = -1;
             ExposureTime = profileService.ActiveProfile.PlateSolveSettings.ExposureTime;
