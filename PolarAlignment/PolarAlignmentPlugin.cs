@@ -207,6 +207,17 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
+        public bool StopTrackingWhenDone {
+            get {
+                return Properties.Settings.Default.StopTrackingWhenDone;
+            }
+            set {
+                Properties.Settings.Default.StopTrackingWhenDone = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected void RaisePropertyChanged([CallerMemberName] string propertyName = null) {
             this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

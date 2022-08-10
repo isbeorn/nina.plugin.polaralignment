@@ -426,7 +426,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 throw;
             } finally {
                 externalProgress?.Report(GetStatus(string.Empty));
-                SetTrackingSidereal(false);
+                if(Properties.Settings.Default.StopTrackingWhenDone) { 
+                    SetTrackingSidereal(false);
+                }
             }
         }
 

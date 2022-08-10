@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 1.7.1.0
+- Add an option to continue tracking when TPPA is done. Use with caution to not run into pier collisions!
+
 ## Version 1.7.0.0
 - Show a loading spinner while a new image is waiting for a solve to update the error details. The spinner is shown in the total error details. 
 - Changed the error circle indicator to draw based on the image scale at 30 arcseconds, 1 arcminute and 5 arcminutes

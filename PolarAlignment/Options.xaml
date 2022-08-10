@@ -238,8 +238,20 @@
                     Text="This option is currently under test. Feedback if this results in better polar alignment is appreciated!"
                     Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </StackPanel>
-            <Button
+            <TextBlock
                 Grid.Row="15"
+                VerticalAlignment="Center"
+                Text="Stop Tracking when done?" />
+            <CheckBox
+                Grid.Row="15"
+                Grid.Column="1"
+                MinWidth="80"
+                Margin="5,0,0,0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                IsChecked="{Binding StopTrackingWhenDone}" />
+            <Button
+                Grid.Row="16"
                 Margin="0,5,0,0"
                 Command="{Binding ResetSettingsCommand}">
                 <TextBlock
