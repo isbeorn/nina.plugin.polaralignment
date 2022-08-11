@@ -7,6 +7,8 @@ namespace NINA.Plugins.PolarAlignment {
             PressureHPa = pressureHPa;
             Temperature = temperature;
             RelativeHumidity = relativeHumidity;
+            // Currently no source for this info. Taking standard value
+            Wavelength = 0.55d;
         }
 
         public double Elevation { get; }
@@ -14,6 +16,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         public double Temperature { get; }
         public double RelativeHumidity { get; }
+        public double Wavelength { get; }
 
         public static RefrectionParameters GetRefrectionParameters(double elevation, WeatherDataInfo info = null) {
             if (Properties.Settings.Default.RefractionAdjustment) {
