@@ -623,7 +623,7 @@ namespace NINA.Plugins.PolarAlignment {
     
     public class Position {
         public Position(Coordinates coordinates, Angle latitude, Angle longitude, RefrectionParameters refrectionParameters) {
-            if (refrectionParameters != null) {
+                if (refrectionParameters != null) {
                 double pressurehPa = refrectionParameters.PressureHPa;
                 double temperature = refrectionParameters.Temperature;
                 double relativeHumidity = refrectionParameters.RelativeHumidity;

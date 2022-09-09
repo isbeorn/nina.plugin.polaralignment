@@ -44,7 +44,12 @@
                     ButtonImage="{StaticResource PlaySVG}"
                     CancelButtonImage="{StaticResource StopSVG}"
                     CancelCommand="{Binding CancelExecuteCommand}"
-                    Command="{Binding ExecuteCommand}" />
+                    Command="{Binding ExecuteCommand}"
+                    IsPaused="{Binding PolarAlignment.IsPaused}"
+                    PauseButtonImage="{StaticResource PauseSVG}"
+                    PauseCommand="{Binding PauseCommand}"
+                    ResumeButtonImage="{StaticResource PlaySVG}"
+                    ResumeCommand="{Binding ResumeCommand}" />
             </Grid>
             <ItemsControl
                 Grid.Row="1"

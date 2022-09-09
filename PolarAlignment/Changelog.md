@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 1.7.2.0
+- It is now possible to pause in between the steps and continue after making the adjustments. Useful in case your image downloads and solves take a while.
+
 ## Version 1.7.1.0
 - Add an option to continue tracking when TPPA is done. Use with caution to not run into pier collisions!
 - Prepopulate the filter with the platesolving filter for defaults

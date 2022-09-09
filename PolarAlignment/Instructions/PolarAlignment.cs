@@ -17,6 +17,7 @@ using NINA.PlateSolving.Interfaces;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.SequenceItem;
 using NINA.Sequencer.Validations;
+using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
@@ -59,6 +60,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private IPlateSolverFactory plateSolverFactory;
         private IDomeMediator domeMediator;
         private IWeatherDataMediator weatherDataMediator;
+        private PauseTokenSource pauseTS;
         private double moveRate;
         private double searchRadius;
         private int targetDistance;
@@ -215,6 +217,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             PlateSolveResult solve;
             var totalDistance = (double)TargetDistance;
             var previousMountRADegrees = telescopeMediator.GetCurrentPosition().RADegrees;
+
+            await WaitIfPaused(token, progress);
             await MoveToNextPoint(totalDistance, MoveRate, progress, token);
 
             if(domeMediator.GetInfo().Connected) { 
@@ -246,7 +250,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 previousMountRADegrees = telescopeMediator.GetCurrentPosition().RADegrees;
             }
             
-            do {        
+            do {
+                await WaitIfPaused(token, progress);
                 double distance;
                 if (telescopeConnected) {
                     distance = Distance(previousMountRADegrees, telescopeMediator.GetCurrentPosition().RADegrees);
@@ -292,6 +297,29 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             } catch(Exception) { }            
         }
 
+        public void Pause() {
+            if(pauseTS != null) {
+                pauseTS.IsPaused = true;
+                RaisePropertyChanged(nameof(IsPaused));
+            }            
+        }
+        public void Resume() {
+            if (pauseTS != null) {
+                pauseTS.IsPaused = false;
+                RaisePropertyChanged(nameof(IsPaused));
+            }
+        }
+
+        private bool isPaused;
+        public bool IsPaused { 
+            get => isPaused;
+            private set {
+                isPaused = value;
+                RaisePropertyChanged();
+            }
+        }
+        public bool IsPausing { get => pauseTS?.IsPaused ?? false; }
+
         /// <summary>
         /// The core logic when the sequence item is running resides here
         /// Add whatever action is necessary
@@ -302,6 +330,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public override async Task Execute(IProgress<ApplicationStatus> externalProgress, CancellationToken token) {
             try {
                 using (var localCTS = CancellationTokenSource.CreateLinkedTokenSource(token)) {
+                    pauseTS = new PauseTokenSource();
                     try {
                         TPAPAVM?.Dispose();
                     } catch(Exception) { }
@@ -361,6 +390,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     TPAPAVM.ActivateThirdStep();
 
+
                     PlateSolveResult solve3 = null;
                     if (!ManualMode) {
                         solve3 = await AutomatedNextPoint(progress, localCTS.Token);
@@ -392,6 +422,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
 
                     do {
+                        await WaitIfPaused(localCTS.Token, progress);
+
                         var continuousSolve = await Solve(TPAPAVM, progress, localCTS.Token);
                         if (continuousSolve.Success) {
                             await TPAPAVM.UpdateDetails(continuousSolve);
@@ -410,7 +442,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                     $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
                                     $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
                                     $"Total Error: {Math.Round(totalErrorMinutes, 2)}'{Environment.NewLine}" +
-                                    $"Automatically finishing polar alignment.", 
+                                    $"Automatically finishing polar alignment.",
                                     TimeSpan.FromMinutes(1));
                                 localCTS.Cancel();
                             }
@@ -427,10 +459,21 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 await windowService?.Close();
                 throw;
             } finally {
+                IsPaused = false;
                 externalProgress?.Report(GetStatus(string.Empty));
                 if(Properties.Settings.Default.StopTrackingWhenDone) { 
                     SetTrackingSidereal(false);
                 }
+            }
+        }
+
+        private async Task WaitIfPaused(CancellationToken token, IProgress<ApplicationStatus> progress) {
+            if (IsPausing) {
+                IsPaused = true;
+                progress?.Report(GetStatus("Paused"));
+                await pauseTS.Token.WaitWhilePausedAsync(token);
+                progress?.Report(GetStatus(string.Empty));
+                IsPaused = false;
             }
         }
 

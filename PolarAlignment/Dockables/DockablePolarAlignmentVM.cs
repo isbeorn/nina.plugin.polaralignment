@@ -14,6 +14,7 @@ using NINA.Profile.Interfaces;
 using NINA.Sequencer.SequenceItem;
 using NINA.WPF.Base.Interfaces.Mediator;
 using NINA.WPF.Base.ViewModel;
+using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
@@ -50,11 +51,27 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
             this.PolarAlignment = new Instructions.PolarAlignment(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolveFactory, domeMediator, weatherDataMediator, new DummyService());
 
             ExecuteCommand = new AsyncCommand<bool>(
-                async () => { using (executeCTS = new CancellationTokenSource()) { return await Execute(new Progress<ApplicationStatus>(p => Status = p), executeCTS.Token); } },
+                async () => { 
+                    using (executeCTS = new CancellationTokenSource()) {
+                        return await Execute(new Progress<ApplicationStatus>(p => Status = p), executeCTS.Token); 
+                    }
+                },
                 (object o) => { return ((PolarAlignment as Instructions.PolarAlignment).Validate() && cameraMediator.IsFreeToCapture(this)); });
+
+            PauseCommand = new RelayCommand(Pause, (object o) => !PolarAlignment.IsPausing);
+            ResumeCommand = new RelayCommand(Resume);
             CancelExecuteCommand = new RelayCommand((object o) => { try { executeCTS?.Cancel(); } catch (Exception) { } });
         }
-        public ISequenceItem PolarAlignment { get; }
+
+        private void Pause(object obj) {
+            PolarAlignment.Pause();
+        }
+
+        private void Resume(object obj) {
+            PolarAlignment.Resume();
+        }
+
+        public PolarAlignment.Instructions.PolarAlignment PolarAlignment { get; }
 
         private ApplicationStatus _status;
 
@@ -75,7 +92,8 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
         }
 
         public IAsyncCommand ExecuteCommand { get; }
-
+        public ICommand PauseCommand { get; }
+        public ICommand ResumeCommand { get; }
         public ICommand CancelExecuteCommand { get; }
 
         public override bool IsTool { get; } = true;
