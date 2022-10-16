@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.0
+- Updated plugin to work with latest major N.I.N.A. version
+
 ## Version 1.7.2.0
 - It is now possible to pause in between the steps and continue after making the adjustments. Useful in case your image downloads and solves take a while.
 
