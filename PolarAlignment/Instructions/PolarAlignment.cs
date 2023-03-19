@@ -21,6 +21,7 @@ using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
@@ -420,7 +421,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     await TPAPAVM.SelectNewReferenceStar(TPAPAVM.Center);
 
-
+                    var sw = Stopwatch.StartNew();
                     do {
                         await WaitIfPaused(localCTS.Token, progress);
 
@@ -445,6 +446,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                     $"Automatically finishing polar alignment.",
                                     TimeSpan.FromMinutes(1));
                                 localCTS.Cancel();
+                            }
+                            if(sw.Elapsed > TimeSpan.FromMinutes(5)) {
+                                Logger.Info("Correction phase exceeded 5 minutes");
+                                Notification.ShowInformation($"Polar alignment correction phase has been running for multiple minutes.{Environment.NewLine}Consider restarting the process to improve precision");
+                                sw.Stop();
+                                sw.Reset();
                             }
                         }
                     } while (!localCTS.Token.IsCancellationRequested);
