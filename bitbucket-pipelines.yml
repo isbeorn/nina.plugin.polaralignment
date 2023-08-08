@@ -1,0 +1,54 @@
+pipelines:
+  # A build pipeline to automatically create a new build artifact and manifest from the nina plugin
+  ## The following custom variables have to be set in your repository 
+  ## (Repository Setting > Section Pipelines > Repository Variables)
+  ### PLUGIN_DLL_NAME - The output dll name without file extension of your plugin assembly
+  ### BITBUCKET_USERNAME - Your bitbucket username 
+  ### BITBUCKET_APP_PASSWORD - Your bitbucket key to upload the output file into the download section
+  ### (https://support.atlassian.com/bitbucket-cloud/docs/create-an-app-password/)
+  ##
+  ## Check the highlighted sections in the scripts below where manual adjustments are required
+  ##
+  ## For your project - make sure that any pre or post build events that copy to %localappdata% do not run for the pipeline
+  ### e.g. only deploy to localappdata when using debug config -- if $(ConfigurationName) == Debug
+  ### alternatively you can ignore any errors in the pre/post events by adding the attribute IgnoreExitCode="true"
+  ##
+  ## Finally in addition to the pipeline - make sure that your plugin project definition has the following property set: 
+  ### <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  custom:   
+    publish:
+        - step:
+            name: dotnet build
+            image: mcr.microsoft.com/dotnet/sdk:7.0
+            caches:
+              - dotnetcore
+            script:
+              ## Create artifact folders
+              - mkdir -p ${BITBUCKET_CLONE_DIR}/artifacts
+              - mkdir -p ${BITBUCKET_CLONE_DIR}/packages  
+              
+                ## Get latest manifest creation script
+              - curl https://api.bitbucket.org/2.0/repositories/isbeorn/nina.plugin.manifests/src/main/tools/CreateNET7Manifest.ps1 >> ${BITBUCKET_CLONE_DIR}/artifacts/CreateNET7Manifest.ps1
+
+              ## Build project
+              - dotnet restore
+              - dotnet build -c Release
+              
+              ## Copy relevant files to packaging folder
+              - cp bin/Release/net7.0-windows/${PLUGIN_DLL_NAME}.dll ${BITBUCKET_CLONE_DIR}/packages/${PLUGIN_DLL_NAME}.dll
+
+            artifacts:
+              - packages/**
+              - artifacts/CreateNET7Manifest.ps1
+        - step:
+            name: package upload and manifest creation
+            image: mcr.microsoft.com/powershell:latest
+            script:
+              ## Create manifest json and upload to bitbucket downloads
+              - pwsh ${BITBUCKET_CLONE_DIR}/artifacts/CreateNET7Manifest.ps1 -file ${BITBUCKET_CLONE_DIR}/packages/${PLUGIN_DLL_NAME}.dll -createArchive -includeAll -appendVersionToArchive -uploadToBitbucket -bitbucketUserName $BITBUCKET_USERNAME -bitbucketPassword $BITBUCKET_APP_PASSWORD -bitbucketRepositoryOwner $BITBUCKET_USERNAME -bitbucketRepository $BITBUCKET_REPO_SLUG
+              # Output manifest json
+              - cat manifest.json
+              ## Copy manifest to artifacts folder 
+              - cp manifest.json ${BITBUCKET_CLONE_DIR}/artifacts/manifest.json
+            artifacts:
+              - artifacts/manifest.json
