@@ -34,6 +34,11 @@ pipelines:
               - dotnet restore
               - dotnet build -c Release
               
+              - ls
+              - ls bin
+              - ls bin/Release
+              - ls bin/Release/net7.0-windows
+
               ## Copy relevant files to packaging folder
               - cp bin/Release/net7.0-windows/${PLUGIN_DLL_NAME}.dll ${BITBUCKET_CLONE_DIR}/packages/${PLUGIN_DLL_NAME}.dll
 
