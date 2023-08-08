@@ -5,6 +5,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <UseWPF>true</UseWPF>
     <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <OutputPath>bin\x64\Debug\</OutputPath>
@@ -45,6 +46,6 @@
     </PostBuildEventDependsOn>
   </PropertyGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="if $(ConfigurationName) == Release (&#xD;&#xA;    echo  &quot;Trying to sign $(TargetPath)&quot;&#xD;&#xA;    signtool sign /t http://timestamp.digicert.com /v /a /fd SHA256 $(TargetPath)&#xD;&#xA;  &#xD;&#xA; &#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;if not exist &quot;%25localappdata%25\NINA\Plugins&quot; (&#xD;&#xA;    echo &quot;Creating Plugins %2525localappdata%2525\NINA\Plugins folder&quot;&#xD;&#xA;    mkdir  &quot;%25localappdata%25\NINA\Plugins&quot;&#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;if exist &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment&quot; (&#xD;&#xA;    echo &quot; folder cleanup&quot;&#xD;&#xA;    rmdir &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment&quot; /S /Q&#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;if not exist &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment&quot; (&#xD;&#xA;    echo &quot;Creating %25localappdata%25\NINA\Plugin\Three Point Polar Alignment folder&quot;&#xD;&#xA;    mkdir  &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment&quot;&#xD;&#xA;)&#xD;&#xA;echo &quot;Copying $(PlatformName) $(TargetFileName)&quot;&#xD;&#xA;copy &quot;$(TargetDir)$(TargetFileName)&quot; &quot;$(TargetDir)$(TargetName).@(VersionNumber)$(TargetExt)&quot; /Y&#xD;&#xA;copy &quot;$(TargetDir)$(TargetFileName)&quot; &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment\$(TargetName).@(VersionNumber)$(TargetExt)&quot; /Y" />
+    <Exec Command="if $(ConfigurationName) == Debug (&#xD;&#xA;    &#xD;&#xA;if not exist &quot;%25localappdata%25\NINA\Plugins&quot; (&#xD;&#xA;    echo &quot;Creating Plugins %2525localappdata%2525\NINA\Plugins folder&quot;&#xD;&#xA;    mkdir  &quot;%25localappdata%25\NINA\Plugins&quot;&#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;if exist &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment&quot; (&#xD;&#xA;    echo &quot; folder cleanup&quot;&#xD;&#xA;    rmdir &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment&quot; /S /Q&#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;if not exist &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment&quot; (&#xD;&#xA;    echo &quot;Creating %25localappdata%25\NINA\Plugin\Three Point Polar Alignment folder&quot;&#xD;&#xA;    mkdir  &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment&quot;&#xD;&#xA;)&#xD;&#xA;echo &quot;Copying $(PlatformName) $(TargetFileName)&quot;&#xD;&#xA;copy &quot;$(TargetDir)$(TargetFileName)&quot; &quot;%25localappdata%25\NINA\Plugins\Three Point Polar Alignment\$(TargetName)$(TargetExt)&quot; /Y&#xD;&#xA;&#xD;&#xA;&#xD;&#xA;)" />
   </Target>
 </Project>

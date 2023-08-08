@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.0.0.1
+- Fixed issue with serilog when PA error logging was enabled
+
 ## Version 2.0
 - Updated plugin to work with latest major N.I.N.A. version
 
