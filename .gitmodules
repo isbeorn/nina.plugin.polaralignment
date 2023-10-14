@@ -1,0 +1,3 @@
+[submodule "NINA.Plugins.PolarAlignment.Test/External"]
+	path = NINA.Plugins.PolarAlignment.Test/External
+	url = https://bitbucket.org/Isbeorn/nina.external.git
