@@ -16,13 +16,13 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var longitude = Angle.ByDegree(7);
             RefrectionParameters refraction = null;
 
-            var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW);
+            var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
             var position1 = new Position(solve1, latitude, longitude, refraction);
 
-            var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(41), Epoch.JNOW);
+            var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(41), Epoch.JNOW).Transform(Epoch.J2000);
             var position2 = new Position(solve2, latitude, longitude, refraction);
 
-            var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(42), Epoch.JNOW);
+            var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(42), Epoch.JNOW).Transform(Epoch.J2000);
             var position3 = new Position(solve3, latitude, longitude, refraction);
             
 
@@ -43,13 +43,13 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var longitude = Angle.ByDegree(7);
             RefrectionParameters refraction = null;
 
-            var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW);
+            var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
             var position1 = new Position(solve1, latitude, longitude, refraction);
 
-            var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(40), Epoch.JNOW);
+            var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
             var position2 = new Position(solve2, latitude, longitude, refraction);
 
-            var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(40), Epoch.JNOW);
+            var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
             var position3 = new Position(solve3, latitude, longitude, refraction);
 
 
