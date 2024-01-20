@@ -32,7 +32,7 @@ pipelines:
 
               ## Build project
               - dotnet restore
-              - dotnet build -c Release
+              - dotnet build PolarAlignment/NINA.Plugins.PolarAlignment.csproj -c Release
 
               ## Copy relevant files to packaging folder
               - cp PolarAlignment/bin/Release/net8.0-windows/${PLUGIN_DLL_NAME}.dll ${BITBUCKET_CLONE_DIR}/packages/${PLUGIN_DLL_NAME}.dll
