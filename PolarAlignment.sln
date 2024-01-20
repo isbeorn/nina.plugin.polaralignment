@@ -5,7 +5,12 @@ VisualStudioVersion = 17.7.34018.315
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NINA.Plugins.PolarAlignment", "PolarAlignment\NINA.Plugins.PolarAlignment.csproj", "{1DE8D7D3-F11E-494C-A371-95CB48DFFA18}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NINA.Plugins.PolarAlignment.Test", "NINA.Plugins.PolarAlignment.Test\NINA.Plugins.PolarAlignment.Test.csproj", "{BA6590F4-4B69-42CF-AFC3-82FFDA0116C4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NINA.Plugins.PolarAlignment.Test", "NINA.Plugins.PolarAlignment.Test\NINA.Plugins.PolarAlignment.Test.csproj", "{BA6590F4-4B69-42CF-AFC3-82FFDA0116C4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFiles", "SolutionFiles", "{AD37D004-FDC4-4E60-B1E6-32487C6F36FB}"
+	ProjectSection(SolutionItems) = preProject
+		bitbucket-pipelines.yml = bitbucket-pipelines.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

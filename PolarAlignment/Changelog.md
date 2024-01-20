@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.0.0.2
+- Fixed issue where the TPPA instruction with a filter set would override the autofocus exposure time
+- 
 ## Version 2.0.0.1
 - Fixed issue with serilog when PA error logging was enabled
 

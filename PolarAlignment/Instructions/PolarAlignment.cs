@@ -69,10 +69,27 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private bool manualMode;
         private bool startFromCurrentPosition;
         private IList<string> issues = new List<string>();
-        
+
+        [OnDeserializing]
+        public void OnDeserializing(StreamingContext context) {
+            
+        }
+
         [OnDeserialized]
         public void OnDeserialized(StreamingContext context) {
-            this.Filter = this.profileService.ActiveProfile.FilterWheelSettings.FilterWheelFilters?.FirstOrDefault(x => x.Name == this.Filter?.Name);
+            MatchFilter();
+        }
+
+        private void MatchFilter() {
+            try {
+                var idx = this.Filter?.Position ?? -1;
+                this.Filter = this.profileService.ActiveProfile.FilterWheelSettings.FilterWheelFilters?.FirstOrDefault(x => x.Name == this.Filter?.Name);
+                if (this.Filter == null && idx >= 0) {
+                    this.Filter = this.profileService.ActiveProfile.FilterWheelSettings.FilterWheelFilters?.FirstOrDefault(x => x.Position == idx);
+                }
+            } catch (Exception ex) {
+                Logger.Error(ex);
+            }
         }
 
         [ImportingConstructor]
