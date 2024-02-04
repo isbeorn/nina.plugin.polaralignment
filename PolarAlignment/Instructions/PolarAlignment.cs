@@ -32,6 +32,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using static NINA.Plugins.PolarAlignment.Dockables.DockablePolarAlignmentVM;
 
 namespace NINA.Plugins.PolarAlignment.Instructions {
     /// <summary>
@@ -93,7 +94,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
 
         [ImportingConstructor]
-        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator) :this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService()) {            
+        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator) :this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService()) {
+            Filter = null;
         }
 
         public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator, IWindowService windowService) {
@@ -107,7 +109,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             this.domeMediator = domeMediator;
             this.weatherDataMediator = weatherDataMediator;
 
-            Filter = profileService.ActiveProfile.PlateSolveSettings.Filter;
+            if(windowService is DummyService) {
+                Filter = profileService.ActiveProfile.PlateSolveSettings.Filter;
+            }
             Gain = profileService.ActiveProfile.PlateSolveSettings.Gain;
             Offset = -1;
             ExposureTime = profileService.ActiveProfile.PlateSolveSettings.ExposureTime;

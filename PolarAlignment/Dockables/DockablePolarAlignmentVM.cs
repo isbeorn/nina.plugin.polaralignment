@@ -137,7 +137,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
         public void Dispose() {
         }
 
-        private class DummyService : IWindowService {
+        public class DummyService : IWindowService {
             protected Dispatcher dispatcher = Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
             public event EventHandler OnDialogResultChanged;
             public event EventHandler OnClosed;
