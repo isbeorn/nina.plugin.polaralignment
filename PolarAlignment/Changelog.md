@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+## Version 2.0.1.0
+- After automated move to next point, wait for the telescope to indicate it is no longer slewing
+- Use Snapshot mode for taking images during polar alignment
+
+## Version 2.0.0.3
+- Fixed issue where the TPPA instruction with a filter set would override the autofocus exposure time
+
+## Version 2.0.0.1
+- Fixed issue with serilog when PA error logging was enabled
+
+## Version 2.0
+- Updated plugin to work with latest major N.I.N.A. version
+
 ## Version 1.7.2.0
 - It is now possible to pause in between the steps and continue after making the adjustments. Useful in case your image downloads and solves take a while.
 

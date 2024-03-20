@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "NINA.Plugins.PolarAlignment": {
+      "commandName": "Project"
+    },
+    "Profile 1": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\N.I.N.A. - Nighttime Imaging 'N' Astronomy\\NINA.exe"
+    }
+  }
+}

@@ -8,7 +8,7 @@
     xmlns:local="clr-namespace:NINA.Plugins.PolarAlignment.Instructions"
     xmlns:mini="clr-namespace:NINA.View.Sequencer.MiniSequencer;assembly=NINA.Sequencer"
     xmlns:nina="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer"
-    xmlns:ninactrl="clr-namespace:NINACustomControlLibrary;assembly=NINACustomControlLibrary"
+    xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary"
     xmlns:ns="clr-namespace:NINA.Core.Locale;assembly=NINA.Core"
     xmlns:properties="clr-namespace:NINA.Plugins.PolarAlignment.Properties"
     xmlns:rules="clr-namespace:NINA.Core.Utility.ValidationRules;assembly=NINA.Core"
