@@ -32,6 +32,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using static NINA.Equipment.Model.CaptureSequence;
 using static NINA.Plugins.PolarAlignment.Dockables.DockablePolarAlignmentVM;
 
 namespace NINA.Plugins.PolarAlignment.Instructions {
@@ -577,7 +578,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     blindSolver = plateSolverFactory.GetBlindSolver(profileService.ActiveProfile.PlateSolveSettings);
                 }
 
-                var seq = new CaptureSequence() { Binning = Binning, Gain = Gain, ExposureTime = ExposureTime, Offset = Offset, FilterType = Filter };
+                var seq = new CaptureSequence() { Binning = Binning, Gain = Gain, ExposureTime = ExposureTime, Offset = Offset, FilterType = Filter, ImageType = ImageTypes.SNAPSHOT };
                 IRenderedImage image = null;
                 try {
                     progress.Report(new ApplicationStatus() { Status = $"Capturing new image to solve..." });
