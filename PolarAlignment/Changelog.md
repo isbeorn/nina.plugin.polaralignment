@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## Version 2.0.1.0
+- After automated move to next point, wait for the telescope to indicate it is no longer slewing
+- Use Snapshot mode for taking images during polar alignment
+
 ## Version 2.0.0.3
 - Fixed issue where the TPPA instruction with a filter set would override the autofocus exposure time
 
