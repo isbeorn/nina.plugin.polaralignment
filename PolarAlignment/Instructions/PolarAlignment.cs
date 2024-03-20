@@ -73,7 +73,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
         [OnDeserializing]
         public void OnDeserializing(StreamingContext context) {
-            
+
         }
 
         [OnDeserialized]
@@ -94,7 +94,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
 
         [ImportingConstructor]
-        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator) :this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService()) {
+        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator) : this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService()) {
             Filter = null;
         }
 
@@ -109,7 +109,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             this.domeMediator = domeMediator;
             this.weatherDataMediator = weatherDataMediator;
 
-            if(windowService is DummyService) {
+            if (windowService is DummyService) {
                 Filter = profileService.ActiveProfile.PlateSolveSettings.Filter;
             }
             Gain = profileService.ActiveProfile.PlateSolveSettings.Gain;
@@ -133,7 +133,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
         }
 
-        private PolarAlignment(PolarAlignment copyMe): this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator) {
+        private PolarAlignment(PolarAlignment copyMe) : this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator) {
             CopyMetaData(copyMe);
         }
 
@@ -243,7 +243,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             await WaitIfPaused(token, progress);
             await MoveToNextPoint(totalDistance, MoveRate, progress, token);
 
-            if(domeMediator.GetInfo().Connected) { 
+            if (domeMediator.GetInfo().Connected) {
                 await domeMediator.WaitForDomeSynchronization(token);
             }
 
@@ -254,7 +254,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 Logger.Warning($"The mount did not move far enough to reach the target distance for the next point ({Math.Round(distance, 2)}°/{Math.Round(totalDistance, 2)}°).");
                 Notification.ShowWarning($"The mount did not move far enough to reach the target distance for the next point ({Math.Round(distance, 2)}°/{Math.Round(totalDistance, 2)}°).{Environment.NewLine}This will happen when the mount driver's rate implementation is not according to the specifications to be degrees per seconds!{Environment.NewLine}Tip: Increase the slew rate and adjust the timeout setting inside the plugin options.");
-            } 
+            }
 
             return solve;
         }
@@ -266,12 +266,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
             var previousMountRADegrees = double.NaN;
 
-            bool telescopeConnected = telescopeMediator.GetInfo().Connected;            
+            bool telescopeConnected = telescopeMediator.GetInfo().Connected;
 
             if (telescopeConnected) {
                 previousMountRADegrees = telescopeMediator.GetCurrentPosition().RADegrees;
             }
-            
+
             do {
                 await WaitIfPaused(token, progress);
                 double distance;
@@ -284,7 +284,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 }
                 if (distance - totalDistance < -1) {
                     traveledFarEnough = false;
-                    
+
                     progress.Report(new ApplicationStatus() { Status = $"Move mount along RA axis! {Math.Round(distance, 2)}°/{Math.Round(totalDistance, 2)}°" });
                     await Task.Delay(TimeSpan.FromSeconds(1));
                 } else {
@@ -293,17 +293,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             } while (!traveledFarEnough);
 
             if (telescopeConnected) {
-                while(telescopeMediator.GetInfo().Slewing) {
+                while (telescopeMediator.GetInfo().Slewing) {
                     progress.Report(new ApplicationStatus() { Status = "Moved far enough. Stop axis rotation now!" });
                     await Task.Delay(500, token);
                 }
-                SetTrackingSidereal(true);
                 await CoreUtil.Wait(TimeSpan.FromSeconds(profileService.ActiveProfile.TelescopeSettings.SettleTime), token, progress, "Settling");
+                SetTrackingSidereal(true);
                 if (domeMediator.GetInfo().Connected) {
                     progress.Report(new ApplicationStatus() { Status = $"Waiting for dome to synchronize" });
                     await domeMediator.WaitForDomeSynchronization(token);
                 }
-                solve = await Solve(TPAPAVM, progress, token);                
+                solve = await Solve(TPAPAVM, progress, token);
             }
 
             return solve;
@@ -313,17 +313,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             try {
 
                 telescopeMediator.SetTrackingMode(Equipment.Interfaces.TrackingMode.Sidereal);
-            } catch(Exception) { }
+            } catch (Exception) { }
             try {
                 telescopeMediator.SetTrackingEnabled(onOff);
-            } catch(Exception) { }            
+            } catch (Exception) { }
         }
 
         public void Pause() {
-            if(pauseTS != null) {
+            if (pauseTS != null) {
                 pauseTS.IsPaused = true;
                 RaisePropertyChanged(nameof(IsPaused));
-            }            
+            }
         }
         public void Resume() {
             if (pauseTS != null) {
@@ -333,7 +333,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
 
         private bool isPaused;
-        public bool IsPaused { 
+        public bool IsPaused {
             get => isPaused;
             private set {
                 isPaused = value;
@@ -355,8 +355,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     pauseTS = new PauseTokenSource();
                     try {
                         TPAPAVM?.Dispose();
-                    } catch(Exception) { }
-                    
+                    } catch (Exception) { }
+
                     TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
                     IProgress<ApplicationStatus> progress = new Progress<ApplicationStatus>(p => { TPAPAVM.Status = p; externalProgress?.Report(p); });
 
@@ -369,8 +369,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     TPAPAVM.ActivateFirstStep();
 
-                    if(!ManualMode) { 
-                        if(!StartFromCurrentPosition) {
+                    if (!ManualMode) {
+                        if (!StartFromCurrentPosition) {
                             Logger.Info($"Slewing to initial position {Coordinates.Coordinates}");
                             SetTrackingSidereal(true);
                             await telescopeMediator.SlewToCoordinatesAsync(Coordinates.Coordinates, localCTS.Token);
@@ -379,13 +379,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         }
 
                     } else {
-                        if(telescopeMediator.GetInfo().Connected) {
+                        if (telescopeMediator.GetInfo().Connected) {
                             Logger.Info($"Manual mode engaged with mount connection available. Running in semi manual mode with standard plate solver.");
                             SetTrackingSidereal(true);
                         } else {
                             Logger.Info($"Manual mode engaged without any mount connection. Running in complete blind mode using blind solver.");
                         }
-                        
+
                     }
 
                     var solve1 = await Solve(TPAPAVM, progress, localCTS.Token);
@@ -431,7 +431,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, refractionParameter);
 
-                    Logger.Info($"Calculated Error: Az: { TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: { TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: { TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
+                    Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 
                     TPAPAVM.ActivateFouthStep();
 
@@ -468,7 +468,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                     TimeSpan.FromMinutes(1));
                                 localCTS.Cancel();
                             }
-                            if(sw.Elapsed > TimeSpan.FromMinutes(5)) {
+                            if (sw.Elapsed > TimeSpan.FromMinutes(5)) {
                                 Logger.Info("Correction phase exceeded 5 minutes");
                                 Notification.ShowInformation($"Polar alignment correction phase has been running for multiple minutes.{Environment.NewLine}Consider restarting the process to improve precision");
                                 sw.Stop();
@@ -489,7 +489,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             } finally {
                 IsPaused = false;
                 externalProgress?.Report(GetStatus(string.Empty));
-                if(Properties.Settings.Default.StopTrackingWhenDone) { 
+                if (Properties.Settings.Default.StopTrackingWhenDone) {
                     SetTrackingSidereal(false);
                 }
             }
@@ -542,11 +542,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private int gain;
 
         [JsonProperty]
-        public int Gain { get => gain; 
-            set { 
-                gain = value; 
-                RaisePropertyChanged(); 
-            } 
+        public int Gain {
+            get => gain;
+            set {
+                gain = value;
+                RaisePropertyChanged();
+            }
         }
 
         private int offset;
@@ -571,7 +572,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 var solver = plateSolverFactory.GetPlateSolver(profileService.ActiveProfile.PlateSolveSettings);
                 IPlateSolver blindSolver = null;
-                if(ManualMode && !telescopeMediator.GetInfo().Connected) {
+                if (ManualMode && !telescopeMediator.GetInfo().Connected) {
                     Logger.Debug("Manual mode is enabled and no telescope is connected. Spawning the blind solver");
                     blindSolver = plateSolverFactory.GetBlindSolver(profileService.ActiveProfile.PlateSolveSettings);
                 }
@@ -581,7 +582,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 try {
                     progress.Report(new ApplicationStatus() { Status = $"Capturing new image to solve..." });
                     image = await imagingMediator.CaptureAndPrepareImage(seq, new PrepareImageParameters(true, false), token, progress);
-                } catch(Exception ex) {
+                } catch (Exception ex) {
                     Logger.Error(ex);
                 }
 
@@ -631,7 +632,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     .Where(x => x.Item1 <= rate && rate <= x.Item2 || x.Item2 < rate).LastOrDefault();
 
                 var adjustedRate = rate;
-                if(foundRate.Item2 < rate) {
+                if (foundRate.Item2 < rate) {
                     Logger.Warning($"Provided MoveRate of {rate} is not supported. Using {adjustedRate} instead");
                     //The closest rate is below the specified move rate as no move rate is found for the value
                     adjustedRate = foundRate.Item2;
@@ -645,7 +646,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token)) {
                     try {
-                        cts.CancelAfter(timeToDestination);                        
+                        cts.CancelAfter(timeToDestination);
 
                         while (Distance(currentPosition.RADegrees, startPosition.RADegrees) < moveDistance) {
                             await Task.Delay(100, cts.Token);
@@ -666,6 +667,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 telescopeMediator.MoveAxis(Core.Enum.TelescopeAxes.Primary, 0);
 
+                while (telescopeMediator.GetInfo().Slewing) {
+                    await CoreUtil.Wait(TimeSpan.FromMilliseconds(500), token, progress, "Waiting for mount to stop slewing");
+                }
                 await CoreUtil.Wait(TimeSpan.FromSeconds(profileService.ActiveProfile.TelescopeSettings.SettleTime), token, progress, "Settling");
                 SetTrackingSidereal(true);
 
@@ -698,7 +702,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             var i = new List<string>();
 
             //Location
-            if(profileService.ActiveProfile.AstrometrySettings.Latitude == 0 && profileService.ActiveProfile.AstrometrySettings.Longitude == 0) {
+            if (profileService.ActiveProfile.AstrometrySettings.Latitude == 0 && profileService.ActiveProfile.AstrometrySettings.Longitude == 0) {
                 i.Add("No location has been set. Please set your latitude and longitude first as it is critical for the calculation to work!");
             }
 
@@ -723,21 +727,21 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
             //Mount
             var telescope = telescopeMediator.GetInfo();
-            if (!ManualMode) { 
+            if (!ManualMode) {
                 if (!telescope.Connected) {
                     i.Add(Loc.Instance["LblTelescopeNotConnected"]);
                     i.Add("Switch to manual mode if no telescope connection is available");
                 } else if (!telescope.CanMovePrimaryAxis) {
                     i.Add("Telescope cannot move primary axis. This is required for the automated slews around the right ascension axis!");
                 }
-            } 
+            }
 
-            if(telescope.Connected && telescope.AtPark) {                    
+            if (telescope.Connected && telescope.AtPark) {
                 i.Add("Telescope is parked. Please unpark the telescope first!");
             }
 
             //Solver
-            if(!ManualMode || (ManualMode && telescope.Connected)) {
+            if (!ManualMode || (ManualMode && telescope.Connected)) {
                 if (profileService.ActiveProfile.PlateSolveSettings.PlateSolverType == Core.Enum.PlateSolverEnum.ASTROMETRY_NET) {
                     i.Add("Astrometry.net is too slow for this method to work properly.");
                     i.Add("Please choose a different solver!");
@@ -749,7 +753,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     i.Add("Please choose a different solver!");
                 }
             }
-            
+
 
             Issues = i;
             return i.Count == 0;
