@@ -91,7 +91,7 @@ namespace NINA.Plugins.PolarAlignment {
                 return Properties.Settings.Default.DefaultSearchRadius;
             }
             set {
-                Properties.Settings.Default.DefaultSearchRadius = value;
+                Properties.Settings.Default.DefaultSearchRadius = Math.Max(30, Math.Min(180, value)); ;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
             }

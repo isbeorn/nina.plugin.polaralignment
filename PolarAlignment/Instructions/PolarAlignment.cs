@@ -180,7 +180,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public double SearchRadius {
             get => searchRadius;
             set {
-                searchRadius = value;
+                searchRadius = Math.Max(30, Math.Min(180, value));
                 RaisePropertyChanged();
             }
         }
@@ -248,7 +248,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 await domeMediator.WaitForDomeSynchronization(token);
             }
 
-            solve = await Solve(TPAPAVM, progress, token);
+            solve = await Solve(TPAPAVM, 5.0, progress, token);
 
             var distance = Distance(previousMountRADegrees, telescopeMediator.GetCurrentPosition().RADegrees);
             if (distance - totalDistance < -1) {
@@ -280,7 +280,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     distance = Distance(previousMountRADegrees, telescopeMediator.GetCurrentPosition().RADegrees);
                 } else {
                     // Without telescope connection, the coordinates need to be determined via solving
-                    solve = await Solve(TPAPAVM, progress, token);
+                    solve = await Solve(TPAPAVM, 5.0, progress, token);
                     distance = Distance(previousSolve.Coordinates.RADegrees, solve.Coordinates.RADegrees);
                 }
                 if (distance - totalDistance < -1) {
@@ -304,7 +304,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     progress.Report(new ApplicationStatus() { Status = $"Waiting for dome to synchronize" });
                     await domeMediator.WaitForDomeSynchronization(token);
                 }
-                solve = await Solve(TPAPAVM, progress, token);
+                solve = await Solve(TPAPAVM, 5.0, progress, token);
             }
 
             return solve;
@@ -389,7 +389,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     }
 
-                    var solve1 = await Solve(TPAPAVM, progress, localCTS.Token);
+                    var solve1 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
                     var refractionParameter = RefrectionParameters.GetRefrectionParameters(profileService.ActiveProfile.AstrometrySettings.Elevation, weatherDataMediator.GetInfo());
 
                     var telescopeInfo = telescopeMediator.GetInfo();
@@ -420,7 +420,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     } else {
                         solve3 = await ManualNextPoint(solve2, progress, localCTS.Token);
                         await CoreUtil.Wait(TimeSpan.FromSeconds(10), localCTS.Token, progress, "Waiting for things to settle. Make sure the scope is tracking and don't move any further!");
-                        solve3 = await Solve(TPAPAVM, progress, localCTS.Token);
+                        solve3 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
                     }
 
                     var position3 = new Position(solve3.Coordinates, Latitude, Longitude, refractionParameter);
@@ -447,7 +447,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     do {
                         await WaitIfPaused(localCTS.Token, progress);
 
-                        var continuousSolve = await Solve(TPAPAVM, progress, localCTS.Token);
+                        var continuousSolve = await Solve(TPAPAVM, 0, progress, localCTS.Token);
                         if (continuousSolve.Success) {
                             await TPAPAVM.UpdateDetails(continuousSolve);
 
@@ -565,7 +565,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
         public CameraInfo CameraInfo { get => cameraInfo; private set { cameraInfo = value; RaisePropertyChanged(); } }
 
-        private async Task<PlateSolveResult> Solve(TPAPAVM context, IProgress<ApplicationStatus> progress, CancellationToken token) {
+        private async Task<PlateSolveResult> Solve(TPAPAVM context, double searchRadiusIncrementOnFailure, IProgress<ApplicationStatus> progress, CancellationToken token) {
             PlateSolveResult result = new PlateSolveResult { Success = false };
 
             do {
@@ -609,6 +609,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     progress.Report(new ApplicationStatus() { Status = $"Solving image..." });
                     result = await imageSolver.Solve(image.RawImageData, parameter, progress, token);
                     if (!result.Success) {
+                        SearchRadius += searchRadiusIncrementOnFailure;
                         await CoreUtil.Wait(TimeSpan.FromSeconds(1), token, progress, "Plate solve failed. Retrying...");
                     }
                 } else {

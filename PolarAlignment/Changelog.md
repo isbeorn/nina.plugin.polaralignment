@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.0.2.0
+- Automatically increase search radius on plate solve by 5 during solving of the first three points each time it fails
+
 ## Version 2.0.1.0
 - After automated move to next point, wait for the telescope to indicate it is no longer slewing
 - Use Snapshot mode for taking images during polar alignment
