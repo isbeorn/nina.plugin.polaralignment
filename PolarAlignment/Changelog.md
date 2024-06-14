@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version tbd
+- The position angle spread between the three measurements is now measured and when being too large a warning will be shown
+
 ## Version 2.0.2.0
 - Automatically increase search radius on plate solve by 5 during solving of the first three points each time it fails
 

@@ -456,6 +456,12 @@ namespace NINA.Plugins.PolarAlignment {
             InitialMountAxisErrorPosition = new Position(planeVector, Latitude, Longitude);
 
             CalculateMountAxisError(refrectionParameters);
+            PositionAngleSpread = CalculatePositionAngleSpread(FirstPosition.PositionAngle, SecondPosition.PositionAngle, ThirdPosition.PositionAngle);
+        }
+        double CalculatePositionAngleSpread(double val1, double val2, double val3) {
+            double maxVal = Math.Max(val1, Math.Max(val2, val3));
+            double minVal = Math.Min(val1, Math.Min(val2, val3));
+            return maxVal - minVal;
         }
 
         public Angle Latitude { get; }
@@ -506,6 +512,10 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
+        public bool PositionAngleSpreadLarge {
+            get => PositionAngleSpread > 1;
+        }
+
         public bool InitialErrorLarge {
             get => InitialMountAxisTotalError.Degree > 2 && InitialMountAxisTotalError.Degree <= 10;
         }
@@ -552,6 +562,8 @@ namespace NINA.Plugins.PolarAlignment {
             }
             }
         }
+
+        public double PositionAngleSpread { get; }
 
         /// <summary>
         /// Calculate the error based on the measured telescope axis compared to the polar axis
@@ -622,7 +634,7 @@ namespace NINA.Plugins.PolarAlignment {
     }
     
     public class Position {
-        public Position(Coordinates coordinates, Angle latitude, Angle longitude, RefrectionParameters refrectionParameters) {
+        public Position(Coordinates coordinates, double positionAngle, Angle latitude, Angle longitude, RefrectionParameters refrectionParameters) {
                 if (refrectionParameters != null) {
                 double pressurehPa = refrectionParameters.PressureHPa;
                 double temperature = refrectionParameters.Temperature;
@@ -635,6 +647,7 @@ namespace NINA.Plugins.PolarAlignment {
                 Topocentric = coordinates.Transform(latitude, longitude);
             }
             Vector = Vector3.CoordinatesToUnitVector(Topocentric);
+            PositionAngle = positionAngle;
         }
         public Position(Vector3 vector, Angle latitude, Angle longitude) {
             Topocentric = vector.ToTopocentric(latitude, longitude);
@@ -648,6 +661,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         public Vector3 Vector { get; }
         public TopocentricCoordinates Topocentric { get; }
+        public double PositionAngle { get; }
     }
 
     public class TPPAStep : BaseINPC {

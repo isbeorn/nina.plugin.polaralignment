@@ -9,6 +9,7 @@ using NINA.Core.Utility.WindowService;
 using NINA.Equipment.Equipment.MyCamera;
 using NINA.Equipment.Equipment.MyWeatherData;
 using NINA.Equipment.Interfaces.Mediator;
+using NINA.Equipment.Interfaces.ViewModel;
 using NINA.Equipment.Model;
 using NINA.Image.ImageAnalysis;
 using NINA.Image.Interfaces;
@@ -394,9 +395,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     var telescopeInfo = telescopeMediator.GetInfo();
 
-                    var position1 = new Position(solve1.Coordinates, Latitude, Longitude, refractionParameter);
+                    var position1 = new Position(solve1.Coordinates, solve1.PositionAngle, Latitude, Longitude, refractionParameter);
 
-                    Logger.Info($"First measurement point {solve1.Coordinates} - Vector: {position1.Vector}");
+                    Logger.Info($"First measurement point {solve1.Coordinates} - Vector: {position1.Vector} - Position Angle: {position1.PositionAngle}");
 
                     TPAPAVM.ActivateSecondStep();
 
@@ -407,9 +408,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         solve2 = await ManualNextPoint(solve1, progress, localCTS.Token);
                     }
 
-                    var position2 = new Position(solve2.Coordinates, Latitude, Longitude, refractionParameter);
+                    var position2 = new Position(solve2.Coordinates, solve2.PositionAngle, Latitude, Longitude, refractionParameter);
 
-                    Logger.Info($"Second measurement point {solve2.Coordinates} - Vector: {position2.Vector}");
+                    Logger.Info($"Second measurement point {solve2.Coordinates} - Vector: {position2.Vector} - Position Angle: {position2.PositionAngle}");
 
                     TPAPAVM.ActivateThirdStep();
 
@@ -423,9 +424,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         solve3 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
                     }
 
-                    var position3 = new Position(solve3.Coordinates, Latitude, Longitude, refractionParameter);
+                    var position3 = new Position(solve3.Coordinates, solve3.PositionAngle, Latitude, Longitude, refractionParameter);
 
-                    Logger.Info($"Third measurement point {solve3.Coordinates} - Vector: {position3.Vector}");
+                    Logger.Info($"Third measurement point {solve3.Coordinates} - Vector: {position3.Vector} - Position Angle: {position3.PositionAngle}");
 
                     progress?.Report(GetStatus("Calculating Error"));
 
