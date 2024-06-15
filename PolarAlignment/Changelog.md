@@ -2,6 +2,9 @@
 
 ## Version tbd
 - The position angle spread between the three measurements is now measured and when being too large a warning will be shown
+- Added native support for the [Avalon Polar Alignment System](https://www.avalon-instruments.com/products-menu/accessories/universal-polar-alignment-system-detail)
+  - A new setting `Use Avalon Polar Alignment System?` is now available.
+  - When activated, the polar alignment routine will connect to the unit after the third step automatically, allowing you to remotely adjust the altitude and azimuth of your system.
 
 ## Version 2.0.2.0
 - Automatically increase search radius on plate solve by 5 during solving of the first three points each time it fails
