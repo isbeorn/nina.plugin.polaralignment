@@ -35,6 +35,56 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
         [ObservableProperty]
         private float targetPositionY;
 
+        public float XGearRatio {
+            get {
+                return Properties.Settings.Default.AvalonXGearRatio;
+            }
+            set {
+                if (value < 1) { value = 1; }
+                Properties.Settings.Default.AvalonXGearRatio = value;
+                upa.XGearRatio = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+                RaisePropertyChanged(nameof(PositionX));
+            }
+        }
+
+        public int XSpeed {
+            get {
+                return Properties.Settings.Default.AvalonXSpeed;
+            }
+            set {
+                Properties.Settings.Default.AvalonXSpeed = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
+        public float YGearRatio {
+            get {
+                return Properties.Settings.Default.AvalonYGearRatio;
+            }
+            set {
+                if(value < 1) { value = 1; }
+                Properties.Settings.Default.AvalonYGearRatio = value;
+                upa.YGearRatio = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+                RaisePropertyChanged(nameof(PositionY));
+            }
+        }
+
+        public int YSpeed {
+            get {
+                return Properties.Settings.Default.AvalonYSpeed;
+            }
+            set {
+                Properties.Settings.Default.AvalonYSpeed = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(NudgeXCommand))]
         [NotifyCanExecuteChangedFor(nameof(NudgeYCommand))]
@@ -78,7 +128,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
-                await upa.MoveRelative(UniversalPolarAlignment.Axis.XAxis, 500, position, token).ConfigureAwait(false);
+                await upa.MoveRelative(UniversalPolarAlignment.Axis.XAxis, XSpeed, position, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);
             } finally {
@@ -91,7 +141,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
-                await upa.MoveRelative(UniversalPolarAlignment.Axis.YAxis, 500, position, token).ConfigureAwait(false);
+                await upa.MoveRelative(UniversalPolarAlignment.Axis.YAxis, YSpeed, position, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);
             } finally {
@@ -104,7 +154,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
-                await upa.MoveAbsolute(UniversalPolarAlignment.Axis.XAxis, 500, TargetPositionX, token).ConfigureAwait(false);
+                await upa.MoveAbsolute(UniversalPolarAlignment.Axis.XAxis, XSpeed, TargetPositionX, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);
             } finally {
@@ -117,7 +167,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
-                await upa.MoveAbsolute(UniversalPolarAlignment.Axis.YAxis, 500, TargetPositionY, token).ConfigureAwait(false);
+                await upa.MoveAbsolute(UniversalPolarAlignment.Axis.YAxis, YSpeed, TargetPositionY, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);
             } finally {

@@ -298,7 +298,7 @@
                         <Button Command="{Binding ConnectCommand}" Visibility="{Binding Connected, Converter={StaticResource InverseBooleanToVisibilityCollapsedConverter}}">Test Connect</Button>
                         <Button Command="{Binding DisconnectCommand}" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">Disconnect</Button>
                     </Grid>
-                    <Grid Grid.Row="1" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition />
                             <ColumnDefinition />
@@ -315,88 +315,132 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition />
                                 </Grid.RowDefinitions>
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    FontSize="24"
-                                    Text="{Binding PositionX, StringFormat=N2}" />
-                                <Grid Grid.Row="1">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                    </Grid.RowDefinitions>
+                                <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition />
                                         <ColumnDefinition />
+                                        <ColumnDefinition />
+                                        <ColumnDefinition />
                                     </Grid.ColumnDefinitions>
-                                    <Button
-                                        Height="25"
-                                        Margin="0,0,2.5,0"
-                                        Command="{Binding NudgeXCommand}"
-                                        CommandParameter="{StaticResource NegativeDotOne}">
-                                        -0.1
-                                    </Button>
-                                    <Button
+                                    <TextBlock VerticalAlignment="Center">Speed</TextBlock>
+                                    <ComboBox
                                         Grid.Column="1"
-                                        Height="25"
-                                        Margin="2.5,0,0,0"
-                                        Command="{Binding NudgeXCommand}"
-                                        CommandParameter="{StaticResource DotOne}">
-                                        +0.1
-                                    </Button>
-                                    <Button
-                                        Grid.Row="1"
-                                        Height="25"
-                                        Margin="0,5,2.5,0"
-                                        Command="{Binding NudgeXCommand}"
-                                        CommandParameter="{StaticResource NegativeOne}">
-                                        -1
-                                    </Button>
-                                    <Button
-                                        Grid.Row="1"
-                                        Grid.Column="1"
-                                        Height="25"
-                                        Margin="2.5,5,0,0"
-                                        Command="{Binding NudgeXCommand}"
-                                        CommandParameter="{StaticResource One}">
-                                        +1
-                                    </Button>
-                                    <Button
-                                        Grid.Row="2"
-                                        Height="25"
-                                        Margin="0,5,2.5,0"
-                                        Command="{Binding NudgeXCommand}"
-                                        CommandParameter="{StaticResource NegativeTen}">
-                                        -10
-                                    </Button>
-                                    <Button
-                                        Grid.Row="2"
-                                        Grid.Column="1"
-                                        Height="25"
-                                        Margin="2.5,5,0,0"
-                                        Command="{Binding NudgeXCommand}"
-                                        CommandParameter="{StaticResource Ten}">
-                                        +10
-                                    </Button>
-
-                                    <TextBox
-                                        Grid.Row="3"
-                                        Margin="0,5,2.5,0"
                                         VerticalAlignment="Center"
-                                        HorizontalContentAlignment="Right"
-                                        Text="{Binding TargetPositionX}" />
-                                    <Button
-                                        Grid.Row="3"
-                                        Grid.Column="1"
-                                        Height="25"
-                                        Margin="2.5,5,0,0"
-                                        Command="{Binding MoveXCommand}">
-                                        Move
-                                    </Button>
+                                        SelectedValue="{Binding XSpeed}">
+                                        <ComboBox.ItemsSource>
+                                            <x:Array Type="{x:Type s:Int32}">
+                                                <s:Int32>100</s:Int32>
+                                                <s:Int32>200</s:Int32>
+                                                <s:Int32>300</s:Int32>
+                                                <s:Int32>400</s:Int32>
+                                                <s:Int32>500</s:Int32>
+                                                <s:Int32>600</s:Int32>
+                                                <s:Int32>700</s:Int32>
+                                                <s:Int32>800</s:Int32>
+                                                <s:Int32>900</s:Int32>
+                                                <s:Int32>1000</s:Int32>
+                                            </x:Array>
+                                        </ComboBox.ItemsSource>
+                                    </ComboBox>
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center">
+                                        GearRatio
+                                    </TextBlock>
+                                    <TextBox
+                                        Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        Text="{Binding XGearRatio}" />
+                                </Grid>
+                                <Grid Grid.Row="1" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="24"
+                                        Text="{Binding PositionX, StringFormat=N2}" />
+                                    <Grid Grid.Row="1">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition />
+                                            <ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <Button
+                                            Height="25"
+                                            Margin="0,0,2.5,0"
+                                            Command="{Binding NudgeXCommand}"
+                                            CommandParameter="{StaticResource NegativeDotOne}">
+                                            -0.1
+                                        </Button>
+                                        <Button
+                                            Grid.Column="1"
+                                            Height="25"
+                                            Margin="2.5,0,0,0"
+                                            Command="{Binding NudgeXCommand}"
+                                            CommandParameter="{StaticResource DotOne}">
+                                            +0.1
+                                        </Button>
+                                        <Button
+                                            Grid.Row="1"
+                                            Height="25"
+                                            Margin="0,5,2.5,0"
+                                            Command="{Binding NudgeXCommand}"
+                                            CommandParameter="{StaticResource NegativeOne}">
+                                            -1
+                                        </Button>
+                                        <Button
+                                            Grid.Row="1"
+                                            Grid.Column="1"
+                                            Height="25"
+                                            Margin="2.5,5,0,0"
+                                            Command="{Binding NudgeXCommand}"
+                                            CommandParameter="{StaticResource One}">
+                                            +1
+                                        </Button>
+                                        <Button
+                                            Grid.Row="2"
+                                            Height="25"
+                                            Margin="0,5,2.5,0"
+                                            Command="{Binding NudgeXCommand}"
+                                            CommandParameter="{StaticResource NegativeTen}">
+                                            -10
+                                        </Button>
+                                        <Button
+                                            Grid.Row="2"
+                                            Grid.Column="1"
+                                            Height="25"
+                                            Margin="2.5,5,0,0"
+                                            Command="{Binding NudgeXCommand}"
+                                            CommandParameter="{StaticResource Ten}">
+                                            +10
+                                        </Button>
+
+                                        <TextBox
+                                            Grid.Row="3"
+                                            Margin="0,5,2.5,0"
+                                            VerticalAlignment="Center"
+                                            HorizontalContentAlignment="Right"
+                                            Text="{Binding TargetPositionX}" />
+                                        <Button
+                                            Grid.Row="3"
+                                            Grid.Column="1"
+                                            Height="25"
+                                            Margin="2.5,5,0,0"
+                                            Command="{Binding MoveXCommand}">
+                                            Move
+                                        </Button>
+                                    </Grid>
                                 </Grid>
                             </Grid>
 
@@ -405,88 +449,132 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition />
                                 </Grid.RowDefinitions>
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    FontSize="24"
-                                    Text="{Binding PositionY, StringFormat=N2}" />
-                                <Grid Grid.Row="1">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                    </Grid.RowDefinitions>
+                                <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition />
                                         <ColumnDefinition />
+                                        <ColumnDefinition />
+                                        <ColumnDefinition />
                                     </Grid.ColumnDefinitions>
-                                    <Button
-                                        Height="25"
-                                        Margin="0,0,2.5,0"
-                                        Command="{Binding NudgeYCommand}"
-                                        CommandParameter="{StaticResource NegativeDotOne}">
-                                        -0.1
-                                    </Button>
-                                    <Button
+                                    <TextBlock VerticalAlignment="Center">Speed</TextBlock>
+                                    <ComboBox
                                         Grid.Column="1"
-                                        Height="25"
-                                        Margin="2.5,0,0,0"
-                                        Command="{Binding NudgeYCommand}"
-                                        CommandParameter="{StaticResource DotOne}">
-                                        +0.1
-                                    </Button>
-                                    <Button
-                                        Grid.Row="1"
-                                        Height="25"
-                                        Margin="0,5,2.5,0"
-                                        Command="{Binding NudgeYCommand}"
-                                        CommandParameter="{StaticResource NegativeOne}">
-                                        -1
-                                    </Button>
-                                    <Button
-                                        Grid.Row="1"
-                                        Grid.Column="1"
-                                        Height="25"
-                                        Margin="2.5,5,0,0"
-                                        Command="{Binding NudgeYCommand}"
-                                        CommandParameter="{StaticResource One}">
-                                        +1
-                                    </Button>
-                                    <Button
-                                        Grid.Row="2"
-                                        Height="25"
-                                        Margin="0,5,2.5,0"
-                                        Command="{Binding NudgeYCommand}"
-                                        CommandParameter="{StaticResource NegativeTen}">
-                                        -10
-                                    </Button>
-                                    <Button
-                                        Grid.Row="2"
-                                        Grid.Column="1"
-                                        Height="25"
-                                        Margin="2.5,5,0,0"
-                                        Command="{Binding NudgeYCommand}"
-                                        CommandParameter="{StaticResource Ten}">
-                                        +10
-                                    </Button>
-
-                                    <TextBox
-                                        Grid.Row="3"
-                                        Margin="0,5,2.5,0"
                                         VerticalAlignment="Center"
-                                        HorizontalContentAlignment="Right"
-                                        Text="{Binding TargetPositionY}" />
-                                    <Button
-                                        Grid.Row="3"
-                                        Grid.Column="1"
-                                        Height="25"
-                                        Margin="2.5,5,0,0"
-                                        Command="{Binding MoveYCommand}">
-                                        Move
-                                    </Button>
+                                        SelectedItem="{Binding YSpeed}">
+                                        <ComboBox.ItemsSource>
+                                            <x:Array Type="{x:Type s:Int32}">
+                                                <s:Int32>100</s:Int32>
+                                                <s:Int32>200</s:Int32>
+                                                <s:Int32>300</s:Int32>
+                                                <s:Int32>400</s:Int32>
+                                                <s:Int32>500</s:Int32>
+                                                <s:Int32>600</s:Int32>
+                                                <s:Int32>700</s:Int32>
+                                                <s:Int32>800</s:Int32>
+                                                <s:Int32>900</s:Int32>
+                                                <s:Int32>1000</s:Int32>
+                                            </x:Array>
+                                        </ComboBox.ItemsSource>
+                                    </ComboBox>
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center">
+                                        GearRatio
+                                    </TextBlock>
+                                    <TextBox
+                                        Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        Text="{Binding YGearRatio}" />
+                                </Grid>
+                                <Grid Grid.Row="1" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="24"
+                                        Text="{Binding PositionY, StringFormat=N2}" />
+                                    <Grid Grid.Row="1">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition />
+                                            <ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <Button
+                                            Height="25"
+                                            Margin="0,0,2.5,0"
+                                            Command="{Binding NudgeYCommand}"
+                                            CommandParameter="{StaticResource NegativeDotOne}">
+                                            -0.1
+                                        </Button>
+                                        <Button
+                                            Grid.Column="1"
+                                            Height="25"
+                                            Margin="2.5,0,0,0"
+                                            Command="{Binding NudgeYCommand}"
+                                            CommandParameter="{StaticResource DotOne}">
+                                            +0.1
+                                        </Button>
+                                        <Button
+                                            Grid.Row="1"
+                                            Height="25"
+                                            Margin="0,5,2.5,0"
+                                            Command="{Binding NudgeYCommand}"
+                                            CommandParameter="{StaticResource NegativeOne}">
+                                            -1
+                                        </Button>
+                                        <Button
+                                            Grid.Row="1"
+                                            Grid.Column="1"
+                                            Height="25"
+                                            Margin="2.5,5,0,0"
+                                            Command="{Binding NudgeYCommand}"
+                                            CommandParameter="{StaticResource One}">
+                                            +1
+                                        </Button>
+                                        <Button
+                                            Grid.Row="2"
+                                            Height="25"
+                                            Margin="0,5,2.5,0"
+                                            Command="{Binding NudgeYCommand}"
+                                            CommandParameter="{StaticResource NegativeTen}">
+                                            -10
+                                        </Button>
+                                        <Button
+                                            Grid.Row="2"
+                                            Grid.Column="1"
+                                            Height="25"
+                                            Margin="2.5,5,0,0"
+                                            Command="{Binding NudgeYCommand}"
+                                            CommandParameter="{StaticResource Ten}">
+                                            +10
+                                        </Button>
+
+                                        <TextBox
+                                            Grid.Row="3"
+                                            Margin="0,5,2.5,0"
+                                            VerticalAlignment="Center"
+                                            HorizontalContentAlignment="Right"
+                                            Text="{Binding TargetPositionY}" />
+                                        <Button
+                                            Grid.Row="3"
+                                            Grid.Column="1"
+                                            Height="25"
+                                            Margin="2.5,5,0,0"
+                                            Command="{Binding MoveYCommand}">
+                                            Move
+                                        </Button>
+                                    </Grid>
                                 </Grid>
                             </Grid>
                         </GroupBox>

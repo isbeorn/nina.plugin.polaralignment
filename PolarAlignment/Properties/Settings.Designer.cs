@@ -238,5 +238,53 @@ namespace NINA.Plugins.PolarAlignment.Properties {
                 this["UseAvalonPolarAlignmentSystem"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("4.96")]
+        public float AvalonXGearRatio {
+            get {
+                return ((float)(this["AvalonXGearRatio"]));
+            }
+            set {
+                this["AvalonXGearRatio"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("700")]
+        public int AvalonXSpeed {
+            get {
+                return ((int)(this["AvalonXSpeed"]));
+            }
+            set {
+                this["AvalonXSpeed"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("13.9")]
+        public float AvalonYGearRatio {
+            get {
+                return ((float)(this["AvalonYGearRatio"]));
+            }
+            set {
+                this["AvalonYGearRatio"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("700")]
+        public int AvalonYSpeed {
+            get {
+                return ((int)(this["AvalonYSpeed"]));
+            }
+            set {
+                this["AvalonYSpeed"] = value;
+            }
+        }
     }
 }
