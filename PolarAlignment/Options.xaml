@@ -10,255 +10,490 @@
     xmlns:ns="clr-namespace:NINA.Core.Locale;assembly=NINA.Core"
     xmlns:properties="clr-namespace:NINA.Plugins.PolarAlignment.Properties"
     xmlns:rules="clr-namespace:NINA.Core.Utility.ValidationRules;assembly=NINA.Core"
+    xmlns:s="clr-namespace:System;assembly=mscorlib"
     xmlns:util="clr-namespace:NINA.Core.Utility;assembly=NINA.Core"
     xmlns:xceed="http://schemas.xceed.com/wpf/xaml/toolkit">
     <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    <coreconverters:InverseBooleanToVisibilityCollapsedConverter x:Key="InverseBooleanToVisibilityConverter" />
     <coreconverters:BooleanToVisibilityHiddenConverter x:Key="BooleanToVisibilityHiddenConverter" />
     <DataTemplate x:Key="Three Point Polar Alignment_Options">
         <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition />
-            </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
-                <RowDefinition MinHeight="25" />
+                <RowDefinition />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <TextBlock VerticalAlignment="Center" Text="Default Move Rate" />
-            <TextBox
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                Text="{Binding DefaultMoveRate}" />
-            <TextBlock
-                Grid.Row="1"
-                VerticalAlignment="Center"
-                Text="Default East Direction" />
-            <CheckBox
-                Grid.Row="1"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                IsChecked="{Binding DefaultEastDirection}" />
-            <TextBlock
-                Grid.Row="2"
-                VerticalAlignment="Center"
-                Text="Default Target Distance" />
-
-            <ninactrl:UnitTextBox
-                Grid.Row="2"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                Text="{Binding DefaultTargetDistance}"
-                Unit="°" />
-            <TextBlock
-                Grid.Row="3"
-                VerticalAlignment="Center"
-                Text="Default Search Radius" />
-            <ninactrl:UnitTextBox
-                Grid.Row="3"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                Text="{Binding DefaultSearchRadius}"
-                Unit="°" />
-
-            <TextBlock
-                Grid.Row="4"
-                VerticalAlignment="Center"
-                Text="Axis move timeout factor" />
-            <ninactrl:UnitTextBox
-                Grid.Row="4"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                Text="{Binding MoveTimeoutFactor}"
-                Unit="x" />
-
-            <TextBlock
-                Grid.Row="5"
-                VerticalAlignment="Center"
-                Text="Default azimuth offset from pole" />
-            <ninactrl:UnitTextBox
-                Grid.Row="5"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                Text="{Binding DefaultAzimuthOffset}"
-                Unit="°" />
-
-            <TextBlock
-                Grid.Row="6"
-                VerticalAlignment="Center"
-                Text="Default altitude offset from pole" />
-            <ninactrl:UnitTextBox
-                Grid.Row="6"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                Text="{Binding DefaultAltitudeOffset}"
-                Unit="°" />
-
-            <TextBlock
-                Grid.Row="7"
-                VerticalAlignment="Center"
-                Text="Polar Alignment Tolerance">
-                <TextBlock.ToolTip>
-                    <TextBlock Text="Setting the Polar Alignment Tolerance to non-zero will specify a tolerance in arcminutes where the polar alignment routine automatically completes when below the threshold" />
-                </TextBlock.ToolTip>
-            </TextBlock>
-            <ninactrl:UnitTextBox
-                Grid.Row="7"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                Text="{Binding AlignmentTolerance}"
-                Unit="arcmin" />
-
-            <TextBlock
-                Grid.Row="8"
-                VerticalAlignment="Center"
-                Text="Altitude Error Color" />
-            <xceed:ColorPicker
-                Grid.Row="8"
-                Grid.Column="1"
-                Width="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                SelectedColor="{Binding AltitudeErrorColor}" />
-            <TextBlock
-                Grid.Row="9"
-                VerticalAlignment="Center"
-                Text="Azimuth Error Color" />
-            <xceed:ColorPicker
-                Grid.Row="9"
-                Grid.Column="1"
-                Width="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                SelectedColor="{Binding AzimuthErrorColor}" />
-            <TextBlock
-                Grid.Row="10"
-                VerticalAlignment="Center"
-                Text="Total Error Color" />
-            <xceed:ColorPicker
-                Grid.Row="10"
-                Grid.Column="1"
-                Width="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                SelectedColor="{Binding TotalErrorColor}" />
-            <TextBlock
-                Grid.Row="11"
-                VerticalAlignment="Center"
-                Text="Target Circle Color" />
-            <xceed:ColorPicker
-                Grid.Row="11"
-                Grid.Column="1"
-                Width="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                SelectedColor="{Binding TargetCircleColor}" />
-            <TextBlock
-                Grid.Row="12"
-                VerticalAlignment="Center"
-                Text="Sucessful Step Color" />
-            <xceed:ColorPicker
-                Grid.Row="12"
-                Grid.Column="1"
-                Width="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                SelectedColor="{Binding SuccessColor}" />
-            <TextBlock
-                Grid.Row="13"
-                VerticalAlignment="Center"
-                Text="Log polar alignment error adjustments?" />
-            <CheckBox
-                Grid.Row="13"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                IsChecked="{Binding LogError}" />
-            <TextBlock
-                Grid.Row="14"
-                VerticalAlignment="Center"
-                Text="Adjust for refraction?" />
-            <StackPanel
-                Grid.Row="14"
-                Grid.Column="1"
-                Orientation="Horizontal">
-                <CheckBox
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition MinHeight="25" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Default Move Rate" />
+                <TextBox
+                    Grid.Column="1"
                     MinWidth="80"
                     Margin="5,0,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
-                    IsChecked="{Binding RefractionAdjustment}" />
+                    Text="{Binding DefaultMoveRate}" />
                 <TextBlock
-                    Margin="5,0,0,0"
-                    Text="This option is currently under test. Feedback if this results in better polar alignment is appreciated!"
-                    Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </StackPanel>
-            <TextBlock
-                Grid.Row="15"
-                VerticalAlignment="Center"
-                Text="Stop Tracking when done?" />
-            <CheckBox
-                Grid.Row="15"
-                Grid.Column="1"
-                MinWidth="80"
-                Margin="5,0,0,0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                IsChecked="{Binding StopTrackingWhenDone}" />
-            <Button
-                Grid.Row="16"
-                Margin="0,5,0,0"
-                Command="{Binding ResetSettingsCommand}">
-                <TextBlock
+                    Grid.Row="1"
                     VerticalAlignment="Center"
-                    Foreground="{StaticResource ButtonForegroundBrush}"
-                    Text="Reset All Settings" />
-            </Button>
+                    Text="Default East Direction" />
+                <CheckBox
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    IsChecked="{Binding DefaultEastDirection}" />
+                <TextBlock
+                    Grid.Row="2"
+                    VerticalAlignment="Center"
+                    Text="Default Target Distance" />
+
+                <ninactrl:UnitTextBox
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="{Binding DefaultTargetDistance}"
+                    Unit="°" />
+                <TextBlock
+                    Grid.Row="3"
+                    VerticalAlignment="Center"
+                    Text="Default Search Radius" />
+                <ninactrl:UnitTextBox
+                    Grid.Row="3"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="{Binding DefaultSearchRadius}"
+                    Unit="°" />
+
+                <TextBlock
+                    Grid.Row="4"
+                    VerticalAlignment="Center"
+                    Text="Axis move timeout factor" />
+                <ninactrl:UnitTextBox
+                    Grid.Row="4"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="{Binding MoveTimeoutFactor}"
+                    Unit="x" />
+
+                <TextBlock
+                    Grid.Row="5"
+                    VerticalAlignment="Center"
+                    Text="Default azimuth offset from pole" />
+                <ninactrl:UnitTextBox
+                    Grid.Row="5"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="{Binding DefaultAzimuthOffset}"
+                    Unit="°" />
+
+                <TextBlock
+                    Grid.Row="6"
+                    VerticalAlignment="Center"
+                    Text="Default altitude offset from pole" />
+                <ninactrl:UnitTextBox
+                    Grid.Row="6"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="{Binding DefaultAltitudeOffset}"
+                    Unit="°" />
+
+                <TextBlock
+                    Grid.Row="7"
+                    VerticalAlignment="Center"
+                    Text="Polar Alignment Tolerance">
+                    <TextBlock.ToolTip>
+                        <TextBlock Text="Setting the Polar Alignment Tolerance to non-zero will specify a tolerance in arcminutes where the polar alignment routine automatically completes when below the threshold" />
+                    </TextBlock.ToolTip>
+                </TextBlock>
+                <ninactrl:UnitTextBox
+                    Grid.Row="7"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="{Binding AlignmentTolerance}"
+                    Unit="arcmin" />
+
+                <TextBlock
+                    Grid.Row="8"
+                    VerticalAlignment="Center"
+                    Text="Altitude Error Color" />
+                <xceed:ColorPicker
+                    Grid.Row="8"
+                    Grid.Column="1"
+                    Width="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    SelectedColor="{Binding AltitudeErrorColor}" />
+                <TextBlock
+                    Grid.Row="9"
+                    VerticalAlignment="Center"
+                    Text="Azimuth Error Color" />
+                <xceed:ColorPicker
+                    Grid.Row="9"
+                    Grid.Column="1"
+                    Width="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    SelectedColor="{Binding AzimuthErrorColor}" />
+                <TextBlock
+                    Grid.Row="10"
+                    VerticalAlignment="Center"
+                    Text="Total Error Color" />
+                <xceed:ColorPicker
+                    Grid.Row="10"
+                    Grid.Column="1"
+                    Width="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    SelectedColor="{Binding TotalErrorColor}" />
+                <TextBlock
+                    Grid.Row="11"
+                    VerticalAlignment="Center"
+                    Text="Target Circle Color" />
+                <xceed:ColorPicker
+                    Grid.Row="11"
+                    Grid.Column="1"
+                    Width="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    SelectedColor="{Binding TargetCircleColor}" />
+                <TextBlock
+                    Grid.Row="12"
+                    VerticalAlignment="Center"
+                    Text="Sucessful Step Color" />
+                <xceed:ColorPicker
+                    Grid.Row="12"
+                    Grid.Column="1"
+                    Width="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    SelectedColor="{Binding SuccessColor}" />
+                <TextBlock
+                    Grid.Row="13"
+                    VerticalAlignment="Center"
+                    Text="Log polar alignment error adjustments?" />
+                <CheckBox
+                    Grid.Row="13"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    IsChecked="{Binding LogError}" />
+                <TextBlock
+                    Grid.Row="14"
+                    VerticalAlignment="Center"
+                    Text="Adjust for refraction?" />
+                <StackPanel
+                    Grid.Row="14"
+                    Grid.Column="1"
+                    Orientation="Horizontal">
+                    <CheckBox
+                        MinWidth="80"
+                        Margin="5,0,0,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        IsChecked="{Binding RefractionAdjustment}" />
+                    <TextBlock
+                        Margin="5,0,0,0"
+                        Text="This option is currently under test. Feedback if this results in better polar alignment is appreciated!"
+                        Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </StackPanel>
+                <TextBlock
+                    Grid.Row="15"
+                    VerticalAlignment="Center"
+                    Text="Stop Tracking when done?" />
+                <CheckBox
+                    Grid.Row="15"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    IsChecked="{Binding StopTrackingWhenDone}" />
+                <TextBlock
+                    Grid.Row="16"
+                    VerticalAlignment="Center"
+                    Text="Use Avalon Polar Alignment System?" />
+                <CheckBox
+                    Grid.Row="16"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    IsChecked="{Binding UseAvalonPolarAlignmentSystem}" />
+                <Button
+                    Grid.Row="17"
+                    Margin="0,5,0,0"
+                    Command="{Binding ResetSettingsCommand}">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource ButtonForegroundBrush}"
+                        Text="Reset All Settings" />
+                </Button>
+            </Grid>
+            <GroupBox
+                Grid.Row="1"
+                Margin="0,10,0,0"
+                Header="Avalon Polar Alignment System"
+                Visibility="{Binding UseAvalonPolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid Margin="0,10,0,0" DataContext="{Binding UniversalPolarAlignmentVM}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <Button Command="{Binding ConnectCommand}" Visibility="{Binding Connected, Converter={StaticResource InverseBooleanToVisibilityCollapsedConverter}}">Test Connect</Button>
+                        <Button Command="{Binding DisconnectCommand}" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">Disconnect</Button>
+                    </Grid>
+                    <Grid Grid.Row="1" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <Grid.Resources>
+                            <s:Single x:Key="NegativeDotOne">-0.1</s:Single>
+                            <s:Single x:Key="DotOne">0.1</s:Single>
+                            <s:Single x:Key="NegativeOne">-1</s:Single>
+                            <s:Single x:Key="One">1</s:Single>
+                            <s:Single x:Key="NegativeTen">-10</s:Single>
+                            <s:Single x:Key="Ten">10</s:Single>
+                        </Grid.Resources>
+                        <GroupBox Header="Azimuth">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="24"
+                                    Text="{Binding PositionX, StringFormat=N2}" />
+                                <Grid Grid.Row="1">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition />
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <Button
+                                        Height="25"
+                                        Margin="0,0,2.5,0"
+                                        Command="{Binding NudgeXCommand}"
+                                        CommandParameter="{StaticResource NegativeDotOne}">
+                                        -0.1
+                                    </Button>
+                                    <Button
+                                        Grid.Column="1"
+                                        Height="25"
+                                        Margin="2.5,0,0,0"
+                                        Command="{Binding NudgeXCommand}"
+                                        CommandParameter="{StaticResource DotOne}">
+                                        +0.1
+                                    </Button>
+                                    <Button
+                                        Grid.Row="1"
+                                        Height="25"
+                                        Margin="0,5,2.5,0"
+                                        Command="{Binding NudgeXCommand}"
+                                        CommandParameter="{StaticResource NegativeOne}">
+                                        -1
+                                    </Button>
+                                    <Button
+                                        Grid.Row="1"
+                                        Grid.Column="1"
+                                        Height="25"
+                                        Margin="2.5,5,0,0"
+                                        Command="{Binding NudgeXCommand}"
+                                        CommandParameter="{StaticResource One}">
+                                        +1
+                                    </Button>
+                                    <Button
+                                        Grid.Row="2"
+                                        Height="25"
+                                        Margin="0,5,2.5,0"
+                                        Command="{Binding NudgeXCommand}"
+                                        CommandParameter="{StaticResource NegativeTen}">
+                                        -10
+                                    </Button>
+                                    <Button
+                                        Grid.Row="2"
+                                        Grid.Column="1"
+                                        Height="25"
+                                        Margin="2.5,5,0,0"
+                                        Command="{Binding NudgeXCommand}"
+                                        CommandParameter="{StaticResource Ten}">
+                                        +10
+                                    </Button>
+
+                                    <TextBox
+                                        Grid.Row="3"
+                                        Margin="0,5,2.5,0"
+                                        VerticalAlignment="Center"
+                                        HorizontalContentAlignment="Right"
+                                        Text="{Binding TargetPositionX}" />
+                                    <Button
+                                        Grid.Row="3"
+                                        Grid.Column="1"
+                                        Height="25"
+                                        Margin="2.5,5,0,0"
+                                        Command="{Binding MoveXCommand}">
+                                        Move
+                                    </Button>
+                                </Grid>
+                            </Grid>
+
+                        </GroupBox>
+                        <GroupBox Grid.Column="1" Header="Altitude">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="24"
+                                    Text="{Binding PositionY, StringFormat=N2}" />
+                                <Grid Grid.Row="1">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition />
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <Button
+                                        Height="25"
+                                        Margin="0,0,2.5,0"
+                                        Command="{Binding NudgeYCommand}"
+                                        CommandParameter="{StaticResource NegativeDotOne}">
+                                        -0.1
+                                    </Button>
+                                    <Button
+                                        Grid.Column="1"
+                                        Height="25"
+                                        Margin="2.5,0,0,0"
+                                        Command="{Binding NudgeYCommand}"
+                                        CommandParameter="{StaticResource DotOne}">
+                                        +0.1
+                                    </Button>
+                                    <Button
+                                        Grid.Row="1"
+                                        Height="25"
+                                        Margin="0,5,2.5,0"
+                                        Command="{Binding NudgeYCommand}"
+                                        CommandParameter="{StaticResource NegativeOne}">
+                                        -1
+                                    </Button>
+                                    <Button
+                                        Grid.Row="1"
+                                        Grid.Column="1"
+                                        Height="25"
+                                        Margin="2.5,5,0,0"
+                                        Command="{Binding NudgeYCommand}"
+                                        CommandParameter="{StaticResource One}">
+                                        +1
+                                    </Button>
+                                    <Button
+                                        Grid.Row="2"
+                                        Height="25"
+                                        Margin="0,5,2.5,0"
+                                        Command="{Binding NudgeYCommand}"
+                                        CommandParameter="{StaticResource NegativeTen}">
+                                        -10
+                                    </Button>
+                                    <Button
+                                        Grid.Row="2"
+                                        Grid.Column="1"
+                                        Height="25"
+                                        Margin="2.5,5,0,0"
+                                        Command="{Binding NudgeYCommand}"
+                                        CommandParameter="{StaticResource Ten}">
+                                        +10
+                                    </Button>
+
+                                    <TextBox
+                                        Grid.Row="3"
+                                        Margin="0,5,2.5,0"
+                                        VerticalAlignment="Center"
+                                        HorizontalContentAlignment="Right"
+                                        Text="{Binding TargetPositionY}" />
+                                    <Button
+                                        Grid.Row="3"
+                                        Grid.Column="1"
+                                        Height="25"
+                                        Margin="2.5,5,0,0"
+                                        Command="{Binding MoveYCommand}">
+                                        Move
+                                    </Button>
+                                </Grid>
+                            </Grid>
+                        </GroupBox>
+                    </Grid>
+                </Grid>
+            </GroupBox>
+
         </Grid>
     </DataTemplate>
 

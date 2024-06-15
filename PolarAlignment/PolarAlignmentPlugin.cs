@@ -13,18 +13,24 @@ using NINA.Core.MyMessageBox;
 using NINA.Core.Utility;
 using NINA.Plugin;
 using NINA.Plugin.Interfaces;
+using NINA.Plugins.PolarAlignment.Avalon;
+using NINA.Profile;
+using NINA.Profile.Interfaces;
 
 namespace NINA.Plugins.PolarAlignment {
     [Export(typeof(IPluginManifest))]
-    class PolarAlignmentPlugin : PluginBase, INotifyPropertyChanged {
+    public class PolarAlignmentPlugin : PluginBase, INotifyPropertyChanged {
+        public static UniversalPolarAlignmentVM UniversalPolarAlignmentVM { get; private set; }
+
         [ImportingConstructor]
-        public PolarAlignmentPlugin() {
+        public PolarAlignmentPlugin(IProfileService profileService) {
             if (Properties.Settings.Default.UpdateSettings) {
                 Properties.Settings.Default.Upgrade();
                 Properties.Settings.Default.UpdateSettings = false;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
             }
             ResetSettingsCommand = new GalaSoft.MvvmLight.Command.RelayCommand(ResetSettings);
+            UniversalPolarAlignmentVM = new UniversalPolarAlignmentVM(profileService);
         }
 
         public ICommand ResetSettingsCommand { get; }
@@ -213,6 +219,17 @@ namespace NINA.Plugins.PolarAlignment {
             }
             set {
                 Properties.Settings.Default.StopTrackingWhenDone = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool UseAvalonPolarAlignmentSystem {
+            get {
+                return Properties.Settings.Default.UseAvalonPolarAlignmentSystem;
+            }
+            set {
+                Properties.Settings.Default.UseAvalonPolarAlignmentSystem = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
             }
