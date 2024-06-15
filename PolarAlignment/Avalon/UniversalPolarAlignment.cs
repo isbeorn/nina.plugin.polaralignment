@@ -53,6 +53,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             UpdateStatus();
         }
 
+        public bool Connected => port.IsOpen;
         public string Status { get; private set; }
 
         public float XPosition { get; private set; }
@@ -72,6 +73,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
         public async Task MoveRelative(Axis axis, int speed, float position, CancellationToken token) {
             await semaphore.WaitAsync(token);
             try {
+                UpdateStatus();
                 var axisCommand = axis switch {
                     Axis.XAxis => "X",
                     Axis.YAxis => "Y",
@@ -110,6 +112,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
         public async Task MoveAbsolute(Axis axis, int speed, float position, CancellationToken token) {
             await semaphore.WaitAsync(token);
             try {
+                UpdateStatus();
                 var axisCommand = axis switch {
                     Axis.XAxis => "X",
                     Axis.YAxis => "Y",

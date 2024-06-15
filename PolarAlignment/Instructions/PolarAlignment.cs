@@ -357,7 +357,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     pauseTS = new PauseTokenSource();
                     try {
                         TPAPAVM?.Dispose();
-                    } catch (Exception) { }
+                    } catch  { }
 
                     TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
                     IProgress<ApplicationStatus> progress = new Progress<ApplicationStatus>(p => { TPAPAVM.Status = p; externalProgress?.Report(p); });
@@ -366,7 +366,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     windowService.OnClosed += (s, e) => {
                         try {
                             localCTS?.Cancel();
-                        } catch (Exception) { }
+                        } catch  { }
                     };
 
                     TPAPAVM.ActivateFirstStep();
@@ -435,7 +435,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 
-                    TPAPAVM.ActivateFouthStep();
+                    await TPAPAVM.ActivateFourthStep();
 
                     TPAPAVM.ArcsecPerPix = AstroUtil.ArcsecPerPixel(profileService.ActiveProfile.CameraSettings.PixelSize * Binning?.X ?? 1, profileService.ActiveProfile.TelescopeSettings.FocalLength);
                     var width = TPAPAVM.Image.Image.PixelWidth;
@@ -489,6 +489,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 await windowService?.Close();
                 throw;
             } finally {
+                try {
+                    TPAPAVM?.Dispose();
+                } catch (Exception) { }
                 IsPaused = false;
                 externalProgress?.Report(GetStatus(string.Empty));
                 if (Properties.Settings.Default.StopTrackingWhenDone) {

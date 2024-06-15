@@ -9,6 +9,7 @@ using NINA.Equipment.Interfaces.Mediator;
 using NINA.Image.ImageAnalysis;
 using NINA.Image.Interfaces;
 using NINA.PlateSolving;
+using NINA.Plugins.PolarAlignment.Avalon;
 using NINA.Profile.Interfaces;
 using NINA.WPF.Base.Behaviors;
 using Serilog;
@@ -49,6 +50,8 @@ namespace NINA.Plugins.PolarAlignment {
             
         }
 
+        public UniversalPolarAlignmentVM UniversalPolarAlignmentVM => PolarAlignmentPlugin.UniversalPolarAlignmentVM;
+
         public void ActivateFirstStep() {            
             Steps[0].Active = true;
             Steps[0].Relevant = true;
@@ -67,7 +70,7 @@ namespace NINA.Plugins.PolarAlignment {
             Steps[2].Active = true;
             Steps[2].Relevant = true;
         }
-        public void ActivateFouthStep() {
+        public async Task ActivateFourthStep() {
             Steps[2].Active = false;
             Steps[2].Completed = true;
 
@@ -79,6 +82,10 @@ namespace NINA.Plugins.PolarAlignment {
             Steps[3].Relevant = true;
 
             WaitingForUpdate = false;
+
+            if(UniversalPolarAlignmentVM.UsePolarAlignmentSystem) {
+                await UniversalPolarAlignmentVM.Connect();
+            }
         }
 
 
@@ -294,8 +301,10 @@ namespace NINA.Plugins.PolarAlignment {
         public void Dispose() {
             try {
                 logger?.Dispose();
-            } catch(Exception) { }
-            
+            } catch { }
+            try {
+                UniversalPolarAlignmentVM.Disconnect();
+            } catch { }
         }
 
         private PolarErrorDetermination polarErrorDetermination;
@@ -458,10 +467,17 @@ namespace NINA.Plugins.PolarAlignment {
             CalculateMountAxisError(refrectionParameters);
             PositionAngleSpread = CalculatePositionAngleSpread(FirstPosition.PositionAngle, SecondPosition.PositionAngle, ThirdPosition.PositionAngle);
         }
-        double CalculatePositionAngleSpread(double val1, double val2, double val3) {
-            double maxVal = Math.Max(val1, Math.Max(val2, val3));
-            double minVal = Math.Min(val1, Math.Min(val2, val3));
-            return maxVal - minVal;
+        private double CalculatePositionAngleSpread(double value1, double value2, double value3) {
+            var distance1 = CalculateDistance(value1, value2);
+            var distance2 = CalculateDistance(value2, value3);
+            var distance3 = CalculateDistance(value3, value1);
+
+            return Math.Max(distance1, Math.Max(distance2, distance3));
+        }
+        private double CalculateDistance(double value1, double value2) {
+            double directDistance = Math.Abs(value1 - value2);
+            double wrapAroundDistance = 360 - directDistance;
+            return Math.Min(directDistance, wrapAroundDistance);
         }
 
         public Angle Latitude { get; }

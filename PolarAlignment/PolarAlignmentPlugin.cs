@@ -224,17 +224,6 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
-        public bool UseAvalonPolarAlignmentSystem {
-            get {
-                return Properties.Settings.Default.UseAvalonPolarAlignmentSystem;
-            }
-            set {
-                Properties.Settings.Default.UseAvalonPolarAlignmentSystem = value;
-                CoreUtil.SaveSettings(Properties.Settings.Default);
-                RaisePropertyChanged();
-            }
-        }
-
         public event PropertyChangedEventHandler PropertyChanged;
         protected void RaisePropertyChanged([CallerMemberName] string propertyName = null) {
             this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

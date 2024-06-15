@@ -35,6 +35,17 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
         [ObservableProperty]
         private float targetPositionY;
 
+        public bool UsePolarAlignmentSystem {
+            get {
+                return Properties.Settings.Default.UseAvalonPolarAlignmentSystem;
+            }
+            set {
+                Properties.Settings.Default.UseAvalonPolarAlignmentSystem = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
         public float XGearRatio {
             get {
                 return Properties.Settings.Default.AvalonXGearRatio;
@@ -96,6 +107,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
 
         [RelayCommand]
         public Task Connect() {
+            if(upa?.Connected == true) { return Task.CompletedTask; }
             return Task.Run(async () => {
                 try {
                     await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
@@ -113,6 +125,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
 
         [RelayCommand]
         public void Disconnect() {
+            if (upa?.Connected != true) { return; }
             Connected = false;
             try {
                 pollCts?.Cancel();
