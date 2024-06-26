@@ -17,13 +17,13 @@ namespace NINA.Plugins.PolarAlignment.Test {
             RefrectionParameters refraction = null;
 
             var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
-            var position1 = new Position(solve1, latitude, longitude, refraction);
+            var position1 = new Position(solve1, 0, latitude, longitude, refraction);
 
             var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(41), Epoch.JNOW).Transform(Epoch.J2000);
-            var position2 = new Position(solve2, latitude, longitude, refraction);
+            var position2 = new Position(solve2, 0, latitude, longitude, refraction);
 
             var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(42), Epoch.JNOW).Transform(Epoch.J2000);
-            var position3 = new Position(solve3, latitude, longitude, refraction);
+            var position3 = new Position(solve3, 0, latitude, longitude, refraction);
             
 
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() {  Coordinates = solve3 }, position1, position2, position3, latitude, longitude, refraction);
@@ -44,13 +44,13 @@ namespace NINA.Plugins.PolarAlignment.Test {
             RefrectionParameters refraction = null;
 
             var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
-            var position1 = new Position(solve1, latitude, longitude, refraction);
+            var position1 = new Position(solve1, 0,latitude, longitude, refraction);
 
             var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
-            var position2 = new Position(solve2, latitude, longitude, refraction);
+            var position2 = new Position(solve2, 0, latitude, longitude, refraction);
 
             var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
-            var position3 = new Position(solve3, latitude, longitude, refraction);
+            var position3 = new Position(solve3, 0, latitude, longitude, refraction);
 
 
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction);

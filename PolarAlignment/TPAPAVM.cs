@@ -70,7 +70,7 @@ namespace NINA.Plugins.PolarAlignment {
             Steps[2].Active = true;
             Steps[2].Relevant = true;
         }
-        public async Task ActivateFourthStep() {
+        public void ActivateFourthStep() {
             Steps[2].Active = false;
             Steps[2].Completed = true;
 
@@ -82,10 +82,6 @@ namespace NINA.Plugins.PolarAlignment {
             Steps[3].Relevant = true;
 
             WaitingForUpdate = false;
-
-            if (UniversalPolarAlignmentVM.UsePolarAlignmentSystem) {
-                await UniversalPolarAlignmentVM.Connect();
-            }
         }
 
 

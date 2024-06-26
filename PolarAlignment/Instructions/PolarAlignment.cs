@@ -436,7 +436,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 
-                    await TPAPAVM.ActivateFourthStep();
+                    TPAPAVM.ActivateFourthStep();
+
+                    if (TPAPAVM.UniversalPolarAlignmentVM.UsePolarAlignmentSystem) {
+                        await TPAPAVM.UniversalPolarAlignmentVM.Connect();
+                        if(TPAPAVM.UniversalPolarAlignmentVM.DoAutomatedAdjustments && !TPAPAVM.UniversalPolarAlignmentVM.Connected) {
+                            throw new SequenceEntityFailedException("Unable to connect to Universal Polar Alignment system. Cancelling polar alignment routine as automated adjustments are impossible.");
+                        }
+                    }
 
                     TPAPAVM.ArcsecPerPix = AstroUtil.ArcsecPerPixel(profileService.ActiveProfile.CameraSettings.PixelSize * Binning?.X ?? 1, profileService.ActiveProfile.TelescopeSettings.FocalLength);
                     var width = TPAPAVM.Image.Image.PixelWidth;
