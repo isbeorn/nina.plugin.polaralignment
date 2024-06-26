@@ -106,7 +106,23 @@ Here you can adjust the error colors for the guide numbers that will show you th
 When this is enabled, a log file will be created at `\Documents\N.I.N.A\TPPA` and filled with the polar alignment error and the continuous errors after adjustments.  
 **Adjust for refraction**  
 When this is enabled, the application will factor in refraction based on your location, elevation and current weather conditions.  
-If no weather source is connected a [standard parameter set](https://en.wikipedia.org/wiki/Standard_temperature_and_pressure) for pressure (1013.25HPa), humidity (0%) and temperature (15°C) is used instead.
+If no weather source is connected a [standard parameter set](https://en.wikipedia.org/wiki/Standard_temperature_and_pressure) for pressure (1013.25HPa), humidity (0%) and temperature (15°C) is used instead.  
+**Stop Tracking when done?**  
+Disable this setting if you want your mount to continue tracking after the polar alignment is finished  
+**Use Avalon Polar Alignment System?**  
+This requires the [Avalon Universal Polar Alignment System](https://www.avalon-instruments.com/products-menu/accessories/universal-polar-alignment-system-detail) being connected to your system  
+When activated, the polar alignment routine will connect to the unit automatically after the third step, allowing you to remotely adjust the altitude and azimuth of your system.  
+**X axis backlash compensation**  
+The amount of steps to overshoot when a change in direction happens. Set to 0 to disable.  
+**Do automated adjustments?**  
+Requires `Use Avalon Polar Alignment System?` to be turned on.  
+When activated, this will connect to the UPA and slowly nudge the UPA to the target position automatically after the error has been determined. The control panel will not be shown as movements are done automatically.  
+Ensure your gear ratio settings are roughly matched so that one step in the UPA results in an arcminute of movement. The default settings should work fine for the standard version of the UPA.  
+Make sure your mount is roughly leveled.  
+*Note: For this setting to work, you also need to set the `Polar Alignment Tolerance` to a non-zero value.*  
+**Automated adjustment settle time**  
+Requires `Do automated adjustments?` to be turned on.   
+Specifies the amount of time after each movement to wait.
 
 ## The solver keeps failing, even though solving works in other places. How can I fix this?
 
@@ -138,3 +154,14 @@ As already stated above, don't worry about a few arcseconds of error. If it take
 ## What is the size of the target circle?
 
 The circle size will be rendered based on your image scale and there will be circles drawn at 30 arcseconds, 1 arcminute and 5 arcminutes.
+
+## Are there any areas in the sky which I should avoid? 
+- Meridian
+- Direction exactly towards east (90°) or west (270°)
+- Zenith
+- Low Altitude
+- Avoid crossing the meridian during the 3 point slews and adjustments
+
+(For southern hemisphere the ideal zones are due south) 
+
+![TPPA_Zones](./TPPA_Zones.png)

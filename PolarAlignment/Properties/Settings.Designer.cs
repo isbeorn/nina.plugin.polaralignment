@@ -310,5 +310,17 @@ namespace NINA.Plugins.PolarAlignment.Properties {
                 this["AutomatedAdjustmentSettleTime"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float AvalonXBacklashCompensation {
+            get {
+                return ((float)(this["AvalonXBacklashCompensation"]));
+            }
+            set {
+                this["AvalonXBacklashCompensation"] = value;
+            }
+        }
     }
 }

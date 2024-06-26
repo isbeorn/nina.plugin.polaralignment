@@ -56,9 +56,13 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
         public bool Connected => port.IsOpen;
         public string Status { get; private set; }
 
-        public float XPosition { get; private set; }
-        public float YPosition { get; private set; }
-        public float ZPosition { get; private set; }
+        private float XPosition { get; set; }
+        private float YPosition { get; set; }
+        private float ZPosition { get; set; }
+
+        public LastDirection XLastDirection { get; private set; } = LastDirection.Positive;
+        public LastDirection YLastDirection { get; private set; } = LastDirection.Positive;
+        public LastDirection ZLastDirection { get; private set; } = LastDirection.Positive;
 
         public float XPosition1 { get => XPosition / XGearRatio; }
         public float YPosition1 { get => YPosition / YGearRatio; }
@@ -96,6 +100,12 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
 
                 var target = checkProperty() + position * gearRatio;
 
+                switch(axis) {
+                    case Axis.XAxis: XLastDirection = position >= 0 ? LastDirection.Positive : LastDirection.Negative; break;
+                    case Axis.YAxis: YLastDirection = position >= 0 ? LastDirection.Positive : LastDirection.Negative; break;
+                    case Axis.ZAxis: ZLastDirection = position >= 0 ? LastDirection.Positive : LastDirection.Negative; break;
+                }
+                
                 var command = $"$J=G91G21{axisCommand}{(position * gearRatio).ToString(CultureInfo.InvariantCulture)}F{speed.ToString(CultureInfo.InvariantCulture)}";
                 port.WriteLine(command);
                 var ok = port.ReadLine();
@@ -128,6 +138,11 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
 
                 var target = position * gearRatio;
 
+                switch (axis) {
+                    case Axis.XAxis: XLastDirection = position - XPosition1 >= 0 ? LastDirection.Positive : LastDirection.Negative; break;
+                    case Axis.YAxis: YLastDirection = position - YPosition1 >= 0 ? LastDirection.Positive : LastDirection.Negative; break;
+                    case Axis.ZAxis: ZLastDirection = position - ZPosition1 >= 0 ? LastDirection.Positive : LastDirection.Negative; break;
+                }
                 var command = $"$J=G53{axisCommand}{target.ToString(CultureInfo.InvariantCulture)}F{speed.ToString(CultureInfo.InvariantCulture)}";
                 port.WriteLine(command);
                 var ok = port.ReadLine();
@@ -172,6 +187,11 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             XAxis,
             YAxis,
             ZAxis
+        }
+
+        public enum LastDirection {
+            Negative,
+            Positive
         }
     }
 }

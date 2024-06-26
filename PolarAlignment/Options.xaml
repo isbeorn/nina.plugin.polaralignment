@@ -50,6 +50,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock VerticalAlignment="Center" Text="Default Move Rate" />
                 <TextBox
@@ -288,10 +289,26 @@
                     Grid.Row="17"
                     Margin="0,5,0,0"
                     VerticalAlignment="Center"
+                    Text="Azimuth backlash compensation"
+                    Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <ninactrl:UnitTextBox
+                    Grid.Row="17"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="0,5,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="{Binding UniversalPolarAlignmentVM.XBacklashCompensation}"
+                    Unit="steps"
+                    Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBlock
+                    Grid.Row="18"
+                    Margin="0,5,0,0"
+                    VerticalAlignment="Center"
                     Text="Do automated adjustments?"
                     Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <StackPanel
-                    Grid.Row="17"
+                    Grid.Row="18"
                     Grid.Column="1"
                     Orientation="Horizontal">
                     <CheckBox
@@ -301,38 +318,47 @@
                         VerticalAlignment="Center"
                         IsChecked="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments}"
                         Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <TextBlock
-                        Margin="5,5,0,0"
-                        VerticalAlignment="Center"
-                        FontStyle="Italic"
-                        Text="This option is under test and experimental"
-                        Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <Grid Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            Margin="5,5,0,0"
+                            VerticalAlignment="Center"
+                            FontStyle="Italic"
+                            Text="This option is under test and experimental"
+                            Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </Grid>
                 </StackPanel>
-                <TextBlock
-                    Grid.Row="18"
-                    Margin="0,5,0,0"
-                    VerticalAlignment="Center"
-                    Text="Automated adjustment settle time"
-                    Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <ninactrl:UnitTextBox
-                    Grid.Row="18"
-                    Grid.Column="1"
-                    MinWidth="80"
-                    Margin="5,5,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Center"
-                    Text="{Binding UniversalPolarAlignmentVM.AutomatedAdjustmentSettleTime}"
-                    Unit="s"
-                    Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <TextBlock
+                <Grid Grid.Row="19" Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock
+                        Margin="0,5,0,0"
+                        VerticalAlignment="Center"
+                        Text="Automated adjustment settle time"
+                        Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
+                <Grid
                     Grid.Row="19"
-                    Grid.ColumnSpan="2"
-                    Margin="0,5,0,0"
-                    FontStyle="Italic"
-                    Text="Make sure to set your gear ratio to achieve 1 arcminute per step for each axis!"
-                    Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <Button
+                    Grid.Column="1"
+                    Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ninactrl:UnitTextBox
+                        MinWidth="80"
+                        Margin="5,5,0,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Text="{Binding UniversalPolarAlignmentVM.AutomatedAdjustmentSettleTime}"
+                        Unit="s"
+                        Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
+                <Grid
                     Grid.Row="20"
+                    Grid.ColumnSpan="2"
+                    Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock
+                        Margin="0,5,0,0"
+                        FontStyle="Italic"
+                        Text="Make sure to set your gear ratio to achieve 1 arcminute per step for each axis!"
+                        Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
+                <Button
+                    Grid.Row="21"
                     Margin="0,20,0,0"
                     Command="{Binding ResetSettingsCommand}">
                     <TextBlock

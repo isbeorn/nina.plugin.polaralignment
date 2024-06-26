@@ -1,12 +1,19 @@
 ﻿# Changelog
 
-## Version tbd
-- The position angle spread between the three measurements is now measured and when being too large a warning will be shown
-- Added native support for the [Avalon Polar Alignment System](https://www.avalon-instruments.com/products-menu/accessories/universal-polar-alignment-system-detail)
-  - A new setting `Use Avalon Polar Alignment System?` is now available.
-  - When activated, the polar alignment routine will connect to the unit after the third step automatically, allowing you to remotely adjust the altitude and azimuth of your system.
-  - Furthermore you can automate the adjustments with the new setting `Do automated adjustments?` which will slowly nudge the UPA to the target position after the error has been determined.
-    - Note: For this setting to work you need to set the `Polar Alignment Tolerance` to non-zero. 
+## Version 2.1.0.0
+- The position angle spread between the three measurements is now measured. If it is too large, a warning will be shown.
+
+### Integration for the [Avalon Universal Polar Alignment System](https://www.avalon-instruments.com/products-menu/accessories/universal-polar-alignment-system-detail)
+
+#### New Setting: `Use Avalon Polar Alignment System?`
+- When activated, the polar alignment routine will connect to the unit automatically after the third step, allowing you to remotely adjust the altitude and azimuth of your system.
+
+#### New Setting: `Do automated adjustments?`
+- When activated, this will connect to the UPA and slowly nudge the UPA to the target position automatically after the error has been determined. The control panel will not be shown as movements are done automatically.
+- Ensure your gear ratio settings are roughly matched so that one step in the UPA results in an arcminute of movement. The default settings should work fine for the standard version of the UPA.
+- Make sure your mount is roughly leveled.
+- *Note: For this setting to work, you also need to set the `Polar Alignment Tolerance` to a non-zero value.*
+
 
 ## Version 2.0.2.0
 - Automatically increase search radius on plate solve by 5 during solving of the first three points each time it fails

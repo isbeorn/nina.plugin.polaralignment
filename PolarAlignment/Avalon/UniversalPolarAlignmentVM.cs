@@ -11,6 +11,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media.Animation;
+using static NINA.Plugins.PolarAlignment.Avalon.UniversalPolarAlignment;
 
 namespace NINA.Plugins.PolarAlignment.Avalon {
     public partial class UniversalPolarAlignmentVM : BaseVM {
@@ -118,6 +120,17 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             }
         }
 
+        public float XBacklashCompensation {
+            get {
+                return Properties.Settings.Default.AvalonXBacklashCompensation;
+            }
+            set {
+                Properties.Settings.Default.AvalonXBacklashCompensation = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(NudgeXCommand))]
         [NotifyCanExecuteChangedFor(nameof(NudgeYCommand))]
@@ -164,7 +177,10 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
                 Logger.Info($"Nudging UPA along X axis by {position}");
+                var lastDirection = upa.XLastDirection;
                 await upa.MoveRelative(UniversalPolarAlignment.Axis.XAxis, XSpeed, position, token).ConfigureAwait(false);
+                var currentDirection = upa.XLastDirection;
+                await ClearBacklash(lastDirection, currentDirection, token);
             } catch (Exception ex) {
                 Logger.Error(ex);
             } finally {
@@ -186,19 +202,37 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             }
         }
 
+        public new void RaiseAllPropertiesChanged() {
+            base.RaiseAllPropertiesChanged();
+        }
+
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
         public async Task MoveX(CancellationToken token) {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
                 Logger.Info($"Moving UPA along X axis to {TargetPositionX}");
+                var lastDirection = upa.XLastDirection;
                 await upa.MoveAbsolute(UniversalPolarAlignment.Axis.XAxis, XSpeed, TargetPositionX, token).ConfigureAwait(false);
+                var currentDirection = upa.XLastDirection;
+                await ClearBacklash(lastDirection, currentDirection, token);
             } catch (Exception ex) {
                 Logger.Error(ex);
             } finally {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
             }
         }
+
+        private async Task ClearBacklash(LastDirection lastDirection, LastDirection currentDirection, CancellationToken token) {
+            if (lastDirection != currentDirection) {
+                if (Math.Abs(XBacklashCompensation) > 0) {
+                    Logger.Info("Direction changed. Clearing backlash");
+                    await upa.MoveRelative(UniversalPolarAlignment.Axis.XAxis, XSpeed, -XBacklashCompensation, token).ConfigureAwait(false);
+                    await upa.MoveRelative(UniversalPolarAlignment.Axis.XAxis, XSpeed, XBacklashCompensation, token).ConfigureAwait(false);
+                }
+            } 
+        }
+
 
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
         public async Task MoveY(CancellationToken token) {

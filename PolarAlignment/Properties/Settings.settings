@@ -74,5 +74,8 @@
     <Setting Name="AutomatedAdjustmentSettleTime" Type="System.Double" Scope="User">
       <Value Profile="(Default)">2</Value>
     </Setting>
+    <Setting Name="AvalonXBacklashCompensation" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

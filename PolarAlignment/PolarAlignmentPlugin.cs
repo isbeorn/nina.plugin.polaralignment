@@ -41,6 +41,7 @@ namespace NINA.Plugins.PolarAlignment {
                     Properties.Settings.Default.Reset();
                     CoreUtil.SaveSettings(Properties.Settings.Default);
                     RaisePropertyChanged(null);
+                    UniversalPolarAlignmentVM.RaiseAllPropertiesChanged();
                 }
             } catch(Exception ex) {
                 Logger.Error(ex);
