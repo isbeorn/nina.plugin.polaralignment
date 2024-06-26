@@ -15,6 +15,7 @@ using NINA.Image.ImageAnalysis;
 using NINA.Image.Interfaces;
 using NINA.PlateSolving;
 using NINA.PlateSolving.Interfaces;
+using NINA.Plugins.PolarAlignment.Properties;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.SequenceItem;
 using NINA.Sequencer.Validations;
@@ -442,7 +443,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     var height = TPAPAVM.Image.Image.PixelHeight;
                     TPAPAVM.Center = new Point(width / 2, height / 2);
 
-                    await TPAPAVM.SelectNewReferenceStar(TPAPAVM.Center);
+                    await TPAPAVM.SelectNewReferenceStar(TPAPAVM.Center, localCTS.Token);
 
                     var sw = Stopwatch.StartNew();
                     do {
@@ -450,7 +451,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                         var continuousSolve = await Solve(TPAPAVM, 0, progress, localCTS.Token);
                         if (continuousSolve.Success) {
-                            await TPAPAVM.UpdateDetails(continuousSolve);
+                            await TPAPAVM.UpdateDetails(continuousSolve, progress, localCTS.Token);
 
 
                             var totalErrorMinutes = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
@@ -758,6 +759,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     i.Add("Astrometry.net is too slow for this method to work properly.");
                     i.Add("Please choose a different solver!");
                 }
+            }
+
+            if(Settings.Default.UseAvalonPolarAlignmentSystem && Settings.Default.DoAutomatedAdjustments && Settings.Default.AlignmentTolerance == 0) {
+                i.Add("Automated adjustments are enabled, but polar alignment tolerance is set to zero. Please set an alignment tolerance!");
             }
 
 

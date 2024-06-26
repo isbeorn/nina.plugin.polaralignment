@@ -241,7 +241,7 @@ namespace NINA.Plugins.PolarAlignment.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("4.96")]
+        [global::System.Configuration.DefaultSettingValueAttribute("2")]
         public float AvalonXGearRatio {
             get {
                 return ((float)(this["AvalonXGearRatio"]));
@@ -265,7 +265,7 @@ namespace NINA.Plugins.PolarAlignment.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("13.9")]
+        [global::System.Configuration.DefaultSettingValueAttribute("22")]
         public float AvalonYGearRatio {
             get {
                 return ((float)(this["AvalonYGearRatio"]));
@@ -284,6 +284,30 @@ namespace NINA.Plugins.PolarAlignment.Properties {
             }
             set {
                 this["AvalonYSpeed"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool DoAutomatedAdjustments {
+            get {
+                return ((bool)(this["DoAutomatedAdjustments"]));
+            }
+            set {
+                this["DoAutomatedAdjustments"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("2")]
+        public double AutomatedAdjustmentSettleTime {
+            get {
+                return ((double)(this["AutomatedAdjustmentSettleTime"]));
+            }
+            set {
+                this["AutomatedAdjustmentSettleTime"] = value;
             }
         }
     }

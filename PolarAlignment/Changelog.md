@@ -5,6 +5,8 @@
 - Added native support for the [Avalon Polar Alignment System](https://www.avalon-instruments.com/products-menu/accessories/universal-polar-alignment-system-detail)
   - A new setting `Use Avalon Polar Alignment System?` is now available.
   - When activated, the polar alignment routine will connect to the unit after the third step automatically, allowing you to remotely adjust the altitude and azimuth of your system.
+  - Furthermore you can automate the adjustments with the new setting `Do automated adjustments?` which will slowly nudge the UPA to the target position after the error has been determined.
+    - Note: For this setting to work you need to set the `Polar Alignment Tolerance` to non-zero. 
 
 ## Version 2.0.2.0
 - Automatically increase search radius on plate solve by 5 during solving of the first three points each time it fails

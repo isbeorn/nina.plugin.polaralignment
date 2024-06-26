@@ -29,23 +29,26 @@
                     <ColumnDefinition />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
-                    <RowDefinition MinHeight="25" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock VerticalAlignment="Center" Text="Default Move Rate" />
@@ -58,18 +61,20 @@
                     Text="{Binding DefaultMoveRate}" />
                 <TextBlock
                     Grid.Row="1"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Default East Direction" />
                 <CheckBox
                     Grid.Row="1"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="0,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     IsChecked="{Binding DefaultEastDirection}" />
                 <TextBlock
                     Grid.Row="2"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Default Target Distance" />
 
@@ -77,20 +82,21 @@
                     Grid.Row="2"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="5,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     Text="{Binding DefaultTargetDistance}"
                     Unit="°" />
                 <TextBlock
                     Grid.Row="3"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Default Search Radius" />
                 <ninactrl:UnitTextBox
                     Grid.Row="3"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="5,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     Text="{Binding DefaultSearchRadius}"
@@ -98,13 +104,14 @@
 
                 <TextBlock
                     Grid.Row="4"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Axis move timeout factor" />
                 <ninactrl:UnitTextBox
                     Grid.Row="4"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="5,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     Text="{Binding MoveTimeoutFactor}"
@@ -112,13 +119,14 @@
 
                 <TextBlock
                     Grid.Row="5"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Default azimuth offset from pole" />
                 <ninactrl:UnitTextBox
                     Grid.Row="5"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="5,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     Text="{Binding DefaultAzimuthOffset}"
@@ -126,13 +134,14 @@
 
                 <TextBlock
                     Grid.Row="6"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Default altitude offset from pole" />
                 <ninactrl:UnitTextBox
                     Grid.Row="6"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="5,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     Text="{Binding DefaultAltitudeOffset}"
@@ -140,6 +149,7 @@
 
                 <TextBlock
                     Grid.Row="7"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Polar Alignment Tolerance">
                     <TextBlock.ToolTip>
@@ -150,7 +160,7 @@
                     Grid.Row="7"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="5,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     Text="{Binding AlignmentTolerance}"
@@ -158,13 +168,14 @@
 
                 <TextBlock
                     Grid.Row="8"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Altitude Error Color" />
                 <xceed:ColorPicker
                     Grid.Row="8"
                     Grid.Column="1"
                     Width="80"
-                    Margin="5,0,0,0"
+                    Margin="5,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     SelectedColor="{Binding AltitudeErrorColor}" />
@@ -224,12 +235,12 @@
                     Grid.Row="13"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     IsChecked="{Binding LogError}" />
                 <TextBlock
                     Grid.Row="14"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Adjust for refraction?" />
                 <StackPanel
@@ -238,42 +249,91 @@
                     Orientation="Horizontal">
                     <CheckBox
                         MinWidth="80"
-                        Margin="5,0,0,0"
+                        Margin="0,5,0,0"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Center"
                         IsChecked="{Binding RefractionAdjustment}" />
                     <TextBlock
-                        Margin="5,0,0,0"
+                        Margin="5,5,0,0"
                         Text="This option is currently under test. Feedback if this results in better polar alignment is appreciated!"
                         Visibility="{Binding RefractionAdjustment, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
                 <TextBlock
                     Grid.Row="15"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Stop Tracking when done?" />
                 <CheckBox
                     Grid.Row="15"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="0,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     IsChecked="{Binding StopTrackingWhenDone}" />
                 <TextBlock
                     Grid.Row="16"
+                    Margin="0,5,0,0"
                     VerticalAlignment="Center"
                     Text="Use Avalon Polar Alignment System?" />
                 <CheckBox
                     Grid.Row="16"
                     Grid.Column="1"
                     MinWidth="80"
-                    Margin="5,0,0,0"
+                    Margin="0,5,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     IsChecked="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem}" />
-                <Button
+                <TextBlock
                     Grid.Row="17"
                     Margin="0,5,0,0"
+                    VerticalAlignment="Center"
+                    Text="Do automated adjustments?"
+                    Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <StackPanel
+                    Grid.Row="17"
+                    Grid.Column="1"
+                    Orientation="Horizontal">
+                    <CheckBox
+                        MinWidth="80"
+                        Margin="0,5,0,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        IsChecked="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments}"
+                        Visibility="{Binding UniversalPolarAlignmentVM.UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock
+                        Margin="5,5,0,0"
+                        VerticalAlignment="Center"
+                        FontStyle="Italic"
+                        Text="This option is under test and experimental"
+                        Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </StackPanel>
+                <TextBlock
+                    Grid.Row="18"
+                    Margin="0,5,0,0"
+                    VerticalAlignment="Center"
+                    Text="Automated adjustment settle time"
+                    Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <ninactrl:UnitTextBox
+                    Grid.Row="18"
+                    Grid.Column="1"
+                    MinWidth="80"
+                    Margin="5,5,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="{Binding UniversalPolarAlignmentVM.AutomatedAdjustmentSettleTime}"
+                    Unit="s"
+                    Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBlock
+                    Grid.Row="19"
+                    Grid.ColumnSpan="2"
+                    Margin="0,5,0,0"
+                    FontStyle="Italic"
+                    Text="Make sure to set your gear ratio to achieve 1 arcminute per step for each axis!"
+                    Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <Button
+                    Grid.Row="20"
+                    Margin="0,20,0,0"
                     Command="{Binding ResetSettingsCommand}">
                     <TextBlock
                         VerticalAlignment="Center"
@@ -1125,16 +1185,10 @@
 
                 </Viewbox>
             </Grid>
-            <ContentPresenter
-                Grid.Row="3"
-                Grid.ColumnSpan="3"
-                Content="{Binding UniversalPolarAlignmentVM}"
-                Visibility="{Binding UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
             <Grid
-                Grid.Row="4"
+                Grid.Row="3"
                 Grid.ColumnSpan="4"
                 Visibility="{Binding PolarErrorDetermination, Converter={StaticResource NullToVisibilityCollapsedConverter}}">
-
                 <Viewbox
                     Height="40"
                     Stretch="Uniform"
@@ -1153,13 +1207,17 @@
                             <TextBlock
                                 HorizontalAlignment="Center"
                                 FontSize="36"
-                                Text="° ] This indicates flexure and will make the polar alignment inaccurate." />
+                                Text="° ] so polar alignment will be inaccurate." />
                         </StackPanel>
-                        <TextBlock HorizontalAlignment="Center" FontSize="36">Please try to identify the root cause of the position angle spread and address the problem.</TextBlock>
+                        <TextBlock HorizontalAlignment="Center" FontSize="36">This happens when the initial error is too large or if there is flexure in the system.</TextBlock>
                     </StackPanel>
-
                 </Viewbox>
-
+            </Grid>
+            <Grid
+                Grid.Row="4"
+                Grid.ColumnSpan="3"
+                Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <ContentPresenter Content="{Binding UniversalPolarAlignmentVM}" Visibility="{Binding UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </Grid>
         </Grid>
     </DataTemplate>

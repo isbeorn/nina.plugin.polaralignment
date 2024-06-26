@@ -1,6 +1,7 @@
 ﻿using Accord.Math;
 using Accord.Math.Geometry;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using NINA.Astrometry;
 using NINA.Core.Model;
 using NINA.Core.Utility;
@@ -32,7 +33,7 @@ namespace NINA.Plugins.PolarAlignment {
             this.weatherDataMediator = weatherDataMediator;
             Status = new ApplicationStatus();
 
-            Steps = new List<TPPAStep>() {                
+            Steps = new List<TPPAStep>() {
                 new TPPAStep("Retrieving first measurement point"),
                 new TPPAStep("Retrieving second measurement point"),
                 new TPPAStep("Retrieving final measurement point"),
@@ -45,14 +46,13 @@ namespace NINA.Plugins.PolarAlignment {
                     ErrorDetail.Shift(dragResult.Delta);
                 }
             });
-            LeftMouseButtonDownCommand = new AsyncCommand<bool>(async obj => {if (obj != null) { await SelectNewReferenceStar((Point)obj); } return true; });
-
-            
+            LeftMouseButtonDownCommand = new AsyncCommand<bool>(async obj => { if (obj != null) { await SelectNewReferenceStar((Point)obj, CancellationToken.None); } return true; });
         }
 
         public UniversalPolarAlignmentVM UniversalPolarAlignmentVM => PolarAlignmentPlugin.UniversalPolarAlignmentVM;
 
-        public void ActivateFirstStep() {            
+        public void ActivateFirstStep() {
+            lastMovement = null;
             Steps[0].Active = true;
             Steps[0].Relevant = true;
         }
@@ -83,7 +83,7 @@ namespace NINA.Plugins.PolarAlignment {
 
             WaitingForUpdate = false;
 
-            if(UniversalPolarAlignmentVM.UsePolarAlignmentSystem) {
+            if (UniversalPolarAlignmentVM.UsePolarAlignmentSystem) {
                 await UniversalPolarAlignmentVM.Connect();
             }
         }
@@ -93,14 +93,14 @@ namespace NINA.Plugins.PolarAlignment {
         private SemaphoreSlim selectNewStarLock = new SemaphoreSlim(1);
         private SemaphoreSlim starDetectionLock = new SemaphoreSlim(1);
 
-        public async Task SelectNewReferenceStar(Point p) {
+        public async Task SelectNewReferenceStar(Point p, CancellationToken token) {
             await selectNewStarLock.WaitAsync();
             try {
-                ReferenceStar = await GetClosestStarPosition(Image, p, default, new CancellationToken());
+                ReferenceStar = await GetClosestStarPosition(Image, p, default, token);
                 ReferenceStarCoordinates = PolarErrorDetermination.CurrentReferenceFrame.Coordinates.Shift(ReferenceStar.X - Center.X, ReferenceStar.Y - Center.Y, PolarErrorDetermination.CurrentReferenceFrame.Orientation, ArcsecPerPix, ArcsecPerPix);
 
                 CalculateErrorDetails();
-            } catch(Exception ex) {
+            } catch (Exception ex) {
                 Logger.Error("An error occurred during selection of new reference star", ex);
                 Notification.ShowWarning("Failed to determine new reference star on current image");
             } finally {
@@ -109,23 +109,84 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
 
-        public async Task UpdateDetails(PlateSolveResult psr) {
+        public async Task UpdateDetails(PlateSolveResult psr, IProgress<ApplicationStatus> progress, CancellationToken token) {
             PolarErrorDetermination.CurrentReferenceFrame = psr;
-           var currentCenter = PolarErrorDetermination.CurrentReferenceFrame;
+            var currentCenter = PolarErrorDetermination.CurrentReferenceFrame;
 
             if ((psr.Coordinates - currentCenter.Coordinates).Distance.ArcSeconds > ArcsecPerPix) {
                 // To minimize projection errors, try to re-acquire the same star from star detection instead of just projecting
                 var p = ReferenceStarCoordinates.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
-                await SelectNewReferenceStar(p);
+                await SelectNewReferenceStar(p, token);
             } else {
                 currentCenter = psr;
                 ReferenceStar = ReferenceStarCoordinates.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
                 CalculateErrorDetails();
             }
+
+            var totalErrorMinutes = Math.Abs(PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
+            if (UniversalPolarAlignmentVM.UsePolarAlignmentSystem && UniversalPolarAlignmentVM.DoAutomatedAdjustments && totalErrorMinutes > Properties.Settings.Default.AlignmentTolerance) {
+                await MoveCloser(progress, token);
+            }
+
             WaitingForUpdate = false;
         }
 
-        
+        private class Movement {
+            public Movement(float azimuth, float altitude, float azimuthSign, float altitudeSign, double azimuthErrorBeforeMovement, double altitudeErrorBeforeMovement) {
+                Azimuth = azimuth;
+                Altitude = altitude;
+                AzimuthSign = azimuthSign;
+                AltitudeSign = altitudeSign;
+                AzimuthErrorBeforeMovement = azimuthErrorBeforeMovement;
+                AltitudeErrorBeforeMovement = altitudeErrorBeforeMovement;
+            }
+
+            public float Azimuth { get; }
+            public float Altitude { get; }
+            public float AzimuthSign { get; }
+            public float AltitudeSign { get; }
+            public double AzimuthErrorBeforeMovement { get; }
+            public double AltitudeErrorBeforeMovement { get; }
+        }
+
+        private Movement lastMovement = null;
+
+        private async Task MoveCloser(IProgress<ApplicationStatus> progress, CancellationToken token) {
+            var az = PolarErrorDetermination.CurrentMountAxisAzimuthError;
+            var alt = PolarErrorDetermination.CurrentMountAxisAltitudeError;
+
+            var sign = 1f;
+            if (lastMovement != null) {
+                if (lastMovement?.Altitude == 0) {
+                    if (lastMovement.Azimuth != 0 && Math.Abs(az.Degree) > Math.Abs(lastMovement.AzimuthErrorBeforeMovement)) {
+                        Logger.Info("Reversing x axis movement as azimuth error is worse than before");
+                        // Axis is reversed
+                        sign = -1f * lastMovement.AzimuthSign;
+                    }
+                } else if(lastMovement?.Azimuth == 0) {
+                    if (lastMovement.Altitude != 0 && Math.Abs(alt.Degree) > Math.Abs(lastMovement.AltitudeErrorBeforeMovement)) {
+                        Logger.Info("Reversing y axis movement as altitude error is worse than before");
+                        // Axis is reversed
+                        sign = -1f * lastMovement.AltitudeSign;
+                    }
+                }
+            }
+
+            var xGreaterThanY = Math.Abs(az.Degree) > Math.Abs(alt.Degree);
+            if (xGreaterThanY) {
+                float azAdjustment = (float)az.ArcMinutes * sign * 0.5f;
+                progress?.Report(new ApplicationStatus() { Status = $"Nudging UPA along X axis by {Math.Round(azAdjustment, 2)}" });
+                await UniversalPolarAlignmentVM.NudgeX(azAdjustment, token);
+                lastMovement = new Movement(azAdjustment, 0, sign, lastMovement?.AltitudeSign ?? sign, az.Degree, alt.Degree);
+            } else {
+                float altAdjustment = (float)alt.ArcMinutes * 0.5f * sign;
+                progress?.Report(new ApplicationStatus() { Status = $"Nudging UPA along Y axis by {Math.Round(altAdjustment, 2)}" });
+                await UniversalPolarAlignmentVM.NudgeY(altAdjustment, token);
+                lastMovement = new Movement(0, altAdjustment, lastMovement?.AzimuthSign ?? sign, sign, az.Degree, alt.Degree);
+            }
+                        
+            await CoreUtil.Wait(TimeSpan.FromSeconds(UniversalPolarAlignmentVM.AutomatedAdjustmentSettleTime), token, progress, "Settling UPA");
+        }
 
         private void CalculateErrorDetails() {
 
@@ -164,11 +225,11 @@ namespace NINA.Plugins.PolarAlignment {
             originalAltitudePixel = originalAltitudePixel + pointShift * 2;
 
             var lineOriginToAltitude = Line.FromPoints(ToAccordPoint(originPixel), ToAccordPoint(originalAltitudePixel));
-            
+
             var correctedAltitudeLine = Line.FromSlopeIntercept(lineOriginToAltitude.Slope, (float)(Center.Y - lineOriginToAltitude.Slope * Center.X));
 
             var lineAltitudeToDestination = Line.FromPoints(ToAccordPoint(originalAltitudePixel), ToAccordPoint(destinationPixel));
-            
+
             var correctedAltitudePixel = lineAltitudeToDestination.GetIntersectionWith(correctedAltitudeLine); // alt corrected pixel
 
             var correctedAltitudeDistance = correctedAltitudePixel.Value.DistanceTo(ToAccordPoint(Center)); // alt corrected
@@ -204,28 +265,28 @@ namespace NINA.Plugins.PolarAlignment {
             PolarErrorDetermination.CurrentMountAxisAzimuthError = Angle.ByDegree(PolarErrorDetermination.InitialMountAxisAzimuthError.Degree * (azSign * correctedAzimuthDistance / originalAzimuthDistance));
             PolarErrorDetermination.CurrentMountAxisAltitudeError = Angle.ByDegree(PolarErrorDetermination.InitialMountAxisAltitudeError.Degree * (altSign * correctedAltitudeDistance / originalAltitudeDistance));
             PolarErrorDetermination.CurrentMountAxisTotalError = Angle.ByDegree(Accord.Math.Tools.Hypotenuse(PolarErrorDetermination.CurrentMountAxisAltitudeError.Degree, PolarErrorDetermination.CurrentMountAxisAzimuthError.Degree));
-            
+
             var errorDetail = new ErrorDetail(Center, ToPoint(correctedAltitudePixel.Value), ToPoint(correctedAzimuthPixel.Value), destinationPixel);
-            
+
             //errorDetail.Shift(pointShift);
             errorDetail.Shift(new System.Windows.Vector(ReferenceStar.X - Center.X, ReferenceStar.Y - Center.Y));
             ErrorDetail = errorDetail;
 
             var errorDetail2 = new ErrorDetail(originPixel, originalAltitudePixel, originalAzimuthPixel, destinationPixel);
-            errorDetail2.Shift(new System.Windows.Vector(ReferenceStar.X - Center.X, ReferenceStar.Y - Center.Y)); 
+            errorDetail2.Shift(new System.Windows.Vector(ReferenceStar.X - Center.X, ReferenceStar.Y - Center.Y));
             ErrorDetail2 = errorDetail2;
 
-            if(Properties.Settings.Default.LogError) { 
-                if(logger == null) {
+            if (Properties.Settings.Default.LogError) {
+                if (logger == null) {
                     CreateLogger();
                 }
-                logger.Information("{@Wrapper}", 
+                logger.Information("{@Wrapper}",
                     new {
-                        Longitude= PolarErrorDetermination.Longitude.Degree,
-                        Latitude= PolarErrorDetermination.Latitude.Degree,
-                        AltitudeError= PolarErrorDetermination.CurrentMountAxisAltitudeError.Degree,
-                        AzimuthError= PolarErrorDetermination.CurrentMountAxisAzimuthError.Degree,
-                        TotalError= PolarErrorDetermination.CurrentMountAxisTotalError.Degree
+                        Longitude = PolarErrorDetermination.Longitude.Degree,
+                        Latitude = PolarErrorDetermination.Latitude.Degree,
+                        AltitudeError = PolarErrorDetermination.CurrentMountAxisAltitudeError.Degree,
+                        AzimuthError = PolarErrorDetermination.CurrentMountAxisAzimuthError.Degree,
+                        TotalError = PolarErrorDetermination.CurrentMountAxisTotalError.Degree
                     }
                 );
             }
@@ -268,7 +329,7 @@ namespace NINA.Plugins.PolarAlignment {
                 .GroupBy(p => Math.Pow(reference.X - p.Position.X, 2) + Math.Pow(reference.Y - p.Position.Y, 2))
                 .OrderBy(p => p.Key)
                 .FirstOrDefault()?.FirstOrDefault();
-            if(closestStarToReference == null) {
+            if (closestStarToReference == null) {
                 Logger.Warning("No star could be found. Using previous reference point instead");
                 return reference;
             }
@@ -280,7 +341,7 @@ namespace NINA.Plugins.PolarAlignment {
         private async Task<StarDetectionResult> GetStarDetection(IRenderedImage image, IProgress<ApplicationStatus> progress, CancellationToken token) {
             await starDetectionLock.WaitAsync();
             try {
-                if(starDetection.Value == null || starDetection.Key != image.RawImageData.MetaData.Image.Id) {
+                if (starDetection.Value == null || starDetection.Key != image.RawImageData.MetaData.Image.Id) {
                     var detection = new StarDetection();
 
                     var detectionParams = new StarDetectionParams() {
@@ -335,7 +396,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         private IRenderedImage image;
 
-        private ErrorDetail erorLines; 
+        private ErrorDetail erorLines;
         public ErrorDetail ErrorDetail { get => erorLines; set { erorLines = value; RaisePropertyChanged(); } }
 
         private ErrorDetail erorLines2;
@@ -346,14 +407,14 @@ namespace NINA.Plugins.PolarAlignment {
         public Angle Longitude {
             get => Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Longitude);
         }
-        public IRenderedImage Image { 
-            get => image; 
-            internal set { 
+        public IRenderedImage Image {
+            get => image;
+            internal set {
                 image = value;
                 WaitingForUpdate = true;
-                RaisePropertyChanged(); 
-            } 
-        }        
+                RaisePropertyChanged();
+            }
+        }
 
         public Point ReferenceStar { get; private set; }
         public Coordinates ReferenceStarCoordinates { get; internal set; }
@@ -368,8 +429,8 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         private bool waitingForUpdate;
-        public bool WaitingForUpdate { 
-            get => waitingForUpdate; 
+        public bool WaitingForUpdate {
+            get => waitingForUpdate;
             private set {
 
 
@@ -380,7 +441,7 @@ namespace NINA.Plugins.PolarAlignment {
     }
 
     public class ErrorDetail : BaseINPC {
-        
+
         public ErrorDetail(Point origin, Point altitude, Point azimuth, Point total) {
             Origin = origin;
             Altitude = altitude;
@@ -394,7 +455,7 @@ namespace NINA.Plugins.PolarAlignment {
         public Point Azimuth { get; set; }
         public Point Total { get; set; }
 
-        public PointCollection Rectangle { 
+        public PointCollection Rectangle {
             get => new PointCollection  {
                 Origin,
                 Altitude,
@@ -403,7 +464,7 @@ namespace NINA.Plugins.PolarAlignment {
              };
         }
 
-        
+
 
         public void Shift(System.Windows.Vector delta) {
             Origin = new Point(Origin.X + delta.X, Origin.Y + delta.Y);
@@ -487,11 +548,11 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         public PlateSolveResult InitialReferenceFrame { get; }
-        public Position FirstPosition { get;  }
-        public Position SecondPosition { get;  }
-        public Position ThirdPosition { get;  }
+        public Position FirstPosition { get; }
+        public Position SecondPosition { get; }
+        public Position ThirdPosition { get; }
 
-        public Position InitialMountAxisErrorPosition { get;  }
+        public Position InitialMountAxisErrorPosition { get; }
 
         [JsonProperty]
         public Angle InitialMountAxisAltitudeError { get; private set; }
@@ -529,7 +590,7 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         public bool PositionAngleSpreadLarge {
-            get => PositionAngleSpread > 1;
+            get => PositionAngleSpread > 5;
         }
 
         public bool InitialErrorLarge {
@@ -540,7 +601,7 @@ namespace NINA.Plugins.PolarAlignment {
             get => InitialMountAxisTotalError.Degree > 10;
         }
 
-        public string CurrentMountAxisAltitudeErrorDirection { 
+        public string CurrentMountAxisAltitudeErrorDirection {
             get {
                 if (CurrentMountAxisAltitudeError.Degree > 0) {
                     if (Northern) {
@@ -559,23 +620,23 @@ namespace NINA.Plugins.PolarAlignment {
                 }
             }
         }
-        public string CurrentMountAxisAzimuthErrorDirection { 
+        public string CurrentMountAxisAzimuthErrorDirection {
             get {
                 if (CurrentMountAxisAzimuthError.Degree > 0) {
-                if (Northern) {
-                    return "🠔 Move left/west";
-                } else {
+                    if (Northern) {
+                        return "🠔 Move left/west";
+                    } else {
                         return "🠔 Move left/east";
-                }
-            } else if (CurrentMountAxisAzimuthError.Degree < 0) {
-                if (Northern) {
+                    }
+                } else if (CurrentMountAxisAzimuthError.Degree < 0) {
+                    if (Northern) {
                         return "Move right/east 🠖";
-                } else {
+                    } else {
                         return "Move right/west 🠖";
+                    }
+                } else {
+                    return string.Empty;
                 }
-            } else {
-                return string.Empty;
-            }
             }
         }
 
@@ -603,7 +664,7 @@ namespace NINA.Plugins.PolarAlignment {
                 azimuthError = InitialMountAxisErrorPosition.Topocentric.Azimuth + Angle.ByDegree(180);
             }
 
-            if(azimuthError.Degree > 180) {
+            if (azimuthError.Degree > 180) {
                 azimuthError = Angle.ByDegree(azimuthError.Degree - 360);
             }
             if (azimuthError.Degree < -180) {
@@ -648,10 +709,10 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
     }
-    
+
     public class Position {
         public Position(Coordinates coordinates, double positionAngle, Angle latitude, Angle longitude, RefrectionParameters refrectionParameters) {
-                if (refrectionParameters != null) {
+            if (refrectionParameters != null) {
                 double pressurehPa = refrectionParameters.PressureHPa;
                 double temperature = refrectionParameters.Temperature;
                 double relativeHumidity = refrectionParameters.RelativeHumidity;
@@ -670,7 +731,7 @@ namespace NINA.Plugins.PolarAlignment {
             Vector = vector;
         }
 
-        public Position(TopocentricCoordinates coordinates) {            
+        public Position(TopocentricCoordinates coordinates) {
             Topocentric = coordinates;
             Vector = Vector3.CoordinatesToUnitVector(Topocentric);
         }

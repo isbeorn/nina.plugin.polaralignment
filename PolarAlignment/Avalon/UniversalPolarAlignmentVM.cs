@@ -46,6 +46,28 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             }
         }
 
+        public bool DoAutomatedAdjustments {
+            get {
+                return Properties.Settings.Default.DoAutomatedAdjustments;
+            }
+            set {
+                Properties.Settings.Default.DoAutomatedAdjustments = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
+        public double AutomatedAdjustmentSettleTime {
+            get {
+                return Properties.Settings.Default.AutomatedAdjustmentSettleTime;
+            }
+            set {
+                Properties.Settings.Default.AutomatedAdjustmentSettleTime = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+        
         public float XGearRatio {
             get {
                 return Properties.Settings.Default.AvalonXGearRatio;
@@ -141,6 +163,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
+                Logger.Info($"Nudging UPA along X axis by {position}");
                 await upa.MoveRelative(UniversalPolarAlignment.Axis.XAxis, XSpeed, position, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -154,6 +177,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
+                Logger.Info($"Nudging UPA along Y axis by {position}");
                 await upa.MoveRelative(UniversalPolarAlignment.Axis.YAxis, YSpeed, position, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -167,6 +191,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
+                Logger.Info($"Moving UPA along X axis to {TargetPositionX}");
                 await upa.MoveAbsolute(UniversalPolarAlignment.Axis.XAxis, XSpeed, TargetPositionX, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -180,6 +205,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
+                Logger.Info($"Moving UPA along Y axis to {TargetPositionY}");
                 await upa.MoveAbsolute(UniversalPolarAlignment.Axis.YAxis, YSpeed, TargetPositionY, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);

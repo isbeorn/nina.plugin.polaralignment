@@ -57,16 +57,22 @@
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="AvalonXGearRatio" Type="System.Single" Scope="User">
-      <Value Profile="(Default)">4.96</Value>
+      <Value Profile="(Default)">2</Value>
     </Setting>
     <Setting Name="AvalonXSpeed" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">700</Value>
     </Setting>
     <Setting Name="AvalonYGearRatio" Type="System.Single" Scope="User">
-      <Value Profile="(Default)">13.9</Value>
+      <Value Profile="(Default)">22</Value>
     </Setting>
     <Setting Name="AvalonYSpeed" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">700</Value>
+    </Setting>
+    <Setting Name="DoAutomatedAdjustments" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="AutomatedAdjustmentSettleTime" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">2</Value>
     </Setting>
   </Settings>
 </SettingsFile>
