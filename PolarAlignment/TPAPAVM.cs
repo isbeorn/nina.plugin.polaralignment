@@ -120,7 +120,7 @@ namespace NINA.Plugins.PolarAlignment {
             }
 
             var totalErrorMinutes = Math.Abs(PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
-            if (UniversalPolarAlignmentVM.UsePolarAlignmentSystem && UniversalPolarAlignmentVM.DoAutomatedAdjustments && totalErrorMinutes > Properties.Settings.Default.AlignmentTolerance) {
+            if (UniversalPolarAlignmentVM.UsePolarAlignmentSystem && UniversalPolarAlignmentVM.DoAutomatedAdjustments) {
                 await MoveCloser(progress, token);
             }
 

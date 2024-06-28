@@ -72,6 +72,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private bool eastDirection;
         private bool manualMode;
         private bool startFromCurrentPosition;
+        private double alignmentTolerance;
         private IList<string> issues = new List<string>();
 
         [OnDeserializing]
@@ -124,6 +125,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             MoveRate = Properties.Settings.Default.DefaultMoveRate;
             TargetDistance = Properties.Settings.Default.DefaultTargetDistance;
             SearchRadius = Properties.Settings.Default.DefaultSearchRadius;
+            AlignmentTolerance = Properties.Settings.Default.AlignmentTolerance;
 
             CameraInfo = this.cameraMediator.GetInfo();
 
@@ -156,6 +158,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 Offset = Offset,
                 ManualMode = ManualMode,
                 StartFromCurrentPosition = StartFromCurrentPosition,
+                AlignmentTolerance = AlignmentTolerance,
                 Coordinates = new InputTopocentricCoordinates(Coordinates.Coordinates.Copy())
             };
 
@@ -223,7 +226,16 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
         }
 
+        [JsonProperty]
+        public double AlignmentTolerance {
+            get => alignmentTolerance;
+            set {
+                alignmentTolerance = value;
+                RaisePropertyChanged();
+            }
+        }
 
+        
 
         private ApplicationStatus GetStatus(string status) {
             return new ApplicationStatus { Source = "TPPA", Status = status };
@@ -462,15 +474,15 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
 
                             var totalErrorMinutes = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
-                            if (totalErrorMinutes <= Properties.Settings.Default.AlignmentTolerance) {
-                                Logger.Info($"Total Error is below alignment tolerance ({Properties.Settings.Default.AlignmentTolerance}'). " +
+                            if (totalErrorMinutes <= AlignmentTolerance) {
+                                Logger.Info($"Total Error is below alignment tolerance ({AlignmentTolerance}'). " +
                                     $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'. " +
                                     $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'. " +
                                     $"Total Error: {Math.Round(totalErrorMinutes, 2)}'. " +
                                     $"Automatically finishing polar alignment.");
                                 Notification.ShowInformation(
                                     $"Total Error is below alignment tolerance.{Environment.NewLine}" +
-                                    $"Tolerance: {Properties.Settings.Default.AlignmentTolerance}{Environment.NewLine}'" +
+                                    $"Tolerance: {AlignmentTolerance}{Environment.NewLine}'" +
                                     $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
                                     $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
                                     $"Total Error: {Math.Round(totalErrorMinutes, 2)}'{Environment.NewLine}" +
@@ -768,7 +780,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 }
             }
 
-            if(Settings.Default.UseAvalonPolarAlignmentSystem && Settings.Default.DoAutomatedAdjustments && Settings.Default.AlignmentTolerance == 0) {
+            if(Settings.Default.UseAvalonPolarAlignmentSystem && Settings.Default.DoAutomatedAdjustments && AlignmentTolerance == 0) {
                 i.Add("Automated adjustments are enabled, but polar alignment tolerance is set to zero. Please set an alignment tolerance!");
             }
 

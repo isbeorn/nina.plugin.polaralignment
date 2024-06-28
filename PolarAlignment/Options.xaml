@@ -152,7 +152,7 @@
                     Grid.Row="7"
                     Margin="0,5,0,0"
                     VerticalAlignment="Center"
-                    Text="Polar Alignment Tolerance">
+                    Text="Default Alignment Tolerance">
                     <TextBlock.ToolTip>
                         <TextBlock Text="Setting the Polar Alignment Tolerance to non-zero will specify a tolerance in arcminutes where the polar alignment routine automatically completes when below the threshold" />
                     </TextBlock.ToolTip>
