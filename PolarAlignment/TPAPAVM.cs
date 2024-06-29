@@ -154,13 +154,13 @@ namespace NINA.Plugins.PolarAlignment {
             var sign = 1f;
             if (lastMovement != null) {
                 if (lastMovement?.Altitude == 0) {
-                    if (lastMovement.Azimuth != 0 && Math.Abs(az.Degree) > Math.Abs(lastMovement.AzimuthErrorBeforeMovement)) {
+                    if (lastMovement.Azimuth != 0 && Math.Abs(az.Degree) > Math.Abs(lastMovement.AzimuthErrorBeforeMovement * 1.15d)) {
                         Logger.Info("Reversing x axis movement as azimuth error is worse than before");
                         // Axis is reversed
                         sign = -1f * lastMovement.AzimuthSign;
                     }
                 } else if(lastMovement?.Azimuth == 0) {
-                    if (lastMovement.Altitude != 0 && Math.Abs(alt.Degree) > Math.Abs(lastMovement.AltitudeErrorBeforeMovement)) {
+                    if (lastMovement.Altitude != 0 && Math.Abs(alt.Degree) > Math.Abs(lastMovement.AltitudeErrorBeforeMovement * 1.15d)) {
                         Logger.Info("Reversing y axis movement as altitude error is worse than before");
                         // Axis is reversed
                         sign = -1f * lastMovement.AltitudeSign;
