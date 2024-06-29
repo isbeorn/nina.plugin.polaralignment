@@ -1,7 +1,8 @@
 ﻿# Changelog
 
-## Version tbd
+## Version 2.1.0.1
 - Polar Alignment Tolerance can now be set on instruction level. For example when you are running an automated polar alignment run and want to dial in the polar alignment in multiple phases and getting more precise in each step.
+- Now showing UPA positions in automatic mode in addition to the already existing nudge direction
 
 ## Version 2.1.0.0
 - The position angle spread between the three measurements is now measured. If it is too large, a warning will be shown.

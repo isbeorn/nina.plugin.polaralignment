@@ -1239,12 +1239,56 @@
                     </StackPanel>
                 </Viewbox>
             </Grid>
-            <Grid
+            <GroupBox
                 Grid.Row="4"
                 Grid.ColumnSpan="3"
-                Visibility="{Binding UniversalPolarAlignmentVM.DoAutomatedAdjustments, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                <ContentPresenter Content="{Binding UniversalPolarAlignmentVM}" Visibility="{Binding UsePolarAlignmentSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </Grid>
+                HorizontalAlignment="Stretch"
+                Visibility="{Binding UniversalPolarAlignmentVM.Connected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <GroupBox.Header>
+                    <TextBlock Text="Avalon Polar Alignment System" />
+                </GroupBox.Header>
+                <Grid HorizontalAlignment="Stretch">
+                    <!--  Manual UPA Control  -->
+                    <ContentPresenter Content="{Binding UniversalPolarAlignmentVM}" Visibility="{Binding DoAutomatedAdjustments, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                    <!--  Automated UPA Status  -->
+                    <Grid HorizontalAlignment="Stretch" Visibility="{Binding DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                            <TextBlock FontSize="16" Text="Azimuth: " />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="16"
+                                Text="{Binding UniversalPolarAlignmentVM.PositionX, StringFormat=N2}" />
+                        </StackPanel>
+                        <StackPanel
+                            Grid.Column="1"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                            <TextBlock FontSize="16" Text="Altitude: " />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="16"
+                                Text="{Binding UniversalPolarAlignmentVM.PositionY, StringFormat=N2}" />
+                        </StackPanel>
+                        <TextBlock
+                            Grid.Column="2"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="16"
+                            Text="Automatic Mode" />
+                    </Grid>
+                </Grid>
+            </GroupBox>
         </Grid>
     </DataTemplate>
 
