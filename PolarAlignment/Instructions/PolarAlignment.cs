@@ -472,6 +472,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         if (continuousSolve.Success) {
                             await TPAPAVM.UpdateDetails(continuousSolve, progress, localCTS.Token);
 
+                            Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError}");
 
                             var totalErrorMinutes = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
                             if (totalErrorMinutes <= AlignmentTolerance) {
@@ -496,6 +497,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                 sw.Stop();
                                 sw.Reset();
                             }
+
+                            await TPAPAVM.MoveCloser(progress, localCTS.Token);
                         }
                     } while (!localCTS.Token.IsCancellationRequested);
 

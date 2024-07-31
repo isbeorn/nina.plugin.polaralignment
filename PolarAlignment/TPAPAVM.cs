@@ -119,11 +119,6 @@ namespace NINA.Plugins.PolarAlignment {
                 CalculateErrorDetails();
             }
 
-            var totalErrorMinutes = Math.Abs(PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
-            if (UniversalPolarAlignmentVM.UsePolarAlignmentSystem && UniversalPolarAlignmentVM.DoAutomatedAdjustments) {
-                await MoveCloser(progress, token);
-            }
-
             WaitingForUpdate = false;
         }
 
@@ -146,41 +141,43 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         private Movement lastMovement = null;
+        public async Task MoveCloser(IProgress<ApplicationStatus> progress, CancellationToken token) {
+            if (!UniversalPolarAlignmentVM.UsePolarAlignmentSystem || !UniversalPolarAlignmentVM.DoAutomatedAdjustments) { return; }
 
-        private async Task MoveCloser(IProgress<ApplicationStatus> progress, CancellationToken token) {
             var az = PolarErrorDetermination.CurrentMountAxisAzimuthError;
             var alt = PolarErrorDetermination.CurrentMountAxisAltitudeError;
 
-            var sign = 1f;
+            var azimuthSign = lastMovement?.AzimuthSign ?? 1f;
+            var altitudeSign = lastMovement?.AltitudeSign ?? 1f;
             if (lastMovement != null) {
                 if (lastMovement?.Altitude == 0) {
                     if (lastMovement.Azimuth != 0 && Math.Abs(az.Degree) > Math.Abs(lastMovement.AzimuthErrorBeforeMovement * 1.15d)) {
-                        Logger.Info("Reversing x axis movement as azimuth error is worse than before");
+                        Logger.Info($"Reversing x axis movement as azimuth error is worse than before. Before: {lastMovement.AzimuthErrorBeforeMovement} - After: {az.Degree}");
                         // Axis is reversed
-                        sign = -1f * lastMovement.AzimuthSign;
+                        azimuthSign = -1f * lastMovement.AzimuthSign;
                     }
-                } else if(lastMovement?.Azimuth == 0) {
+                } else if (lastMovement?.Azimuth == 0) {
                     if (lastMovement.Altitude != 0 && Math.Abs(alt.Degree) > Math.Abs(lastMovement.AltitudeErrorBeforeMovement * 1.15d)) {
-                        Logger.Info("Reversing y axis movement as altitude error is worse than before");
+                        Logger.Info($"Reversing y axis movement as altitude error is worse than before. Before: {lastMovement.AltitudeErrorBeforeMovement} - After: {alt.Degree}");
                         // Axis is reversed
-                        sign = -1f * lastMovement.AltitudeSign;
+                        altitudeSign = -1f * lastMovement.AltitudeSign;
                     }
                 }
             }
 
             var xGreaterThanY = Math.Abs(az.Degree) > Math.Abs(alt.Degree);
             if (xGreaterThanY) {
-                float azAdjustment = (float)az.ArcMinutes * sign * 0.5f;
+                float azAdjustment = (float)az.ArcMinutes * azimuthSign * 0.75f;
                 progress?.Report(new ApplicationStatus() { Status = $"Nudging UPA along X axis by {Math.Round(azAdjustment, 2)}" });
                 await UniversalPolarAlignmentVM.NudgeX(azAdjustment, token);
-                lastMovement = new Movement(azAdjustment, 0, sign, lastMovement?.AltitudeSign ?? sign, az.Degree, alt.Degree);
+                lastMovement = new Movement(azAdjustment, 0, azimuthSign, lastMovement?.AltitudeSign ?? 1f, az.Degree, alt.Degree);
             } else {
-                float altAdjustment = (float)alt.ArcMinutes * 0.5f * sign;
+                float altAdjustment = (float)alt.ArcMinutes * altitudeSign * 0.75f;
                 progress?.Report(new ApplicationStatus() { Status = $"Nudging UPA along Y axis by {Math.Round(altAdjustment, 2)}" });
                 await UniversalPolarAlignmentVM.NudgeY(altAdjustment, token);
-                lastMovement = new Movement(0, altAdjustment, lastMovement?.AzimuthSign ?? sign, sign, az.Degree, alt.Degree);
+                lastMovement = new Movement(0, altAdjustment, lastMovement?.AzimuthSign ?? 1f, altitudeSign, az.Degree, alt.Degree);
             }
-                        
+
             await CoreUtil.Wait(TimeSpan.FromSeconds(UniversalPolarAlignmentVM.AutomatedAdjustmentSettleTime), token, progress, "Settling UPA");
         }
 

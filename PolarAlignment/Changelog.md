@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## Version 2.1.0.2
+- Fixed an issue when using the UPA that the direction would constantly be reversed on each adjustment.
+- When using the UPA it will no longer move a last time without re-evaluation when the alignment threshold has already been reached.
+- Added options for UPA to reverse azimuth and altitude axes
+
 ## Version 2.1.0.1
 - Polar Alignment Tolerance can now be set on instruction level. For example when you are running an automated polar alignment run and want to dial in the polar alignment in multiple phases and getting more precise in each step.
 - Now showing UPA positions in automatic mode in addition to the already existing nudge direction

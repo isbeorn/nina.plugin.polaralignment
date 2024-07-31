@@ -120,6 +120,28 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             }
         }
 
+        public bool ReverseAzimuth {
+            get {
+                return Properties.Settings.Default.AvalonReverseAzimuth;
+            }
+            set {
+                Properties.Settings.Default.AvalonReverseAzimuth = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool ReverseAltitude {
+            get {
+                return Properties.Settings.Default.AvalonReverseAltitude;
+            }
+            set {
+                Properties.Settings.Default.AvalonReverseAltitude = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
         public float XBacklashCompensation {
             get {
                 return Properties.Settings.Default.AvalonXBacklashCompensation;
@@ -174,6 +196,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
         public async Task NudgeX(float position, CancellationToken token) {
             try {
+                if (ReverseAzimuth) { position = position * -1; }
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
                 Logger.Info($"Nudging UPA along X axis by {position}");
@@ -191,6 +214,7 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
         public async Task NudgeY(float position, CancellationToken token) {
             try {
+                if (ReverseAltitude) { position = position * -1; }
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
                 Logger.Info($"Nudging UPA along Y axis by {position}");
@@ -211,9 +235,13 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
-                Logger.Info($"Moving UPA along X axis to {TargetPositionX}");
+                var target = TargetPositionX;
+                if(ReverseAzimuth) { target = target * -1; }
+
+                Logger.Info($"Moving UPA along X axis to {target}");
                 var lastDirection = upa.XLastDirection;
-                await upa.MoveAbsolute(UniversalPolarAlignment.Axis.XAxis, XSpeed, TargetPositionX, token).ConfigureAwait(false);
+                
+                await upa.MoveAbsolute(UniversalPolarAlignment.Axis.XAxis, XSpeed, target, token).ConfigureAwait(false);
                 var currentDirection = upa.XLastDirection;
                 await ClearBacklash(lastDirection, currentDirection, token);
             } catch (Exception ex) {
@@ -239,8 +267,11 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
             try {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
-                Logger.Info($"Moving UPA along Y axis to {TargetPositionY}");
-                await upa.MoveAbsolute(UniversalPolarAlignment.Axis.YAxis, YSpeed, TargetPositionY, token).ConfigureAwait(false);
+                var target = TargetPositionY;
+                if (ReverseAzimuth) { target = target * -1; }
+
+                Logger.Info($"Moving UPA along Y axis to {target}");
+                await upa.MoveAbsolute(UniversalPolarAlignment.Axis.YAxis, YSpeed, target, token).ConfigureAwait(false);
             } catch (Exception ex) {
                 Logger.Error(ex);
             } finally {

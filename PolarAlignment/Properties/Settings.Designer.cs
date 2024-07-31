@@ -322,5 +322,29 @@ namespace NINA.Plugins.PolarAlignment.Properties {
                 this["AvalonXBacklashCompensation"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool AvalonReverseAzimuth {
+            get {
+                return ((bool)(this["AvalonReverseAzimuth"]));
+            }
+            set {
+                this["AvalonReverseAzimuth"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool AvalonReverseAltitude {
+            get {
+                return ((bool)(this["AvalonReverseAltitude"]));
+            }
+            set {
+                this["AvalonReverseAltitude"] = value;
+            }
+        }
     }
 }
