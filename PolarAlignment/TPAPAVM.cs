@@ -183,7 +183,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         private void CalculateErrorDetails() {
 
-            var refractionParams = RefrectionParameters.GetRefrectionParameters(profileService.ActiveProfile.AstrometrySettings.Elevation, weatherDataMediator.GetInfo());
+            var refractionParams = RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo());
             var currentCenter = PolarErrorDetermination.CurrentReferenceFrame;
 
             var originPixel = PolarErrorDetermination.InitialReferenceFrame.Coordinates.XYProjection(currentCenter.Coordinates, Center, ArcsecPerPix, ArcsecPerPix, currentCenter.Orientation);
@@ -499,9 +499,10 @@ namespace NINA.Plugins.PolarAlignment {
 
 
     public class PolarErrorDetermination : BaseINPC {
-        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude, RefrectionParameters refrectionParameters) {
+        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude, double elevation, RefrectionParameters refrectionParameters) {
             Latitude = latitude;
             Longitude = longitude;
+            Elevation = elevation;
 
             InitialReferenceFrame = referenceFrame;
             FirstPosition = position1;
@@ -516,7 +517,7 @@ namespace NINA.Plugins.PolarAlignment {
             }
 
 
-            InitialMountAxisErrorPosition = new Position(planeVector, Latitude, Longitude);
+            InitialMountAxisErrorPosition = new Position(planeVector, Latitude, Longitude, Elevation);
 
             CalculateMountAxisError(refrectionParameters);
             PositionAngleSpread = CalculatePositionAngleSpread(FirstPosition.PositionAngle, SecondPosition.PositionAngle, ThirdPosition.PositionAngle);
@@ -536,6 +537,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         public Angle Latitude { get; }
         public Angle Longitude { get; }
+        public double Elevation { get; }
         public bool Northern {
             get => Latitude.Degree > 0;
         }
@@ -680,12 +682,11 @@ namespace NINA.Plugins.PolarAlignment {
                 double pressurehPa = refrectionParameters.PressureHPa;
                 double temperature = refrectionParameters.Temperature;
                 double relativeHumidity = refrectionParameters.RelativeHumidity;
-                double elevation = refrectionParameters.Elevation;
                 double wavelength = refrectionParameters.Wavelength;
                 Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
-                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
+                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, Elevation, pressurehPa, temperature, relativeHumidity, wavelength);
             } else {
-                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude);
+                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, Elevation);
             }
             var vRef = Vector3.CoordinatesToUnitVector(referenceTopo);
 
@@ -698,29 +699,28 @@ namespace NINA.Plugins.PolarAlignment {
 
             var finalDest = Vector3.RotateByRodrigues(azDest, rotatedAltAxis, altRotation); //combination of first az then applied alt
 
-            return finalDest.ToTopocentric(Latitude, Longitude);
+            return finalDest.ToTopocentric(Latitude, Longitude, Elevation);
         }
 
     }
 
     public class Position {
-        public Position(Coordinates coordinates, double positionAngle, Angle latitude, Angle longitude, RefrectionParameters refrectionParameters) {
+        public Position(Coordinates coordinates, double positionAngle, Angle latitude, Angle longitude, double elevation, RefrectionParameters refrectionParameters) {
             if (refrectionParameters != null) {
                 double pressurehPa = refrectionParameters.PressureHPa;
                 double temperature = refrectionParameters.Temperature;
                 double relativeHumidity = refrectionParameters.RelativeHumidity;
-                double elevation = refrectionParameters.Elevation;
                 double wavelength = refrectionParameters.Wavelength;
                 Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
                 Topocentric = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
             } else {
-                Topocentric = coordinates.Transform(latitude, longitude);
+                Topocentric = coordinates.Transform(latitude, longitude, elevation);
             }
             Vector = Vector3.CoordinatesToUnitVector(Topocentric);
             PositionAngle = positionAngle;
         }
-        public Position(Vector3 vector, Angle latitude, Angle longitude) {
-            Topocentric = vector.ToTopocentric(latitude, longitude);
+        public Position(Vector3 vector, Angle latitude, Angle longitude, double elevation) {
+            Topocentric = vector.ToTopocentric(latitude, longitude, elevation);
             Vector = vector;
         }
 

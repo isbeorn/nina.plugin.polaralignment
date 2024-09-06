@@ -404,11 +404,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     }
 
                     var solve1 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
-                    var refractionParameter = RefrectionParameters.GetRefrectionParameters(profileService.ActiveProfile.AstrometrySettings.Elevation, weatherDataMediator.GetInfo());
+                    var refractionParameter = RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo());
 
                     var telescopeInfo = telescopeMediator.GetInfo();
 
-                    var position1 = new Position(solve1.Coordinates, solve1.PositionAngle, Latitude, Longitude, refractionParameter);
+                    var position1 = new Position(solve1.Coordinates, solve1.PositionAngle, Latitude, Longitude, Elevation, refractionParameter);
 
                     Logger.Info($"First measurement point {solve1.Coordinates} - Vector: {position1.Vector} - Position Angle: {position1.PositionAngle}");
 
@@ -421,7 +421,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         solve2 = await ManualNextPoint(solve1, progress, localCTS.Token);
                     }
 
-                    var position2 = new Position(solve2.Coordinates, solve2.PositionAngle, Latitude, Longitude, refractionParameter);
+                    var position2 = new Position(solve2.Coordinates, solve2.PositionAngle, Latitude, Longitude, Elevation, refractionParameter);
 
                     Logger.Info($"Second measurement point {solve2.Coordinates} - Vector: {position2.Vector} - Position Angle: {position2.PositionAngle}");
 
@@ -437,14 +437,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         solve3 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
                     }
 
-                    var position3 = new Position(solve3.Coordinates, solve3.PositionAngle, Latitude, Longitude, refractionParameter);
+                    var position3 = new Position(solve3.Coordinates, solve3.PositionAngle, Latitude, Longitude, Elevation, refractionParameter);
 
                     Logger.Info($"Third measurement point {solve3.Coordinates} - Vector: {position3.Vector} - Position Angle: {position3.PositionAngle}");
 
                     progress?.Report(GetStatus("Calculating Error"));
 
 
-                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, refractionParameter);
+                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, Elevation, refractionParameter);
 
                     Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 
@@ -715,6 +715,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
         public Angle Longitude {
             get => Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Longitude);
+        }
+        public double Elevation {
+            get => profileService.ActiveProfile.AstrometrySettings.Elevation;
         }
 
         /// <summary>
