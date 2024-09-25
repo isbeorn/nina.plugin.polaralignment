@@ -645,10 +645,7 @@ namespace NINA.Plugins.PolarAlignment {
             var azimuthError = Angle.Zero;
 
             var pole = Math.Abs(Latitude.Degree);
-            if (refrectionParameters != null) {
-                // When refraction is enabled, adjust pole to the refraction corrected pole
-                pole = AstroUtil.CalculateRefractedAltitude(pole, refrectionParameters.PressureHPa, refrectionParameters.Temperature, refrectionParameters.RelativeHumidity, refrectionParameters.Wavelength);
-            }
+            
             if (Northern) {
                 altitudeError = Angle.ByDegree(InitialMountAxisErrorPosition.Topocentric.Altitude.Degree - pole);
                 azimuthError = InitialMountAxisErrorPosition.Topocentric.Azimuth;
@@ -675,18 +672,8 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         public TopocentricCoordinates GetDestinationCoordinates(double azAngle, double altAngle, RefrectionParameters refrectionParameters) {
-            TopocentricCoordinates referenceTopo;
-            if (refrectionParameters != null) {
-                double pressurehPa = refrectionParameters.PressureHPa;
-                double temperature = refrectionParameters.Temperature;
-                double relativeHumidity = refrectionParameters.RelativeHumidity;
-                double elevation = refrectionParameters.Elevation;
-                double wavelength = refrectionParameters.Wavelength;
-                Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
-                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
-            } else {
-                referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude);
-            }
+            TopocentricCoordinates referenceTopo = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude);
+
             var vRef = Vector3.CoordinatesToUnitVector(referenceTopo);
 
             var azRotation = Angle.ByDegree(azAngle);
@@ -712,7 +699,7 @@ namespace NINA.Plugins.PolarAlignment {
                 double elevation = refrectionParameters.Elevation;
                 double wavelength = refrectionParameters.Wavelength;
                 Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
-                Topocentric = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
+                Topocentric = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength, DateTime.Now);
             } else {
                 Topocentric = coordinates.Transform(latitude, longitude);
             }
