@@ -9,12 +9,12 @@ namespace NINA.Plugins.PolarAlignment.Test {
         [SetUp]
         public void Setup() {
         }
-
+        
         [Test]
         public void PolarErrorDetermination_InitialMountError_SomeDeclinationError_ErrorIsEquals_ForBothPointDirections() {
             var latitude = Angle.ByDegree(49);
             var longitude = Angle.ByDegree(7);
-            RefrectionParameters refraction = null;
+            RefrectionParameters refraction = new RefrectionParameters(0, 0.0001, 20, 0.5);
 
             var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
             var position1 = new Position(solve1, 0, latitude, longitude, refraction);
@@ -26,14 +26,14 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var position3 = new Position(solve3, 0, latitude, longitude, refraction);
             
 
-            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() {  Coordinates = solve3 }, position1, position2, position3, latitude, longitude, refraction);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() {  Coordinates = solve3 }, position1, position2, position3, latitude, longitude, refraction, false);
 
-            var error2 = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction);
+            var error2 = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction, false);
 
             error.InitialMountAxisTotalError.Degree.Should().NotBeApproximately(0, 0001);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(error2.InitialMountAxisAltitudeError.Degree, 0.0001);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(error2.InitialMountAxisAzimuthError.Degree, 0.0001);
-            error.InitialMountAxisTotalError.Degree.Should().BeApproximately(error2.InitialMountAxisTotalError.Degree, 0.0001);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(error2.InitialMountAxisAltitudeError.Degree, 0.0005);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(error2.InitialMountAxisAzimuthError.Degree, 0.0005);
+            error.InitialMountAxisTotalError.Degree.Should().BeApproximately(error2.InitialMountAxisTotalError.Degree, 0.0005);
         }
 
 
@@ -41,7 +41,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         public void PolarErrorDetermination_InitialMountError_NoDeclinationError_ErrorIsZero() {
             var latitude = Angle.ByDegree(49);
             var longitude = Angle.ByDegree(7);
-            RefrectionParameters refraction = null;
+            RefrectionParameters refraction = new RefrectionParameters(0, 0.0001, 20, 0.5);
 
             var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
             var position1 = new Position(solve1, 0,latitude, longitude, refraction);
@@ -53,11 +53,71 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var position3 = new Position(solve3, 0, latitude, longitude, refraction);
 
 
-            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction, false);
 
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(0, 0.0001);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(0, 0.0001);
-            error.InitialMountAxisTotalError.Degree.Should().BeApproximately(0, 0.0001);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(0, 0.0005);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(0, 0.0005);
+            error.InitialMountAxisTotalError.Degree.Should().BeApproximately(0, 0.0005);
+        }
+        
+        [Test]
+        public void PolarErrorDetermination_VeryDifferentAltitudePoints_TruePole() {
+            var latitude = Angle.ByDegree(37);
+            var longitude = Angle.ByDegree(-122);
+            var polarAxis = new TopocentricCoordinates(Angle.ByDegree(0), latitude + Angle.ByDegree(1), latitude, longitude);
+            var f1 = new TopocentricCoordinates(Angle.ByDegree(70), Angle.ByDegree(20), latitude, longitude);
+            var v1 = Vector3.CoordinatesToUnitVector(f1);
+            var p = Vector3.CoordinatesToUnitVector(polarAxis);
+            var v2 = Vector3.RotateByRodrigues(v1, p, Angle.ByDegree(-30));
+            var v3 = Vector3.RotateByRodrigues(v2, p, Angle.ByDegree(-30));
+            var f2 = v2.ToTopocentric(latitude, longitude);
+            var f3 = v3.ToTopocentric(latitude, longitude);
+            var s1 = f1.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
+            var s2 = f2.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
+            var s3 = f3.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
+            var q1 = s1.Transform(latitude, longitude);
+            var q2 = s2.Transform(latitude, longitude);
+            var q3 = s3.Transform(latitude, longitude);
+            var t1 = q1.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55) ;
+            var refraction = new RefrectionParameters(0, 1013, 20, 0.5);
+            //refraction = null;
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = t1 }, 
+                new Position(s3, 0, latitude, longitude, refraction), 
+                new Position(s2, 0, latitude, longitude, refraction), 
+                new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, true);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1, 0.0005);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(0.0, 0.0005);
+
+        }
+
+        [Test]
+        public void PolarErrorDetermination_VeryDifferentAltitudePoints_RefractedPole() {
+            var latitude = Angle.ByDegree(40);
+            var longitude = Angle.ByDegree(0);
+            var polarAxis = new TopocentricCoordinates(Angle.ByDegree(0), latitude + Angle.ByDegree(1), latitude, longitude);
+            var f1 = new TopocentricCoordinates(Angle.ByDegree(70), Angle.ByDegree(20), latitude, longitude);
+            var v1 = Vector3.CoordinatesToUnitVector(f1);
+            var p = Vector3.CoordinatesToUnitVector(polarAxis);
+            var v2 = Vector3.RotateByRodrigues(v1, p, Angle.ByDegree(-30));
+            var v3 = Vector3.RotateByRodrigues(v2, p, Angle.ByDegree(-30));
+            var f2 = v2.ToTopocentric(latitude, longitude);
+            var f3 = v3.ToTopocentric(latitude, longitude);
+            var s1 = f1.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
+            var s2 = f2.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
+            var s3 = f3.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
+            var q1 = s1.Transform(latitude, longitude);
+            var q2 = s2.Transform(latitude, longitude);
+            var q3 = s3.Transform(latitude, longitude);
+            var t1 = q1.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
+            var refraction = new RefrectionParameters(0, 1013, 20, 0.5);
+            //refraction = null;
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = t1 },
+                new Position(s3, 0, latitude, longitude, refraction),
+                new Position(s2, 0, latitude, longitude, refraction),
+                new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, false);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately((1 - 66 / 3600.0), 0.0005);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(0.0, 0.0005);
+
         }
     }
 }

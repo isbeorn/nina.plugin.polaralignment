@@ -19,31 +19,28 @@ namespace NINA.Plugins.PolarAlignment {
         public double Wavelength { get; }
 
         public static RefrectionParameters GetRefrectionParameters(double elevation, WeatherDataInfo info = null) {
-            if (Properties.Settings.Default.RefractionAdjustment) {
-                // https://en.wikipedia.org/wiki/Standard_temperature_and_pressure
-                const double standardPressure = 1013.25;
-                const double standardTemperature = 15;
-                const double standardHumidity = 0;
+            // https://en.wikipedia.org/wiki/Standard_temperature_and_pressure
+            const double standardPressure = 1013.25;
+            const double standardTemperature = 15;
+            const double standardHumidity = 0;
                                 
-                if (info?.Connected == true) {
-                    var pressure = info.Pressure;
-                    if (double.IsNaN(pressure)) {
-                        pressure = standardPressure;
-                    }
-                    var temperature = info.Temperature;
-                    if (double.IsNaN(temperature)) {
-                        temperature = standardTemperature;
-                    }
-                    var humidity = info.Humidity;
-                    if (double.IsNaN(humidity)) {
-                        humidity = standardHumidity;
-                    }
-                    return new RefrectionParameters(elevation, pressure, temperature, humidity);
-                } else {
-                    return new RefrectionParameters(elevation, standardPressure, standardTemperature, standardHumidity);
+            if (info?.Connected == true) {
+                var pressure = info.Pressure;
+                if (double.IsNaN(pressure)) {
+                    pressure = standardPressure;
                 }
+                var temperature = info.Temperature;
+                if (double.IsNaN(temperature)) {
+                    temperature = standardTemperature;
+                }
+                var humidity = info.Humidity;
+                if (double.IsNaN(humidity)) {
+                    humidity = standardHumidity;
+                }
+                return new RefrectionParameters(elevation, pressure, temperature, humidity);
+            } else {
+                return new RefrectionParameters(elevation, standardPressure, standardTemperature, standardHumidity);
             }
-            return null;
         }
     }
 }

@@ -444,7 +444,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     progress?.Report(GetStatus("Calculating Error"));
 
 
-                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, refractionParameter);
+                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, refractionParameter, Properties.Settings.Default.RefractionAdjustment);
 
                     Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 
