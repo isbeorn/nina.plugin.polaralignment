@@ -17,26 +17,27 @@ namespace NINA.Plugins.PolarAlignment.Test {
         public void PolarErrorDetermination_InitialMountError_SomeDeclinationError_ErrorIsEquals_ForBothPointDirections() {
             var latitude = Angle.ByDegree(49);
             var longitude = Angle.ByDegree(7);
+            var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             RefrectionParameters refraction = new RefrectionParameters(0, 0.0001, 20, 0.5);
 
-            var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
+            var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW, time).Transform(Epoch.J2000);
             var position1 = new Position(solve1, 0, latitude, longitude, refraction);
 
-            var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(41), Epoch.JNOW).Transform(Epoch.J2000);
+            var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(41), Epoch.JNOW, time).Transform(Epoch.J2000);
             var position2 = new Position(solve2, 0, latitude, longitude, refraction);
 
-            var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(42), Epoch.JNOW).Transform(Epoch.J2000);
+            var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(42), Epoch.JNOW, time).Transform(Epoch.J2000);
             var position3 = new Position(solve3, 0, latitude, longitude, refraction);
             
 
-            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() {  Coordinates = solve3 }, position1, position2, position3, latitude, longitude, refraction, false);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() {  Coordinates = solve3 }, position1, position2, position3, latitude, longitude, refraction, true);
 
-            var error2 = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction, false);
+            var error2 = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction, true);
 
             error.InitialMountAxisTotalError.Degree.Should().NotBeApproximately(0, 0001);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(error2.InitialMountAxisAltitudeError.Degree, 0.0005);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(error2.InitialMountAxisAzimuthError.Degree, 0.0005);
-            error.InitialMountAxisTotalError.Degree.Should().BeApproximately(error2.InitialMountAxisTotalError.Degree, 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(error2.InitialMountAxisAltitudeError.Degree, 1.0 / 3600.0);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(error2.InitialMountAxisAzimuthError.Degree, 1.0 / 3600.0);
+            error.InitialMountAxisTotalError.Degree.Should().BeApproximately(error2.InitialMountAxisTotalError.Degree, 1.0 / 3600.0);
         }
 
 
@@ -44,23 +45,24 @@ namespace NINA.Plugins.PolarAlignment.Test {
         public void PolarErrorDetermination_InitialMountError_NoDeclinationError_ErrorIsZero() {
             var latitude = Angle.ByDegree(49);
             var longitude = Angle.ByDegree(7);
-            RefrectionParameters refraction = new RefrectionParameters(0, 0.0001, 20, 0.5);
+            var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            RefrectionParameters refraction = new RefrectionParameters(0, 0.0001, 0, 0);
 
-            var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
+            var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW, time).Transform(Epoch.J2000);
             var position1 = new Position(solve1, 0,latitude, longitude, refraction);
 
-            var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
+            var solve2 = new Coordinates(Angle.ByDegree(60), Angle.ByDegree(40), Epoch.JNOW, time).Transform(Epoch.J2000);
             var position2 = new Position(solve2, 0, latitude, longitude, refraction);
 
-            var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(40), Epoch.JNOW).Transform(Epoch.J2000);
+            var solve3 = new Coordinates(Angle.ByDegree(90), Angle.ByDegree(40), Epoch.JNOW, time).Transform(Epoch.J2000);
             var position3 = new Position(solve3, 0, latitude, longitude, refraction);
 
 
-            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction, false);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, refraction, true);
 
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(0, 0.0005);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(0, 0.0005);
-            error.InitialMountAxisTotalError.Degree.Should().BeApproximately(0, 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(0, 1.0 / 3600.0);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(0, 1.0 / 3600.0);
+            error.InitialMountAxisTotalError.Degree.Should().BeApproximately(0, 1.0 / 3600.0);
         }
 
 
@@ -111,8 +113,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 new Position(s3, 0, latitude, longitude, refraction), 
                 new Position(s2, 0, latitude, longitude, refraction), 
                 new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, true);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 0.0005);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }
 
         [Test]
@@ -151,8 +153,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 new Position(s3, 0, latitude, longitude, refraction),
                 new Position(s2, 0, latitude, longitude, refraction),
                 new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, false);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69.3/3600.0, 0.0005);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69.3/3600.0, 1.0 / 3600.0);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }
 
 
@@ -162,16 +164,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var longitude = Angle.ByDegree(0);
             var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             // values calculated with Astropy and quaternion rotations
-            var s1 = new Coordinates(Angle.ByDegree(186.41934342), Angle.ByDegree(27.75369123), Epoch.J2000, time);
-            var s2 = new Coordinates(Angle.ByDegree(156.67990105), Angle.ByDegree(27.40124463), Epoch.J2000, time);
-            var s3 = new Coordinates(Angle.ByDegree(127.00972992), Angle.ByDegree(27.34988742), Epoch.J2000, time);
+            var s1 = new Coordinates(Angle.ByDegree(186.4193401), Angle.ByDegree(27.75369312), Epoch.J2000, time);
+            var s2 = new Coordinates(Angle.ByDegree(156.6798968), Angle.ByDegree(27.40124463), Epoch.J2000, time);
+            var s3 = new Coordinates(Angle.ByDegree(127.00972423), Angle.ByDegree(27.34989335), Epoch.J2000, time);
             var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, refraction),
                 new Position(s2, 0, latitude, longitude, refraction),
                 new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, true);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 0.0005);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 1.0/3600.0);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0/3600.0);
         }
 
         [Test]
@@ -180,16 +182,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var longitude = Angle.ByDegree(0);
             var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             // values calculated with Astropy and quaternion rotations
-            var s1 = new Coordinates(Angle.ByDegree(186.41934342), Angle.ByDegree(27.75369123), Epoch.J2000, time);
-            var s2 = new Coordinates(Angle.ByDegree(156.67990105), Angle.ByDegree(27.40124463), Epoch.J2000, time);
-            var s3 = new Coordinates(Angle.ByDegree(127.00972992), Angle.ByDegree(27.34988742), Epoch.J2000, time);
+            var s1 = new Coordinates(Angle.ByDegree(186.4193401), Angle.ByDegree(27.75369312), Epoch.J2000, time);
+            var s2 = new Coordinates(Angle.ByDegree(156.6798968), Angle.ByDegree(27.40124463), Epoch.J2000, time);
+            var s3 = new Coordinates(Angle.ByDegree(127.00972423), Angle.ByDegree(27.34989335), Epoch.J2000, time);
             var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, refraction),
                 new Position(s2, 0, latitude, longitude, refraction),
                 new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, false);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69.3 / 3600.0, 0.0005);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69.3 / 3600.0, 1.0/3600.0);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0/3600.0);
         }
 
 
@@ -199,16 +201,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var longitude = Angle.ByDegree(0);
             var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             // values calculated with Astropy and quaternion rotations
-            var s1 = new Coordinates(Angle.ByDegree(120.40436164), Angle.ByDegree(87.88182907), Epoch.J2000, time);
-            var s2 = new Coordinates(Angle.ByDegree(133.73656913), Angle.ByDegree(87.76678449), Epoch.J2000, time);
-            var s3 = new Coordinates(Angle.ByDegree(147.13170512), Angle.ByDegree(87.80222357), Epoch.J2000, time);
+            var s1 = new Coordinates(Angle.ByDegree(120.40437197), Angle.ByDegree(87.88183512), Epoch.J2000, time);
+            var s2 = new Coordinates(Angle.ByDegree(133.73661393), Angle.ByDegree(87.76679023), Epoch.J2000, time);
+            var s3 = new Coordinates(Angle.ByDegree(147.13178399), Angle.ByDegree(87.8022287), Epoch.J2000, time);
             var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, refraction),
                 new Position(s2, 0, latitude, longitude, refraction),
                 new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, true);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 0.0005);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }
 
         [Test]
@@ -217,16 +219,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var longitude = Angle.ByDegree(0);
             var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             // values calculated with Astropy and quaternion rotations
-            var s1 = new Coordinates(Angle.ByDegree(120.40436164), Angle.ByDegree(87.88182907), Epoch.J2000, time);
-            var s2 = new Coordinates(Angle.ByDegree(133.73656913), Angle.ByDegree(87.76678449), Epoch.J2000, time);
-            var s3 = new Coordinates(Angle.ByDegree(147.13170512), Angle.ByDegree(87.80222357), Epoch.J2000, time);
+            var s1 = new Coordinates(Angle.ByDegree(120.40437197), Angle.ByDegree(87.88183512), Epoch.J2000, time);
+            var s2 = new Coordinates(Angle.ByDegree(133.73661393), Angle.ByDegree(87.76679023), Epoch.J2000, time);
+            var s3 = new Coordinates(Angle.ByDegree(147.13178399), Angle.ByDegree(87.8022287), Epoch.J2000, time);
             var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, refraction),
                 new Position(s2, 0, latitude, longitude, refraction),
                 new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, false);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69/3600.0, 0.0005);
-            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69/3600.0, 1.0 / 3600.0);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }
 
     }
