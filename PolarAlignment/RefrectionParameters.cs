@@ -2,13 +2,14 @@
 
 namespace NINA.Plugins.PolarAlignment {
     public class RefrectionParameters {
-        public RefrectionParameters(double elevation, double pressureHPa, double temperature, double relativeHumidity) {
+
+        public RefrectionParameters(double elevation, double pressureHPa, double temperature, double relativeHumidity, double wavelength=0.55d) {
             Elevation = elevation;
             PressureHPa = pressureHPa;
             Temperature = temperature;
             RelativeHumidity = relativeHumidity;
             // Currently no source for this info. Taking standard value
-            Wavelength = 0.55d;
+            Wavelength = wavelength;
         }
 
         public double Elevation { get; }

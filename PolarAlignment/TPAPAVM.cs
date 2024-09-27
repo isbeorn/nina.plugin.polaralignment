@@ -703,7 +703,7 @@ namespace NINA.Plugins.PolarAlignment {
                 double elevation = refrectionParameters.Elevation;
                 double wavelength = refrectionParameters.Wavelength;
                 Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
-                Topocentric = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength, DateTime.Now);
+                Topocentric = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength, coordinates.DateTime.Now);
             //} else {
             //    Topocentric = coordinates.Transform(latitude, longitude);
             //}

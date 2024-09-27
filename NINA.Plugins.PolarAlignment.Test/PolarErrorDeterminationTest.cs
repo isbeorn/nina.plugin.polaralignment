@@ -1,7 +1,10 @@
 using FluentAssertions;
 using NINA.Astrometry;
+using NINA.Core.Utility;
 using NINA.Profile;
 using NINA.WPF.Base.Mediator;
+using System.Data.Entity.Core.Metadata.Edm;
+using ToastNotifications.Utilities;
 using static NINA.Equipment.Equipment.MyGPS.PegasusAstro.UnityApi.DriverUranusReport;
 
 namespace NINA.Plugins.PolarAlignment.Test {
@@ -59,36 +62,51 @@ namespace NINA.Plugins.PolarAlignment.Test {
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(0, 0.0005);
             error.InitialMountAxisTotalError.Degree.Should().BeApproximately(0, 0.0005);
         }
-        
-        [Test]
+
+
+        class CustomTime : ICustomDateTime {
+            DateTime time;
+            public CustomTime(DateTime time) {
+                this.time = time;
+            }
+
+            public DateTime Now => time;
+
+            public DateTime UtcNow => time;
+        }
+
+            [Test]
         public void PolarErrorDetermination_VeryDifferentAltitudePoints_TruePole() {
             var latitude = Angle.ByDegree(40);
             var longitude = Angle.ByDegree(0);
+            var time1 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            var time2 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            var time3 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
             // prepare a misaligned mount polar axis 
-            var polarAxis = new TopocentricCoordinates(Angle.ByDegree(1), latitude + Angle.ByDegree(1), latitude, longitude);
+            var polarAxis = new TopocentricCoordinates(Angle.ByDegree(1), latitude + Angle.ByDegree(1), latitude, longitude, time1);
             // and a first alt-az position for the mount
-            var f1 = new TopocentricCoordinates(Angle.ByDegree(70), Angle.ByDegree(20), latitude, longitude);
+            var f1 = new TopocentricCoordinates(Angle.ByDegree(70), Angle.ByDegree(20), latitude, longitude, time1);
             var v1 = Vector3.CoordinatesToUnitVector(f1);
             var p = Vector3.CoordinatesToUnitVector(polarAxis);
             // convert into unit-norm vectors, and rotate by Rodrigues around the mount polar axis, 30 deg to the West
             var v2 = Vector3.RotateByRodrigues(v1, p, Angle.ByDegree(-30));
             var v3 = Vector3.RotateByRodrigues(v2, p, Angle.ByDegree(-30));
-            var f2 = v2.ToTopocentric(latitude, longitude);
-            var f3 = v3.ToTopocentric(latitude, longitude);
+            var f2 = v2.ToTopocentric(latitude, longitude, time2);
+            var f3 = v3.ToTopocentric(latitude, longitude, time3);
             // transform the three alt-az position into equatorial coordinates, accounting for refraction,
             // these three equatorial positions simulate the three plate-solved fields
-            var s1 = f1.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
-            var s2 = f2.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
-            var s3 = f3.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
-            // verify that, if neglecting refraction, the three alt-az position corresponding to the
+            var s1 = f1.Transform(Epoch.J2000, refraction.PressureHPa, refraction.Temperature, refraction.RelativeHumidity, refraction.Wavelength);
+            var s2 = f2.Transform(Epoch.J2000, refraction.PressureHPa, refraction.Temperature, refraction.RelativeHumidity, refraction.Wavelength);
+            var s3 = f3.Transform(Epoch.J2000, refraction.PressureHPa, refraction.Temperature, refraction.RelativeHumidity, refraction.Wavelength);
+            // verify that, when neglecting refraction, the three alt-az positions corresponding to the
             // three simulated fields would be lower in altitude than the initial ones
-            var q1 = s1.Transform(latitude, longitude);
-            var q2 = s2.Transform(latitude, longitude);
-            var q3 = s3.Transform(latitude, longitude);
+            var q1 = s1.Transform(latitude, longitude, s1.DateTime.Now);
+            var q2 = s2.Transform(latitude, longitude, s2.DateTime.Now);
+            var q3 = s3.Transform(latitude, longitude, s3.DateTime.Now);
             q1.Altitude.Degree.Should().BeLessThan(f1.Altitude.Degree);
             q2.Altitude.Degree.Should().BeLessThan(f2.Altitude.Degree);
             q3.Altitude.Degree.Should().BeLessThan(f3.Altitude.Degree);
-            var refraction = new RefrectionParameters(0, 1013, 20, 0.5);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 }, 
                 new Position(s3, 0, latitude, longitude, refraction), 
                 new Position(s2, 0, latitude, longitude, refraction), 
@@ -101,39 +119,115 @@ namespace NINA.Plugins.PolarAlignment.Test {
         public void PolarErrorDetermination_VeryDifferentAltitudePoints_RefractedPole() {
             var latitude = Angle.ByDegree(40);
             var longitude = Angle.ByDegree(0);
+            var time1 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            var time2 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            var time3 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
             // prepare a misaligned mount polar axis 
-            var polarAxis = new TopocentricCoordinates(Angle.ByDegree(1), latitude + Angle.ByDegree(1), latitude, longitude);
+            var polarAxis = new TopocentricCoordinates(Angle.ByDegree(1), latitude + Angle.ByDegree(1), latitude, longitude, time1);
             // and a first alt-az position for the mount
-            var f1 = new TopocentricCoordinates(Angle.ByDegree(70), Angle.ByDegree(20), latitude, longitude);
+            var f1 = new TopocentricCoordinates(Angle.ByDegree(70), Angle.ByDegree(20), latitude, longitude, time1);
             var v1 = Vector3.CoordinatesToUnitVector(f1);
             var p = Vector3.CoordinatesToUnitVector(polarAxis);
             // convert into unit-norm vectors, and rotate by Rodrigues around the mount polar axis, 30 deg to the West
             var v2 = Vector3.RotateByRodrigues(v1, p, Angle.ByDegree(-30));
             var v3 = Vector3.RotateByRodrigues(v2, p, Angle.ByDegree(-30));
-            var f2 = v2.ToTopocentric(latitude, longitude);
-            var f3 = v3.ToTopocentric(latitude, longitude);
+            var f2 = v2.ToTopocentric(latitude, longitude, time2);
+            var f3 = v3.ToTopocentric(latitude, longitude, time3);
             // transform the three alt-az position into equatorial coordinates, accounting for refraction,
             // these three equatorial positions simulate the three plate-solved fields
-            var s1 = f1.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
-            var s2 = f2.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
-            var s3 = f3.Transform(Epoch.J2000, 1013, 20, 0.5, 0.55);
-            // verify that, if neglecting refraction, the three alt-az position corresponding to the
+            var s1 = f1.Transform(Epoch.J2000, refraction.PressureHPa, refraction.Temperature, refraction.RelativeHumidity, refraction.Wavelength);
+            var s2 = f2.Transform(Epoch.J2000, refraction.PressureHPa, refraction.Temperature, refraction.RelativeHumidity, refraction.Wavelength);
+            var s3 = f3.Transform(Epoch.J2000, refraction.PressureHPa, refraction.Temperature, refraction.RelativeHumidity, refraction.Wavelength);
+            // verify that, when neglecting refraction, the three alt-az positions corresponding to the
             // three simulated fields would be lower in altitude than the initial ones
-            var q1 = s1.Transform(latitude, longitude);
-            var q2 = s2.Transform(latitude, longitude);
-            var q3 = s3.Transform(latitude, longitude);
+            var q1 = s1.Transform(latitude, longitude, s1.DateTime.Now);
+            var q2 = s2.Transform(latitude, longitude, s2.DateTime.Now);
+            var q3 = s3.Transform(latitude, longitude, s3.DateTime.Now);
             q1.Altitude.Degree.Should().BeLessThan(f1.Altitude.Degree);
             q2.Altitude.Degree.Should().BeLessThan(f2.Altitude.Degree);
             q3.Altitude.Degree.Should().BeLessThan(f3.Altitude.Degree);
-            var refraction = new RefrectionParameters(0, 1013, 20, 0.5);
-            //refraction = null;
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, refraction),
                 new Position(s2, 0, latitude, longitude, refraction),
                 new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, false);
-            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately((1.0 - 66 / 3600.0), 0.0005);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69.3/3600.0, 0.0005);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
-
         }
+
+
+        [Test]
+        public void PolarErrorDetermination_VeryDifferentAltitudePoints_FromAstropy_TruePole() {
+            var latitude = Angle.ByDegree(40);
+            var longitude = Angle.ByDegree(0);
+            var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            // values calculated with Astropy and quaternion rotations
+            var s1 = new Coordinates(Angle.ByDegree(186.41934342), Angle.ByDegree(27.75369123), Epoch.J2000, time);
+            var s2 = new Coordinates(Angle.ByDegree(156.67990105), Angle.ByDegree(27.40124463), Epoch.J2000, time);
+            var s3 = new Coordinates(Angle.ByDegree(127.00972992), Angle.ByDegree(27.34988742), Epoch.J2000, time);
+            var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
+                new Position(s3, 0, latitude, longitude, refraction),
+                new Position(s2, 0, latitude, longitude, refraction),
+                new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, true);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 0.0005);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+        }
+
+        [Test]
+        public void PolarErrorDetermination_VeryDifferentAltitudePoints_FromAstropy_RefractedPole() {
+            var latitude = Angle.ByDegree(40);
+            var longitude = Angle.ByDegree(0);
+            var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            // values calculated with Astropy and quaternion rotations
+            var s1 = new Coordinates(Angle.ByDegree(186.41934342), Angle.ByDegree(27.75369123), Epoch.J2000, time);
+            var s2 = new Coordinates(Angle.ByDegree(156.67990105), Angle.ByDegree(27.40124463), Epoch.J2000, time);
+            var s3 = new Coordinates(Angle.ByDegree(127.00972992), Angle.ByDegree(27.34988742), Epoch.J2000, time);
+            var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
+                new Position(s3, 0, latitude, longitude, refraction),
+                new Position(s2, 0, latitude, longitude, refraction),
+                new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, false);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69.3 / 3600.0, 0.0005);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+        }
+
+
+        [Test]
+        public void PolarErrorDetermination_DefaultPoints_FromAstropy_TruePole() {
+            var latitude = Angle.ByDegree(40);
+            var longitude = Angle.ByDegree(0);
+            var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            // values calculated with Astropy and quaternion rotations
+            var s1 = new Coordinates(Angle.ByDegree(120.40436164), Angle.ByDegree(87.88182907), Epoch.J2000, time);
+            var s2 = new Coordinates(Angle.ByDegree(133.73656913), Angle.ByDegree(87.76678449), Epoch.J2000, time);
+            var s3 = new Coordinates(Angle.ByDegree(147.13170512), Angle.ByDegree(87.80222357), Epoch.J2000, time);
+            var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
+                new Position(s3, 0, latitude, longitude, refraction),
+                new Position(s2, 0, latitude, longitude, refraction),
+                new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, true);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 0.0005);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+        }
+
+        [Test]
+        public void PolarErrorDetermination_DefaultPoints_FromAstropy_RefractedPole() {
+            var latitude = Angle.ByDegree(40);
+            var longitude = Angle.ByDegree(0);
+            var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            // values calculated with Astropy and quaternion rotations
+            var s1 = new Coordinates(Angle.ByDegree(120.40436164), Angle.ByDegree(87.88182907), Epoch.J2000, time);
+            var s2 = new Coordinates(Angle.ByDegree(133.73656913), Angle.ByDegree(87.76678449), Epoch.J2000, time);
+            var s3 = new Coordinates(Angle.ByDegree(147.13170512), Angle.ByDegree(87.80222357), Epoch.J2000, time);
+            var refraction = new RefrectionParameters(0, 1005, 7, 0.8, 0.574);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
+                new Position(s3, 0, latitude, longitude, refraction),
+                new Position(s2, 0, latitude, longitude, refraction),
+                new Position(s1, 0, latitude, longitude, refraction), latitude, longitude, refraction, false);
+            error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69/3600.0, 0.0005);
+            error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 0.0005);
+        }
+
     }
 }
