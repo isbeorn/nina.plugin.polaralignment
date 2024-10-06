@@ -31,12 +31,16 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         public TopocentricCoordinates ToTopocentric(Angle latitude, Angle longitude) {
-            if (X == 0 && Y == 0) { return new TopocentricCoordinates(Angle.ByDegree(0), Angle.ByDegree(90), latitude, longitude); }
+            return ToTopocentric(latitude, longitude, new SystemDateTime());
+        }
+
+        public TopocentricCoordinates ToTopocentric(Angle latitude, Angle longitude, ICustomDateTime dateTime) {
+            if (X == 0 && Y == 0) { return new TopocentricCoordinates(Angle.ByDegree(0), Angle.ByDegree(90), latitude, longitude, dateTime); }
 
             var azRad = Y == 0 ? 0 : -Math.Atan2(Y, X);
             var altRad = (Math.PI / 2d) - Math.Acos(Z);
 
-            return new TopocentricCoordinates(Angle.ByRadians(azRad), Angle.ByRadians(altRad), latitude, longitude);
+            return new TopocentricCoordinates(Angle.ByRadians(azRad), Angle.ByRadians(altRad), latitude, longitude, dateTime);
         }
 
         /// <summary>
