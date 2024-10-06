@@ -2,6 +2,7 @@
 
 ## Version 2.2.0.0
 - Refraction correction will now be properly applied and the option `Adjust for refraction` should now correctly align to the true pole
+- Observer elevation is now considered for all transformations
 
 ## Version 2.1.0.2
 - Fixed an issue when using the UPA that the direction would constantly be reversed on each adjustment.
