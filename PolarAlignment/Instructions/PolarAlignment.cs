@@ -400,7 +400,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         } else {
                             Logger.Info($"Manual mode engaged without any mount connection. Running in complete blind mode using blind solver.");
                         }
+                    }
 
+                    if (telescopeMediator.GetInfo().Connected && domeMediator.GetInfo().Connected) {
+                        await domeMediator.WaitForDomeSynchronization(token);
                     }
 
                     var solve1 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
@@ -594,7 +597,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
         private async Task<PlateSolveResult> Solve(TPAPAVM context, double searchRadiusIncrementOnFailure, IProgress<ApplicationStatus> progress, CancellationToken token) {
             PlateSolveResult result = new PlateSolveResult { Success = false };
-
+            double usedSearchRadius = SearchRadius;
             do {
                 token.ThrowIfCancellationRequested();
 
@@ -629,14 +632,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         MaxObjects = profileService.ActiveProfile.PlateSolveSettings.MaxObjects,
                         PixelSize = profileService.ActiveProfile.CameraSettings.PixelSize,
                         Regions = profileService.ActiveProfile.PlateSolveSettings.Regions,
-                        SearchRadius = SearchRadius,
+                        SearchRadius = usedSearchRadius,
                         DisableNotifications = true
                     };
 
                     progress.Report(new ApplicationStatus() { Status = $"Solving image..." });
                     result = await imageSolver.Solve(image.RawImageData, parameter, progress, token);
                     if (!result.Success) {
-                        SearchRadius += searchRadiusIncrementOnFailure;
+                        usedSearchRadius += searchRadiusIncrementOnFailure;
                         await CoreUtil.Wait(TimeSpan.FromSeconds(1), token, progress, "Plate solve failed. Retrying...");
                     }
                 } else {

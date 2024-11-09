@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.2.0.1
+- After slewing to the first point, added an explicit wait for the dome synchronization if a dome is connected
+
 ## Version 2.2.0.0
 - Refraction correction will now be properly applied and the option `Adjust for refraction` should now correctly align to the true pole
 - Observer elevation is now considered for all transformations
