@@ -15,6 +15,7 @@ using NINA.Image.ImageAnalysis;
 using NINA.Image.Interfaces;
 using NINA.PlateSolving;
 using NINA.PlateSolving.Interfaces;
+using NINA.Plugin.Interfaces;
 using NINA.Plugins.PolarAlignment.Properties;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.SequenceItem;
@@ -62,6 +63,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private IFilterWheelMediator fwMediator;
         private ITelescopeMediator telescopeMediator;
         private IWindowService windowService;
+        private readonly IMessageBroker messageBroker;
         private IPlateSolverFactory plateSolverFactory;
         private IDomeMediator domeMediator;
         private IWeatherDataMediator weatherDataMediator;
@@ -98,17 +100,39 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
 
         [ImportingConstructor]
-        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator) : this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService()) {
+        public PolarAlignment(
+            IProfileService profileService,
+            ICameraMediator cameraMediator,
+            IImagingMediator imagingMediator,
+            IFilterWheelMediator fwMediator,
+            ITelescopeMediator telescopeMediator,
+            IPlateSolverFactory plateSolverFactory,
+            IDomeMediator domeMediator,
+            IWeatherDataMediator weatherDataMediator,
+            IMessageBroker messageBroker) : this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService(), messageBroker) {
+            
             Filter = null;
         }
 
-        public PolarAlignment(IProfileService profileService, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IPlateSolverFactory plateSolverFactory, IDomeMediator domeMediator, IWeatherDataMediator weatherDataMediator, IWindowService windowService) {
+        public PolarAlignment(
+            IProfileService profileService,
+            ICameraMediator cameraMediator,
+            IImagingMediator imagingMediator,
+            IFilterWheelMediator fwMediator,
+            ITelescopeMediator telescopeMediator,
+            IPlateSolverFactory plateSolverFactory,
+            IDomeMediator domeMediator,
+            IWeatherDataMediator weatherDataMediator,
+            IWindowService windowService,
+            IMessageBroker messageBroker) {
+            
             this.profileService = profileService;
             this.cameraMediator = cameraMediator;
             this.imagingMediator = imagingMediator;
             this.fwMediator = fwMediator;
             this.telescopeMediator = telescopeMediator;
             this.windowService = windowService;
+            this.messageBroker = messageBroker;
             this.plateSolverFactory = plateSolverFactory;
             this.domeMediator = domeMediator;
             this.weatherDataMediator = weatherDataMediator;
@@ -130,7 +154,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             CameraInfo = this.cameraMediator.GetInfo();
 
             if (Northern) {
-                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(Properties.Settings.Default.DefaultAzimuthOffset), Latitude + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, profileService.ActiveProfile.AstrometrySettings.Elevation, new SystemDateTime())); ;
+                Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(Properties.Settings.Default.DefaultAzimuthOffset), Latitude + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, profileService.ActiveProfile.AstrometrySettings.Elevation, new SystemDateTime()));
+                ;
             } else {
                 Coordinates = new InputTopocentricCoordinates(new TopocentricCoordinates(Angle.ByDegree(180 + Properties.Settings.Default.DefaultAzimuthOffset), Angle.ByDegree(Math.Abs(Latitude.Degree)) + Angle.ByDegree(Properties.Settings.Default.DefaultAltitudeOffset), Latitude, Longitude, profileService.ActiveProfile.AstrometrySettings.Elevation, new SystemDateTime()));
             }
@@ -138,7 +163,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
         }
 
-        private PolarAlignment(PolarAlignment copyMe) : this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator) {
+        private PolarAlignment(PolarAlignment copyMe) : this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator, copyMe.messageBroker) {
             CopyMetaData(copyMe);
         }
 
@@ -235,7 +260,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
         }
 
-        
+
 
         private ApplicationStatus GetStatus(string status) {
             return new ApplicationStatus { Source = "TPPA", Status = status };
@@ -370,16 +395,19 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     pauseTS = new PauseTokenSource();
                     try {
                         TPAPAVM?.Dispose();
-                    } catch  { }
+                    } catch { }
 
                     TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
-                    IProgress<ApplicationStatus> progress = new Progress<ApplicationStatus>(p => { TPAPAVM.Status = p; externalProgress?.Report(p); });
+                    IProgress<ApplicationStatus> progress = new Progress<ApplicationStatus>(p => {
+                        TPAPAVM.Status = p;
+                        externalProgress?.Report(p);
+                    });
 
                     windowService.Show(TPAPAVM, Loc.Instance["LblPolarAlignment"], System.Windows.ResizeMode.CanResizeWithGrip, System.Windows.WindowStyle.SingleBorderWindow);
                     windowService.OnClosed += (s, e) => {
                         try {
                             localCTS?.Cancel();
-                        } catch  { }
+                        } catch { }
                     };
 
                     TPAPAVM.ActivateFirstStep();
@@ -455,7 +483,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     if (TPAPAVM.UniversalPolarAlignmentVM.UsePolarAlignmentSystem) {
                         await TPAPAVM.UniversalPolarAlignmentVM.Connect();
-                        if(TPAPAVM.UniversalPolarAlignmentVM.DoAutomatedAdjustments && !TPAPAVM.UniversalPolarAlignmentVM.Connected) {
+                        if (TPAPAVM.UniversalPolarAlignmentVM.DoAutomatedAdjustments && !TPAPAVM.UniversalPolarAlignmentVM.Connected) {
                             throw new SequenceEntityFailedException("Unable to connect to Universal Polar Alignment system. Cancelling polar alignment routine as automated adjustments are impossible.");
                         }
                     }
@@ -468,12 +496,22 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     await TPAPAVM.SelectNewReferenceStar(TPAPAVM.Center, localCTS.Token);
 
                     var sw = Stopwatch.StartNew();
+                    Guid correlatedGuid = Guid.NewGuid();
                     do {
                         await WaitIfPaused(localCTS.Token, progress);
 
                         var continuousSolve = await Solve(TPAPAVM, 0, progress, localCTS.Token);
                         if (continuousSolve.Success) {
                             await TPAPAVM.UpdateDetails(continuousSolve, progress, localCTS.Token);
+
+                            await messageBroker.Publish(
+                                new PolarAlignmentErrorMessage(
+                                    correlatedGuid,
+                                    altitudeError: TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.Degree,
+                                    azimuthError: TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.Degree,
+                                    totalError: TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.Degree
+                                )
+                            );
 
                             Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError}");
 
@@ -561,13 +599,23 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private FilterInfo filter;
 
         [JsonProperty]
-        public FilterInfo Filter { get => filter; set { filter = value; RaisePropertyChanged(); } }
+        public FilterInfo Filter {
+            get => filter;
+            set {
+                filter = value;
+                RaisePropertyChanged();
+            }
+        }
 
         private double exposureTime;
 
         [JsonProperty]
         public double ExposureTime {
-            get => exposureTime; set { exposureTime = value; RaisePropertyChanged(); }
+            get => exposureTime;
+            set {
+                exposureTime = value;
+                RaisePropertyChanged();
+            }
         }
 
         private int gain;
@@ -584,16 +632,34 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private int offset;
 
         [JsonProperty]
-        public int Offset { get => offset; set { offset = value; RaisePropertyChanged(); } }
+        public int Offset {
+            get => offset;
+            set {
+                offset = value;
+                RaisePropertyChanged();
+            }
+        }
 
         private BinningMode binning;
 
         [JsonProperty]
-        public BinningMode Binning { get => binning; set { binning = value; RaisePropertyChanged(); } }
+        public BinningMode Binning {
+            get => binning;
+            set {
+                binning = value;
+                RaisePropertyChanged();
+            }
+        }
 
         private CameraInfo cameraInfo;
 
-        public CameraInfo CameraInfo { get => cameraInfo; private set { cameraInfo = value; RaisePropertyChanged(); } }
+        public CameraInfo CameraInfo {
+            get => cameraInfo;
+            private set {
+                cameraInfo = value;
+                RaisePropertyChanged();
+            }
+        }
 
         private async Task<PlateSolveResult> Solve(TPAPAVM context, double searchRadiusIncrementOnFailure, IProgress<ApplicationStatus> progress, CancellationToken token) {
             PlateSolveResult result = new PlateSolveResult { Success = false };
@@ -660,8 +726,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 var rates = telescopeMediator.GetInfo().PrimaryAxisRates;
 
                 var foundRate = rates
-                    .OrderBy(x => x.Item2)
-                    .Where(x => x.Item1 <= rate && rate <= x.Item2 || x.Item2 < rate).LastOrDefault();
+                    .OrderBy(x => x.Item2).LastOrDefault(x => x.Item1 <= rate && rate <= x.Item2 || x.Item2 < rate);
 
                 var adjustedRate = rate;
                 if (foundRate.Item2 < rate) {
@@ -731,7 +796,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             return $"Category: {Category}, Item: {nameof(PolarAlignment)}, Rate: {MoveRate}, Distance: {TargetDistance}";
         }
 
-        public IList<string> Issues { get => issues; set { issues = value; RaisePropertyChanged(); } }
+        public IList<string> Issues {
+            get => issues;
+            set {
+                issues = value;
+                RaisePropertyChanged();
+            }
+        }
 
         public bool Validate() {
             var i = new List<string>();
@@ -789,7 +860,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 }
             }
 
-            if(Settings.Default.UseAvalonPolarAlignmentSystem && Settings.Default.DoAutomatedAdjustments && AlignmentTolerance == 0) {
+            if (Settings.Default.UseAvalonPolarAlignmentSystem && Settings.Default.DoAutomatedAdjustments && AlignmentTolerance == 0) {
                 i.Add("Automated adjustments are enabled, but polar alignment tolerance is set to zero. Please set an alignment tolerance!");
             }
 
@@ -847,7 +918,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         Style = Application.Current.TryFindResource("NoResizeWindow") as Style,
                     };
                     if (closeCommand == null) {
-                        window.CloseCommand = new RelayCommand((object o) => { window.Close(); Application.Current.MainWindow.Focus(); });
+                        window.CloseCommand = new RelayCommand((object o) => {
+                            window.Close();
+                            Application.Current.MainWindow?.Focus();
+                        });
                     } else {
                         window.CloseCommand = closeCommand;
                     }
@@ -872,9 +946,37 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             private static void Win_SizeChanged(object sender, SizeChangedEventArgs e) {
                 var mainwindow = System.Windows.Application.Current.MainWindow;
                 var win = (System.Windows.Window)sender;
-                win.Left = mainwindow.Left + (mainwindow.Width - win.ActualWidth) / 2; ;
+                win.Left = mainwindow.Left + (mainwindow.Width - win.ActualWidth) / 2;
+                ;
                 win.Top = mainwindow.Top + (mainwindow.Height - win.ActualHeight) / 2;
             }
         }
+    }
+    
+    public class PolarAlignmentErrorMessage(Guid correlatedGuid, double altitudeError, double azimuthError, double totalError) : IMessage {
+
+        public Guid SenderId => Guid.Parse(PolarAlignmentPlugin.PluginId);
+
+        public string Sender => nameof(PolarAlignmentPlugin);
+
+        public DateTimeOffset SentAt => DateTime.UtcNow;
+
+        public Guid MessageId => Guid.NewGuid();
+
+        public DateTimeOffset? Expiration => null;
+
+        public Guid? CorrelationId => correlatedGuid;
+
+        public int Version => 1;
+
+        public IDictionary<string, object> CustomHeaders => new Dictionary<string, object>();
+
+        public string Topic => $"{nameof(PolarAlignmentPlugin)}_{nameof(PolarAlignment)}_AlignmentError";
+
+        public object Content { get; } = new {
+            AzimuthError = azimuthError,
+            AltitudeError = altitudeError,
+            TotalError = totalError
+        };
     }
 }

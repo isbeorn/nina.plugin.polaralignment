@@ -25,17 +25,29 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
+using NINA.Plugin.Interfaces;
 
 namespace NINA.Plugins.PolarAlignment.Dockables {
     [Export(typeof(IDockableVM))]
-    public class DockablePolarAlignmentVM : DockableVM , ICameraConsumer{
+    public class DockablePolarAlignmentVM : DockableVM , ICameraConsumer, ISubscriber {
         private IApplicationStatusMediator applicationStatusMediator;
         private ICameraMediator cameraMediator;
         private IWeatherDataMediator weatherDataMediator;
         private CancellationTokenSource executeCTS;
+        private const string StartAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(DockablePolarAlignmentVM)}_StartAlignment";
+        private const string StopAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(DockablePolarAlignmentVM)}_StopAlignment";
 
         [ImportingConstructor]
-        public DockablePolarAlignmentVM(IProfileService profileService, IApplicationStatusMediator applicationStatusMediator, ICameraMediator cameraMediator, IImagingMediator imagingMediator, IFilterWheelMediator fwMediator, ITelescopeMediator telescopeMediator, IDomeMediator domeMediator, IPlateSolverFactory plateSolveFactory, IWeatherDataMediator weatherDataMediator) : base(profileService) {
+        public DockablePolarAlignmentVM(IProfileService profileService,
+                                        IApplicationStatusMediator applicationStatusMediator,
+                                        ICameraMediator cameraMediator,
+                                        IImagingMediator imagingMediator,
+                                        IFilterWheelMediator fwMediator,
+                                        ITelescopeMediator telescopeMediator,
+                                        IDomeMediator domeMediator,
+                                        IPlateSolverFactory plateSolveFactory,
+                                        IWeatherDataMediator weatherDataMediator,
+                                        IMessageBroker messageBroker) : base(profileService) {
             Title = "Three Point Polar Alignment";
             OptionsExpanded = true;
             var dict = new ResourceDictionary();
@@ -48,7 +60,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
             this.cameraMediator = cameraMediator;
             this.weatherDataMediator = weatherDataMediator;
 
-            this.PolarAlignment = new Instructions.PolarAlignment(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolveFactory, domeMediator, weatherDataMediator, new DummyService());
+            this.PolarAlignment = new Instructions.PolarAlignment(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolveFactory, domeMediator, weatherDataMediator, new DummyService(), messageBroker);
 
             ExecuteCommand = new AsyncCommand<bool>(
                 async () => { 
@@ -61,7 +73,11 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
             PauseCommand = new RelayCommand(Pause, (object o) => !PolarAlignment.IsPausing);
             ResumeCommand = new RelayCommand(Resume);
             CancelExecuteCommand = new RelayCommand((object o) => { try { executeCTS?.Cancel(); } catch (Exception) { } });
+            
+            messageBroker.Subscribe(StartAlignmentTopic, this);
+            messageBroker.Subscribe(StopAlignmentTopic, this);
         }
+        
 
         private void Pause(object obj) {
             PolarAlignment.Pause();
@@ -154,6 +170,21 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
 
             public IDispatcherOperationWrapper ShowDialog(object content, string title = "", ResizeMode resizeMode = ResizeMode.NoResize, WindowStyle windowStyle = WindowStyle.None, ICommand closeCommand = null) {
                 return new DispatcherOperationWrapper(dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() => { })));
+            }
+        }
+
+        public async Task OnMessageReceived(IMessage message) {
+            if (message.Topic == StartAlignmentTopic) {
+                try {
+                    Logger.Info("Received message to start polar alignment");
+                    _ = ExecuteCommand.ExecuteAsync(null);
+                } catch (Exception ex) {
+                    Logger.Error(ex);
+                }
+            } else if (message.Topic == StopAlignmentTopic) {
+                try {
+                    executeCTS?.Cancel();
+                } catch {}
             }
         }
     }

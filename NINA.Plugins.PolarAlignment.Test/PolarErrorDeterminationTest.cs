@@ -110,7 +110,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 }, 
                 new Position(s3, 0, latitude, longitude, elevation, refraction), 
                 new Position(s2, 0, latitude, longitude, elevation, refraction), 
-                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, ele, refraction, true);
+                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, true);
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }

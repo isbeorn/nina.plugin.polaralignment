@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## Version 2.2.1.0
+- Added message broker broadcast for alginment error using message topic `PolarAlignmentPlugin_PolarAlignment_AlignmentError`
+- Added message broker subscription to message topic `PolarAlignmentPlugin_DockablePolarAlignmentVM_StartAlignment` to start the procedure
+- Added message broker subscription to message topic `PolarAlignmentPlugin_DockablePolarAlignmentVM_StopAlignment` to stop the procedure
+
 ## Version 2.2.0.1
 - After slewing to the first point, added an explicit wait for the dome synchronization if a dome is connected
 

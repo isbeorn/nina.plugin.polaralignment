@@ -8,7 +8,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
   <ItemGroup>    
-    <PackageReference Include="NINA.Plugin" Version="3.0.0.2001-beta" />    
+    <PackageReference Include="NINA.Plugin" Version="3.1.2.9001" />    
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Properties\Settings.Designer.cs">

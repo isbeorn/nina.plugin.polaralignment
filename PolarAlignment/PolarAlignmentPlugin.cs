@@ -21,6 +21,8 @@ namespace NINA.Plugins.PolarAlignment {
     [Export(typeof(IPluginManifest))]
     public class PolarAlignmentPlugin : PluginBase, INotifyPropertyChanged {
         public static UniversalPolarAlignmentVM UniversalPolarAlignmentVM { get; private set; }
+        
+        public static string PluginId { get; private set; }
 
         [ImportingConstructor]
         public PolarAlignmentPlugin(IProfileService profileService) {
@@ -31,6 +33,7 @@ namespace NINA.Plugins.PolarAlignment {
             }
             ResetSettingsCommand = new GalaSoft.MvvmLight.Command.RelayCommand(ResetSettings);
             UniversalPolarAlignmentVM = new UniversalPolarAlignmentVM(profileService);
+            PluginId = this.Identifier;
         }
 
         public ICommand ResetSettingsCommand { get; }
