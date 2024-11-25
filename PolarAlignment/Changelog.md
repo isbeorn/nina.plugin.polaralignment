@@ -1,7 +1,7 @@
 ﻿# Changelog
 
 ## Version 2.2.1.0
-- Added message broker broadcast for alginment error using message topic `PolarAlignmentPlugin_PolarAlignment_AlignmentError`
+- Added message broker broadcast for alignment error using message topic `PolarAlignmentPlugin_PolarAlignment_AlignmentError`
 - Added message broker subscription to message topic `PolarAlignmentPlugin_DockablePolarAlignmentVM_StartAlignment` to start the procedure
 - Added message broker subscription to message topic `PolarAlignmentPlugin_DockablePolarAlignmentVM_StopAlignment` to stop the procedure
 
