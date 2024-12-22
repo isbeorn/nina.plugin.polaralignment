@@ -3,7 +3,7 @@
 namespace NINA.Plugins.PolarAlignment {
     public class RefrectionParameters {
 
-        public RefrectionParameters(double pressureHPa, double temperature, double relativeHumidity, double wavelength=0.55d) {            
+        public RefrectionParameters(double pressureHPa, double temperature, double relativeHumidity, double wavelength = 0.55d) {            
             PressureHPa = pressureHPa;
             Temperature = temperature;
             RelativeHumidity = relativeHumidity;
@@ -16,7 +16,7 @@ namespace NINA.Plugins.PolarAlignment {
         public double RelativeHumidity { get; }
         public double Wavelength { get; }
 
-        public static RefrectionParameters GetRefrectionParameters(WeatherDataInfo info = null) {
+        public static RefrectionParameters GetRefrectionParameters(WeatherDataInfo info = null, double wavelength = 0.55d) {
             // https://en.wikipedia.org/wiki/Standard_temperature_and_pressure
             const double standardPressure = 1013.25;
             const double standardTemperature = 15;
@@ -24,20 +24,20 @@ namespace NINA.Plugins.PolarAlignment {
                                 
             if (info?.Connected == true) {
                 var pressure = info.Pressure;
-                if (double.IsNaN(pressure)) {
+                if (double.IsNaN(pressure) || pressure < 500) {
                     pressure = standardPressure;
                 }
                 var temperature = info.Temperature;
-                if (double.IsNaN(temperature)) {
+                if (double.IsNaN(temperature) || temperature < -100 || temperature > 100) {
                     temperature = standardTemperature;
                 }
                 var humidity = info.Humidity;
                 if (double.IsNaN(humidity)) {
                     humidity = standardHumidity;
                 }
-                return new RefrectionParameters(pressure, temperature, humidity);
+                return new RefrectionParameters(pressure, temperature, humidity, wavelength);
             } else {
-                return new RefrectionParameters(standardPressure, standardTemperature, standardHumidity);
+                return new RefrectionParameters(standardPressure, standardTemperature, standardHumidity, wavelength);
             }
         }
     }

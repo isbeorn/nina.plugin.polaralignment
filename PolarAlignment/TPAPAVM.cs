@@ -650,6 +650,10 @@ namespace NINA.Plugins.PolarAlignment {
             if (!correctForRefraction) {
                 // When refraction is disabled, adjust the calculation of the true pole to the refracted pole
                 pole = AstroUtil.CalculateRefractedAltitude(pole, refrectionParameters.PressureHPa, refrectionParameters.Temperature, refrectionParameters.RelativeHumidity, refrectionParameters.Wavelength);
+                if(double.IsNaN(pole)) {
+                    pole = Math.Abs(Latitude.Degree);
+                    Logger.Error($"Refracted pole could not be calculated. Pressure: {refrectionParameters.PressureHPa}, Temperature: {refrectionParameters.Temperature}, Humidity: {refrectionParameters.RelativeHumidity}, Wavelength: {refrectionParameters.Wavelength}. Falling back to non-refracted pole: {pole}");
+                }
             }
 
             if (Northern) {

@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.2.2.0
+- Fixed an issue when a weather device is connected but reporting 0 hPa pressure
+
 ## Version 2.2.1.0
 - Added message broker broadcast for alignment error using message topic `PolarAlignmentPlugin_PolarAlignment_AlignmentError`
 - Added message broker subscription to message topic `PolarAlignmentPlugin_DockablePolarAlignmentVM_StartAlignment` to start the procedure

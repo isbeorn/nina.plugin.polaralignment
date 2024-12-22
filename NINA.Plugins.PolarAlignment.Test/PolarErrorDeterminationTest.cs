@@ -14,7 +14,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var longitude = Angle.ByDegree(7);
             var elevation = 250d;
             var time = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-            RefrectionParameters refraction = new RefrectionParameters(0, 0.0001, 20, 0.5);
+            var refraction = RefrectionParameters.GetRefrectionParameters(new Equipment.Equipment.MyWeatherData.WeatherDataInfo() { Connected = true, Pressure = 0, Temperature = 0.0001, Humidity = 20 });
 
             var solve1 = new Coordinates(Angle.ByDegree(20), Angle.ByDegree(40), Epoch.JNOW, time).Transform(Epoch.J2000);
             var position1 = new Position(solve1, 0, latitude, longitude, elevation, refraction);
@@ -82,7 +82,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var time1 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             var time2 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             var time3 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-            var refraction = new RefrectionParameters(1005, 7, 0.8, 0.574);
+            var refraction = RefrectionParameters.GetRefrectionParameters(new Equipment.Equipment.MyWeatherData.WeatherDataInfo() { Connected = true, Pressure = 1005, Temperature = 7, Humidity = 0.8 }, 0.574);
             // prepare a misaligned mount polar axis 
             var polarAxis = new TopocentricCoordinates(Angle.ByDegree(1), latitude + Angle.ByDegree(1), latitude, longitude, time1);
             // and a first alt-az position for the mount
@@ -123,7 +123,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var time1 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             var time2 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             var time3 = new CustomTime(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-            var refraction = new RefrectionParameters(1005, 7, 0.8, 0.574);
+            var refraction = RefrectionParameters.GetRefrectionParameters(new Equipment.Equipment.MyWeatherData.WeatherDataInfo() { Connected = true, Pressure = 1005, Temperature = 7, Humidity = 0.8 }, 0.574);
             // prepare a misaligned mount polar axis 
             var polarAxis = new TopocentricCoordinates(Angle.ByDegree(1), latitude + Angle.ByDegree(1), latitude, longitude, time1);
             // and a first alt-az position for the mount
@@ -167,7 +167,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var s1 = new Coordinates(Angle.ByDegree(186.4193401), Angle.ByDegree(27.75369312), Epoch.J2000, time);
             var s2 = new Coordinates(Angle.ByDegree(156.6798968), Angle.ByDegree(27.40124463), Epoch.J2000, time);
             var s3 = new Coordinates(Angle.ByDegree(127.00972423), Angle.ByDegree(27.34989335), Epoch.J2000, time);
-            var refraction = new RefrectionParameters(1005, 7, 0.8, 0.574);
+            var refraction = RefrectionParameters.GetRefrectionParameters(new Equipment.Equipment.MyWeatherData.WeatherDataInfo() { Connected = true, Pressure = 1005, Temperature = 7, Humidity = 0.8 }, 0.574);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
@@ -186,7 +186,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var s1 = new Coordinates(Angle.ByDegree(186.4193401), Angle.ByDegree(27.75369312), Epoch.J2000, time);
             var s2 = new Coordinates(Angle.ByDegree(156.6798968), Angle.ByDegree(27.40124463), Epoch.J2000, time);
             var s3 = new Coordinates(Angle.ByDegree(127.00972423), Angle.ByDegree(27.34989335), Epoch.J2000, time);
-            var refraction = new RefrectionParameters(1005, 7, 0.8, 0.574);
+            var refraction = RefrectionParameters.GetRefrectionParameters(new Equipment.Equipment.MyWeatherData.WeatherDataInfo() { Connected = true, Pressure = 1005, Temperature = 7, Humidity = 0.8 }, 0.574);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
@@ -206,7 +206,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var s1 = new Coordinates(Angle.ByDegree(120.40437197), Angle.ByDegree(87.88183512), Epoch.J2000, time);
             var s2 = new Coordinates(Angle.ByDegree(133.73661393), Angle.ByDegree(87.76679023), Epoch.J2000, time);
             var s3 = new Coordinates(Angle.ByDegree(147.13178399), Angle.ByDegree(87.8022287), Epoch.J2000, time);
-            var refraction = new RefrectionParameters(1005, 7, 0.8, 0.574);
+            var refraction = RefrectionParameters.GetRefrectionParameters(new Equipment.Equipment.MyWeatherData.WeatherDataInfo() { Connected = true, Pressure = 1005, Temperature = 7, Humidity = 0.8 }, 0.574);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
@@ -225,7 +225,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var s1 = new Coordinates(Angle.ByDegree(120.40437197), Angle.ByDegree(87.88183512), Epoch.J2000, time);
             var s2 = new Coordinates(Angle.ByDegree(133.73661393), Angle.ByDegree(87.76679023), Epoch.J2000, time);
             var s3 = new Coordinates(Angle.ByDegree(147.13178399), Angle.ByDegree(87.8022287), Epoch.J2000, time);
-            var refraction = new RefrectionParameters(1005, 7, 0.8, 0.574);
+            var refraction = RefrectionParameters.GetRefrectionParameters(new Equipment.Equipment.MyWeatherData.WeatherDataInfo() { Connected = true, Pressure = 1005, Temperature = 7, Humidity = 0.8 }, 0.574);
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
