@@ -68,8 +68,8 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
         public float YPosition1 { get => YPosition / YGearRatio; }
         public float ZPosition1 { get => ZPosition / ZGearRatio; }
 
-        public float XGearRatio { get; set; } = 2f;
-        public float YGearRatio { get; set; } = 22f;
+        public float XGearRatio { get; set; } = Properties.Settings.Default.AvalonXGearRatio;
+        public float YGearRatio { get; set; } = Properties.Settings.Default.AvalonYGearRatio;
         public float ZGearRatio { get; set; } = 1;
 
         private SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
