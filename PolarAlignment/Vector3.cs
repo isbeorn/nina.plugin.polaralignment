@@ -48,13 +48,13 @@ namespace NINA.Plugins.PolarAlignment {
         /// </summary>
         /// <param name="coordinates"></param>
         /// <returns></returns>
-        public static Vector3 CoordinatesToUnitVector(Coordinates coordinates, Angle latitude, Angle longitude, double elevation, RefrectionParameters refrectionParameters) {
+        public static Vector3 CoordinatesToUnitVector(Coordinates coordinates, Angle latitude, Angle longitude, double elevation, RefractionParameters refractionParameters) {
             TopocentricCoordinates topo;
-            if (refrectionParameters != null) {
-                double pressurehPa = refrectionParameters.PressureHPa;
-                double temperature = refrectionParameters.Temperature;
-                double relativeHumidity = refrectionParameters.RelativeHumidity;
-                double wavelength = refrectionParameters.Wavelength;
+            if (refractionParameters != null) {
+                double pressurehPa = refractionParameters.PressureHPa;
+                double temperature = refractionParameters.Temperature;
+                double relativeHumidity = refractionParameters.RelativeHumidity;
+                double wavelength = refractionParameters.Wavelength;
                 Logger.Info($"Transforming coordinates with refraction parameters. Pressure={pressurehPa}, Temperature={temperature}, Humidity={relativeHumidity}, Wavelength={wavelength}");
                 topo = coordinates.Transform(latitude, longitude, elevation, pressurehPa, temperature, relativeHumidity, wavelength);
             } else {

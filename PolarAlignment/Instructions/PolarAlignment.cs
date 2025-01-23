@@ -435,7 +435,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     }
 
                     var solve1 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
-                    var refractionParameter = RefrectionParameters.GetRefrectionParameters(weatherDataMediator.GetInfo());
+                    var refractionParameter = RefractionParameters.GetRefractionParameters(weatherDataMediator.GetInfo());
 
                     var telescopeInfo = telescopeMediator.GetInfo();
 

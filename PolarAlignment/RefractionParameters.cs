@@ -1,9 +1,9 @@
 ﻿using NINA.Equipment.Equipment.MyWeatherData;
 
 namespace NINA.Plugins.PolarAlignment {
-    public class RefrectionParameters {
+    public class RefractionParameters {
 
-        public RefrectionParameters(double pressureHPa, double temperature, double relativeHumidity, double wavelength = 0.55d) {            
+        public RefractionParameters(double pressureHPa, double temperature, double relativeHumidity, double wavelength = 0.55d) {            
             PressureHPa = pressureHPa;
             Temperature = temperature;
             RelativeHumidity = relativeHumidity;
@@ -16,7 +16,7 @@ namespace NINA.Plugins.PolarAlignment {
         public double RelativeHumidity { get; }
         public double Wavelength { get; }
 
-        public static RefrectionParameters GetRefrectionParameters(WeatherDataInfo info = null, double wavelength = 0.55d) {
+        public static RefractionParameters GetRefractionParameters(WeatherDataInfo info = null, double wavelength = 0.55d) {
             // https://en.wikipedia.org/wiki/Standard_temperature_and_pressure
             const double standardPressure = 1013.25;
             const double standardTemperature = 15;
@@ -35,9 +35,9 @@ namespace NINA.Plugins.PolarAlignment {
                 if (double.IsNaN(humidity)) {
                     humidity = standardHumidity;
                 }
-                return new RefrectionParameters(pressure, temperature, humidity, wavelength);
+                return new RefractionParameters(pressure, temperature, humidity, wavelength);
             } else {
-                return new RefrectionParameters(standardPressure, standardTemperature, standardHumidity, wavelength);
+                return new RefractionParameters(standardPressure, standardTemperature, standardHumidity, wavelength);
             }
         }
     }
