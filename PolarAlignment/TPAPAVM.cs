@@ -226,7 +226,7 @@ namespace NINA.Plugins.PolarAlignment {
             var correctedAltitudePixel = lineAltitudeToDestination.GetIntersectionWith(correctedAltitudeLine); // alt corrected pixel
 
             var correctedAltitudeDistance = correctedAltitudePixel.Value.DistanceTo(ToAccordPoint(Center)); // alt corrected
-            var originalAltitudeDistance = ToAccordPoint(originalAltitudePixel).DistanceTo(ToAccordPoint(originPixel)); // az corrected
+            var originalAltitudeDistance = ToAccordPoint(originalAltitudePixel).DistanceTo(ToAccordPoint(originPixel)); // alt corrected
 
 
             // Check if sign needs to be reversed
@@ -246,10 +246,10 @@ namespace NINA.Plugins.PolarAlignment {
             var originalAltitudeDirection = ToAccordPoint(destinationPixel) - ToAccordPoint(originalAzimuthPixel);
             var correctedAltitudeDirection = ToAccordPoint(destinationPixel) - correctedAzimuthPixel.Value;
             // When dot product is positive, the angle between both vectors is smaller than 90°
-            var AltitudeSameDirection = (originalAltitudeDirection.X * correctedAltitudeDirection.X + originalAltitudeDirection.Y * correctedAltitudeDirection.Y) > 0;
+            var altitudeSameDirection = (originalAltitudeDirection.X * correctedAltitudeDirection.X + originalAltitudeDirection.Y * correctedAltitudeDirection.Y) > 0;
 
             var altSign = 1;
-            if (!AltitudeSameDirection) {
+            if (!altitudeSameDirection) {
                 altSign = -1;
             }
 
