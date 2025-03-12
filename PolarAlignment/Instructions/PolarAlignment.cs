@@ -143,7 +143,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             Gain = profileService.ActiveProfile.PlateSolveSettings.Gain;
             Offset = -1;
             ExposureTime = profileService.ActiveProfile.PlateSolveSettings.ExposureTime;
-            Binning = new BinningMode(profileService.ActiveProfile.PlateSolveSettings.Binning, profileService.ActiveProfile.PlateSolveSettings.Binning);
 
             EastDirection = Properties.Settings.Default.DefaultEastDirection;
             MoveRate = Properties.Settings.Default.DefaultMoveRate;
@@ -178,7 +177,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 TargetDistance = TargetDistance,
                 EastDirection = EastDirection,
                 ExposureTime = ExposureTime,
-                Binning = Binning,
+                Binning = Binning == null ? null : new BinningMode(Binning.X, Binning.Y),
                 Gain = Gain,
                 Offset = Offset,
                 ManualMode = ManualMode,
@@ -188,7 +187,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             };
 
             if (clone.Binning == null) {
-                clone.Binning = new BinningMode(1, 1);
+                Binning = new BinningMode(profileService.ActiveProfile.PlateSolveSettings.Binning, profileService.ActiveProfile.PlateSolveSettings.Binning);
             }
 
             return clone;

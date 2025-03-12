@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.2.2.2
+- Fixed an issue when multiple polar alignment instructions were placed in the sequence with custom binning
+
 ## Version 2.2.2.1
 - Fixed an issue when the UPA Gear Ratio is changed that it will not be initialized with the changed ratio in the next session
 
