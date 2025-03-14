@@ -537,8 +537,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                 sw.Stop();
                                 sw.Reset();
                             }
-
+                            localCTS.Token.ThrowIfCancellationRequested();
                             await TPAPAVM.MoveCloser(progress, localCTS.Token);
+                        }
+
+                        if (Properties.Settings.Default.AutoPause) {
+                            Pause();
                         }
                     } while (!localCTS.Token.IsCancellationRequested);
 

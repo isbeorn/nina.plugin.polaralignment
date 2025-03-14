@@ -228,6 +228,17 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
+        public bool AutoPause {
+            get {
+                return Properties.Settings.Default.AutoPause;
+            }
+            set {
+                Properties.Settings.Default.AutoPause = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected void RaisePropertyChanged([CallerMemberName] string propertyName = null) {
             this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

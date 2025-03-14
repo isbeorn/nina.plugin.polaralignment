@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.2.3.0
+- Added an option to auto pause between continuous exposures
+
 ## Version 2.2.2.2
 - Fixed an issue when multiple polar alignment instructions were placed in the sequence with custom binning
 
