@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## Version 2.2.3.1
+- Added message broker subscription to message topic `PolarAlignmentPlugin_PolarAlignment_ResumeAlignment` to resume the procedure
+- Added message broker subscription to message topic `PolarAlignmentPlugin_PolarAlignment_PauseAlignment` to pause the procedure
+
 ## Version 2.2.3.0
 - Added an option to auto pause between continuous exposures
 

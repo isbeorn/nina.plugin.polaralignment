@@ -16,6 +16,7 @@ using NINA.Image.Interfaces;
 using NINA.PlateSolving;
 using NINA.PlateSolving.Interfaces;
 using NINA.Plugin.Interfaces;
+using NINA.Plugins.PolarAlignment.Dockables;
 using NINA.Plugins.PolarAlignment.Properties;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.SequenceItem;
@@ -56,7 +57,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
     [ExportMetadata("Category", "Polar Alignment")]
     [Export(typeof(ISequenceItem))]
     [JsonObject(MemberSerialization.OptIn)]
-    public class PolarAlignment : SequenceItem, IValidatable {
+    public class PolarAlignment : SequenceItem, IValidatable, ISubscriber {
         private IProfileService profileService;
         private ICameraMediator cameraMediator;
         private IImagingMediator imagingMediator;
@@ -76,6 +77,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private bool startFromCurrentPosition;
         private double alignmentTolerance;
         private IList<string> issues = new List<string>();
+        private const string ResumeAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(PolarAlignment)}_ResumeAlignment";
+        private const string PauseAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(PolarAlignment)}_PauseAlignment";
 
         [OnDeserializing]
         public void OnDeserializing(StreamingContext context) {
@@ -160,6 +163,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
 
             TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
+            this.messageBroker.Subscribe(ResumeAlignmentTopic, this);
+            this.messageBroker.Subscribe(PauseAlignmentTopic, this);
         }
 
         private PolarAlignment(PolarAlignment copyMe) : this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator, copyMe.messageBroker) {
@@ -870,6 +875,22 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
             Issues = i;
             return i.Count == 0;
+        }
+
+        public async Task OnMessageReceived(IMessage message) {
+            if (message.Topic == ResumeAlignmentTopic) {
+                try {
+                    Logger.Info("Received message to resume polar alignment");
+                    Resume();
+                } catch (Exception ex) {
+                    Logger.Error(ex);
+                }
+            } else if (message.Topic == PauseAlignmentTopic) {
+                try {
+                    Logger.Info("Received message to pause polar alignment");
+                    Pause();
+                } catch { }
+            }
         }
 
         public class CustomWindowService : IWindowService {

@@ -183,6 +183,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
                 }
             } else if (message.Topic == StopAlignmentTopic) {
                 try {
+                    Logger.Info("Received message to stop polar alignment");
                     executeCTS?.Cancel();
                 } catch {}
             }
