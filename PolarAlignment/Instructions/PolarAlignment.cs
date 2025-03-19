@@ -417,25 +417,26 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     var currentPosition = telescopeMediator.GetCurrentPosition().Transform(Latitude, Longitude);
                     Logger.Info($"""
                         Starting polar alignment:
-                            Manual Mode: {ManualMode}
-                            Measure Point Distance: {TargetDistance}
-                            Mount Move Rate: {MoveRate}
-                            Direction East: {EastDirection}
+                            Manual mode: {ManualMode}
+                            Measure point distance: {TargetDistance}
+                            Mount move rate: {MoveRate}
+                            Timeout factor: {Properties.Settings.Default.MoveTimeoutFactor}
+                            Direction east: {EastDirection}
                             Start from current: {StartFromCurrentPosition}
                             Altitude: {(StartFromCurrentPosition ? currentPosition.Altitude : Coordinates.Coordinates.Altitude)}
                             Azimuth: {(StartFromCurrentPosition ? currentPosition.Azimuth : Coordinates.Coordinates.Azimuth)}
-                            Alignment Tolerance: {AlignmentTolerance}
+                            Alignment tolerance: {AlignmentTolerance}
                             Filter: {Filter}
-                            Exposure Time: {ExposureTime}
+                            Exposure time: {ExposureTime}
                             Binning: {Binning}
                             Gain: {Gain}
                             Offset: {Offset}
-                            Initial Search Radius: {SearchRadius}
-                            Refraction Adjustment: {Properties.Settings.Default.RefractionAdjustment}
-                            Stop Tracking when done: {Properties.Settings.Default.StopTrackingWhenDone}
+                            Initial search radius: {SearchRadius}
+                            Refraction adjustment: {Properties.Settings.Default.RefractionAdjustment}
+                            Stop tracking when done: {Properties.Settings.Default.StopTrackingWhenDone}
                             Auto pause: {Properties.Settings.Default.AutoPause}
                             Avalon UPA: {Properties.Settings.Default.UseAvalonPolarAlignmentSystem}
-                            Automated Adjustments: {Properties.Settings.Default.DoAutomatedAdjustments}
+                            Automated adjustments: {Properties.Settings.Default.DoAutomatedAdjustments}
                         """);
 
                     TPAPAVM.ActivateFirstStep();
