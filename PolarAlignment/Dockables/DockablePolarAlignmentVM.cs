@@ -26,6 +26,8 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using NINA.Plugin.Interfaces;
+using System.Reflection;
+using Newtonsoft.Json;
 
 namespace NINA.Plugins.PolarAlignment.Dockables {
     [Export(typeof(IDockableVM))]
@@ -176,7 +178,83 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
         public async Task OnMessageReceived(IMessage message) {
             if (message.Topic == StartAlignmentTopic) {
                 try {
-                    Logger.Info("Received message to start polar alignment");
+                    try {
+                        Logger.Info($"Received message to start polar alignment. {JsonConvert.SerializeObject(message.Content)}");
+                    } catch (Exception) {
+                        Logger.Info($"Received message to start polar alignment.");
+                    }
+
+                    //ManualMode
+                    if(TryGetValue<bool>(message.Content, nameof(PolarAlignment.ManualMode), out var manualMode)) {
+                        PolarAlignment.ManualMode = manualMode;
+                    }
+                    //TargetDistance
+                    if (TryGetValue<int>(message.Content, nameof(PolarAlignment.TargetDistance), out var targetDistance)) {
+                        PolarAlignment.TargetDistance = targetDistance;
+                    }
+                    //MoveRate
+                    if (TryGetValue<int>(message.Content, nameof(PolarAlignment.MoveRate), out var moveRate)) {
+                        PolarAlignment.MoveRate = moveRate;
+                    }
+                    //EastDirection
+                    if (TryGetValue<bool>(message.Content, nameof(PolarAlignment.EastDirection), out var eastDirection)) {
+                        PolarAlignment.EastDirection = eastDirection;
+                    }
+                    //StartFromCurrentPosition
+                    if (TryGetValue<bool>(message.Content, nameof(PolarAlignment.StartFromCurrentPosition), out var startFromCurrentPosition)) {
+                        PolarAlignment.StartFromCurrentPosition = startFromCurrentPosition;
+                    }
+                    //Coordinates
+                    if (TryGetValue<int>(message.Content, nameof(PolarAlignment.Coordinates.AltDegrees), out var altDegrees)) {
+                        PolarAlignment.Coordinates.AltDegrees = altDegrees;
+                    }
+                    if (TryGetValue<int>(message.Content, nameof(PolarAlignment.Coordinates.AltMinutes), out var altMinutes)) {
+                        PolarAlignment.Coordinates.AltMinutes = altMinutes;
+                    }
+                    if (TryGetValue<double>(message.Content, nameof(PolarAlignment.Coordinates.AltSeconds), out var altSeconds)) {
+                        PolarAlignment.Coordinates.AltSeconds = altSeconds;
+                    }
+                    if (TryGetValue<int>(message.Content, nameof(PolarAlignment.Coordinates.AzDegrees), out var azDegrees)) {
+                        PolarAlignment.Coordinates.AzDegrees = azDegrees;
+                    }
+                    if (TryGetValue<int>(message.Content, nameof(PolarAlignment.Coordinates.AzMinutes), out var azMinutes)) {
+                        PolarAlignment.Coordinates.AzMinutes = azMinutes;
+                    }
+                    if (TryGetValue<double>(message.Content, nameof(PolarAlignment.Coordinates.AzSeconds), out var azSeconds)) {
+                        PolarAlignment.Coordinates.AzSeconds = azSeconds;
+                    }
+                    //AlignmentTolerance
+                    if (TryGetValue<double>(message.Content, nameof(PolarAlignment.AlignmentTolerance), out var alignmentTolerance)) {
+                        PolarAlignment.AlignmentTolerance = alignmentTolerance;
+                    }
+                    //Filter
+                    if (TryGetValue<string>(message.Content, nameof(PolarAlignment.AlignmentTolerance), out var filterName)) {
+                        var filter = profileService.ActiveProfile.FilterWheelSettings.FilterWheelFilters.FirstOrDefault(x => x.Name == filterName);
+                        if (filter != null) {
+                            PolarAlignment.Filter = filter;
+                        }                        
+                    }
+                    //ExposureTime
+                    if (TryGetValue<double>(message.Content, nameof(PolarAlignment.ExposureTime), out var exposureTime)) {
+                        PolarAlignment.ExposureTime = exposureTime;
+                    }
+                    //Binning
+                    if (TryGetValue<short>(message.Content, nameof(PolarAlignment.Binning), out var binning)) {
+                        PolarAlignment.Binning = new BinningMode(binning, binning);
+                    }
+                    //Gain
+                    if (TryGetValue<int>(message.Content, nameof(PolarAlignment.Gain), out var gain)) {
+                        PolarAlignment.Gain = gain;
+                    }
+                    //Offset
+                    if (TryGetValue<int>(message.Content, nameof(PolarAlignment.Offset), out var offset)) {
+                        PolarAlignment.Offset = offset;
+                    }
+                    //SearchRadius
+                    if (TryGetValue<double>(message.Content, nameof(PolarAlignment.SearchRadius), out var searchRadius)) {
+                        PolarAlignment.SearchRadius = searchRadius;
+                    }
+
                     _ = ExecuteCommand.ExecuteAsync(null);
                 } catch (Exception ex) {
                     Logger.Error(ex);
@@ -187,6 +265,38 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
                     executeCTS?.Cancel();
                 } catch {}
             }
+        }
+
+        private static bool TryGetValue<T>(object obj, string name, out T value) {
+            value = default!;
+            if (obj == null || string.IsNullOrEmpty(name))
+                return false;
+
+            Type type = obj.GetType();
+
+            // Check for public property
+            PropertyInfo property = type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+            if (property != null && property.CanRead) {
+                object propValue = property.GetValue(obj);
+                if (propValue is T typedValue) {
+                    value = typedValue;
+                    return true;
+                }
+                return false;
+            }
+
+            // Check for public field
+            FieldInfo field = type.GetField(name, BindingFlags.Public | BindingFlags.Instance);
+            if (field != null) {
+                object fieldValue = field.GetValue(obj);
+                if (fieldValue is T typedValue) {
+                    value = typedValue;
+                    return true;
+                }
+                return false;
+            }
+
+            return false;
         }
     }
 }
