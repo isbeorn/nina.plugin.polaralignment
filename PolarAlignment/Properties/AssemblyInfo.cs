@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Stefan Berg")]
 [assembly: AssemblyProduct("NINA.Plugins")]
-[assembly: AssemblyCopyright("Copyright ©  2021-2022")]
+[assembly: AssemblyCopyright("Copyright ©  2021-2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -24,8 +24,8 @@ using System.Runtime.InteropServices;
 
 //The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("2.2.3.2")]
-[assembly: AssemblyFileVersion("2.2.3.2")]
+[assembly: AssemblyVersion("2.2.3.3")]
+[assembly: AssemblyFileVersion("2.2.3.3")]
 
 //The minimum Version of N.I.N.A. that this plugin is compatible with
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "3.1.2.9001")]
@@ -37,19 +37,19 @@ using System.Runtime.InteropServices;
 //The url to the license
 [assembly: AssemblyMetadata("LicenseURL", "https://www.mozilla.org/en-US/MPL/2.0/")]
 //The repository where your pluggin is hosted
-[assembly: AssemblyMetadata("Repository", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/")]
+[assembly: AssemblyMetadata("Repository", "https://github.com/isbeorn/nina.plugin.polaralignment")]
 
-[assembly: AssemblyMetadata("ChangelogURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/src/master/PolarAlignment/Changelog.md")]
+[assembly: AssemblyMetadata("ChangelogURL", "https://github.com/isbeorn/nina.plugin.polaralignment/blob/master/PolarAlignment/Changelog.md")]
 
 //Common tags that quickly describe your plugin
 [assembly: AssemblyMetadata("Tags", "Polar alignment,Sequencer")]
 
 //The featured logo that will be displayed in the plugin list next to the name
-[assembly: AssemblyMetadata("FeaturedImageURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/downloads/logo.png")]
+[assembly: AssemblyMetadata("FeaturedImageURL", "https://github.com/isbeorn/nina.plugin.polaralignment/blob/master/PolarAlignment/logo.png?raw=true")]
 //An example screenshot of your plugin in action
-[assembly: AssemblyMetadata("ScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/downloads/Starlock2.png")]
+[assembly: AssemblyMetadata("ScreenshotURL", "https://github.com/isbeorn/nina.plugin.polaralignment/blob/master/PolarAlignment/Starlock2.png?raw=true")]
 //An additional example screenshot of your plugin in action
-[assembly: AssemblyMetadata("AltScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/downloads/Imaging.png")]
+[assembly: AssemblyMetadata("AltScreenshotURL", "https://github.com/isbeorn/nina.plugin.polaralignment/blob/master/PolarAlignment/Imaging.png?raw=true")]
 [assembly: AssemblyMetadata("LongDescription", @"Three Point Polar Alignment almost anywhere in the sky  
 
 A new instruction will be available for the advanced sequencer as well as a new tool pane inside the imaging tab that will assist in polar alignment.  
@@ -57,7 +57,7 @@ A new instruction will be available for the advanced sequencer as well as a new 
 When the instruction is called from within the sequencer, a new window will be visible, that will guide you through the process.   
 Inside the imaging tab there will be a button inside the tool pane to show the polar alignment assistant with parameters and a button to start the process.  
 
-[*Frequently Asked Questions*](https://bitbucket.org/Isbeorn/nina.plugin.polaralignment/src/master/PolarAlignment/FAQ.md)
+[*Frequently Asked Questions*](https://github.com/isbeorn/nina.plugin.polaralignment/blob/master/PolarAlignment/FAQ.md)
 
 *Prerequisites*  
 * Latitude and Longitude has to be set in options. You can use [www.latlong.net](https://www.latlong.net/) to easily determine your location.
