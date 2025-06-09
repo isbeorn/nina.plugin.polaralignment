@@ -1,7 +1,7 @@
 ﻿# Changelog
 
 ## Version 2.2.3.4
-- Fixed manual mode to work agaoin without a mount being connected
+- Fixed manual mode to work again without a mount being connected
 
 ## Version 2.2.3.2
 - `PolarAlignmentPlugin_DockablePolarAlignmentVM_StartAlignment` will now process the message content to be able to adjust parameters as needed
