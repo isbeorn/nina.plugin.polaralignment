@@ -414,7 +414,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         } catch { }
                     };
 
-                    var currentPosition = telescopeMediator.GetCurrentPosition().Transform(Latitude, Longitude);
+                    var currentPosition = telescopeMediator.GetInfo().Connected ? telescopeMediator.GetCurrentPosition().Transform(Latitude, Longitude) : null;
                     Logger.Info($"""
                         Starting polar alignment:
                             Manual mode: {ManualMode}
@@ -423,8 +423,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                             Timeout factor: {Properties.Settings.Default.MoveTimeoutFactor}
                             Direction east: {EastDirection}
                             Start from current: {StartFromCurrentPosition}
-                            Altitude: {(StartFromCurrentPosition ? currentPosition.Altitude : Coordinates.Coordinates.Altitude)}
-                            Azimuth: {(StartFromCurrentPosition ? currentPosition.Azimuth : Coordinates.Coordinates.Azimuth)}
+                            Altitude: {(StartFromCurrentPosition ? currentPosition?.Altitude : Coordinates.Coordinates.Altitude)}
+                            Azimuth: {(StartFromCurrentPosition ? currentPosition?.Azimuth : Coordinates.Coordinates.Azimuth)}
                             Alignment tolerance: {AlignmentTolerance}
                             Filter: {Filter}
                             Exposure time: {ExposureTime}
