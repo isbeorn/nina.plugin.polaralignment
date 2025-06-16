@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.2.3.5
+- Fixed the window popout not closing automatically after the polar alignment was within the set tolerance
+
 ## Version 2.2.3.4
 - Fixed manual mode to work again without a mount being connected
 

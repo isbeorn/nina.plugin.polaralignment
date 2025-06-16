@@ -2,10 +2,16 @@
   <PropertyGroup>
     <TargetFramework>net8.0-windows7.0</TargetFramework>
     <OutputType>Library</OutputType>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <UseWPF>true</UseWPF>
     <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyTitle>Three Point Polar Alignment</AssemblyTitle>
+    <Title>Three Point Polar Alignment</Title>
+    <Authors>Stefan Berg @isbeorn</Authors>
+    <Product>NINA.Plugins</Product>
+    <Description>Three Point Polar Alignment almost anywhere in the sky</Description>
+    <Copyright>Copyright ©  2021-2025</Copyright>
   </PropertyGroup>
   <ItemGroup>    
     <PackageReference Include="NINA.Plugin" Version="3.1.2.9001" />    

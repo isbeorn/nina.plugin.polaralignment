@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Three Point Polar Alignment")]
-[assembly: AssemblyDescription("Three Point Polar Alignment almost anywhere in the sky")]
-[assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Stefan Berg")]
-[assembly: AssemblyProduct("NINA.Plugins")]
+//[assembly: AssemblyTitle("Three Point Polar Alignment")]
+//[assembly: AssemblyDescription("Three Point Polar Alignment almost anywhere in the sky")]
+//[assembly: AssemblyConfiguration("")]
+//[assembly: AssemblyCompany("Stefan Berg")]
+//[assembly: AssemblyProduct("NINA.Plugins")]
 [assembly: AssemblyCopyright("Copyright ©  2021-2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -24,8 +24,8 @@ using System.Runtime.InteropServices;
 
 //The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("2.2.3.4")]
-[assembly: AssemblyFileVersion("2.2.3.4")]
+//[assembly: AssemblyVersion("2.2.3.4")]
+//[assembly: AssemblyFileVersion("2.2.3.4")]
 
 //The minimum Version of N.I.N.A. that this plugin is compatible with
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "3.1.2.9001")]

@@ -576,16 +576,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         }
                     } while (!localCTS.Token.IsCancellationRequested);
 
-                    await windowService.Close();
                     return;
                 }
             } catch (OperationCanceledException) {
             } catch (Exception ex) {
                 Logger.Error(ex);
                 Notification.ShowError("Three Point Polar Alignment failed - " + ex.Message);
-                await windowService?.Close();
                 throw;
             } finally {
+                try {
+                    await windowService?.Close();
+                } catch { }
                 try {
                     TPAPAVM?.Dispose();
                 } catch (Exception) { }
