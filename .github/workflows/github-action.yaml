@@ -18,7 +18,7 @@ env:
   PLUGIN_NAME: "Three Point Polar Alignment"
   PLUGIN_SLN_NAME: "PolarAlignment"
   PLUGIN_DLL_NAME: "NINA.Plugins.PolarAlignment"
-  PLUGIN_MANIFEST_PATH: "t/Three Point Polar Alignment/3.0.0/manifest.${{ github.ref_name }}.json"
+  PLUGIN_MANIFEST_PATH: "t/Three Point Polar Alignment/3.0.0"
 
 jobs:
   build-and-release:
