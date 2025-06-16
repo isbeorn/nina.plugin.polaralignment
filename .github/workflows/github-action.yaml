@@ -18,6 +18,7 @@ env:
   PLUGIN_NAME: "Three Point Polar Alignment"
   PLUGIN_SLN_NAME: "PolarAlignment"
   PLUGIN_DLL_NAME: "NINA.Plugins.PolarAlignment"
+  PLUGIN_MANIFEST_PATH: "t/Three Point Polar Alignment/3.0.0/manifest.${{ github.ref_name }}.json"
 
 jobs:
   build-and-release:
@@ -88,21 +89,24 @@ jobs:
         with:
           name: plugin-manifest
 
+      - name: Sanitize PLUGIN_NAME
+        run: echo "PLUGIN_NAME_SANITIZED=${PLUGIN_NAME//[[:space:]]/}" >> $GITHUB_ENV
+
       - name: Clone manifest
         run: |
           git clone https://x-access-token:${{ secrets.PAT }}@github.com/${{ github.repository_owner }}/nina.plugin.manifests.git
           cd nina.plugin.manifests
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "${{ env.PLUGIN_NAME }}/${{ github.ref_name }}"
+          git checkout -b "${{ env.PLUGIN_NAME_SANITIZED }}/${{ github.ref_name }}"
 
       - name: Copy manifest file
         run: |
-          cp ./${{ env.PLUGIN_DLL_NAME }}.${{ github.ref_name }}.manifest.json ./nina.plugin.manifests/manifests/${{ env.PLUGIN_MANIFEST_PATH }}
+          cp ./${{ env.PLUGIN_DLL_NAME }}.${{ github.ref_name }}.manifest.json ./nina.plugin.manifests/manifests/${{ env.PLUGIN_MANIFEST_PATH }}/${{ env.PLUGIN_DLL_NAME }}.${{ github.ref_name }}.manifest.json
           cd nina.plugin.manifests
           git add .
           git commit -m "Add manifest for release ${{ github.ref_name }}"
-          git push origin "${{ env.PLUGIN_NAME }}/${{ github.ref_name }}"
+          git push origin "${{ env.PLUGIN_NAME_SANITIZED }}/${{ github.ref_name }}"
 
       - name: Create pull request
         shell: bash
@@ -111,6 +115,6 @@ jobs:
           gh pr create \
             --title "Add manifest for ${{ env.PLUGIN_NAME }} ${{ github.ref_name }}" \
             --body "Automatically generated manifest for release ${{ github.ref_name }}" \
-            --head ${{ github.repository_owner }}:${{ env.PLUGIN_NAME }}/${{ github.ref_name }} \
+            --head ${{ github.repository_owner }}:${{ env.PLUGIN_NAME_SANITIZED }}/${{ github.ref_name }} \
             --base main \
             --repo isbeorn/nina.plugin.manifests
