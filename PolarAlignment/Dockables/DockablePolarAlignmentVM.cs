@@ -228,7 +228,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
                         PolarAlignment.AlignmentTolerance = alignmentTolerance;
                     }
                     //Filter
-                    if (TryGetValue<string>(message.Content, nameof(PolarAlignment.AlignmentTolerance), out var filterName)) {
+                    if (TryGetValue<string>(message.Content, nameof(PolarAlignment.Filter), out var filterName)) {
                         var filter = profileService.ActiveProfile.FilterWheelSettings.FilterWheelFilters.FirstOrDefault(x => x.Name == filterName);
                         if (filter != null) {
                             PolarAlignment.Filter = filter;

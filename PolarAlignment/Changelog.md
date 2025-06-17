@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.2.3.7
+- Fix messagebroker message parsing for filter name
+
 ## Version 2.2.3.5
 - Fixed the window popout not closing automatically after the polar alignment was within the set tolerance
 
