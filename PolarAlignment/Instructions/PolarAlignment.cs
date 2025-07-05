@@ -470,7 +470,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     var position1 = new Position(solve1.Coordinates, solve1.PositionAngle, Latitude, Longitude, Elevation, refractionParameter);
 
-                    Logger.Info($"First measurement point {solve1.Coordinates} - Vector: {position1.Vector} - Position Angle: {position1.PositionAngle}");
+                    var point1MountInfo = telescopeMediator.GetInfo();
+                    string point1MountInfoString = "";
+                    if (point1MountInfo.Connected) {
+                        point1MountInfoString = $" - Mount RA: {point1MountInfo.RightAscensionString}; Mount Dec: {point1MountInfo.DeclinationString}";
+                    }
+                    Logger.Info($"First measurement point {solve1.Coordinates} - Vector: {position1.Vector} - Position Angle: {position1.PositionAngle}{point1MountInfoString}");
 
                     TPAPAVM.ActivateSecondStep();
 
@@ -482,8 +487,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     }
 
                     var position2 = new Position(solve2.Coordinates, solve2.PositionAngle, Latitude, Longitude, Elevation, refractionParameter);
-
-                    Logger.Info($"Second measurement point {solve2.Coordinates} - Vector: {position2.Vector} - Position Angle: {position2.PositionAngle}");
+                    var point2MountInfo = telescopeMediator.GetInfo();
+                    string point2MountInfoString = "";
+                    if (point2MountInfo.Connected) {
+                        point2MountInfoString = $" - Mount RA: {point2MountInfo.RightAscensionString}; Mount Dec: {point2MountInfo.DeclinationString}";
+                    }
+                    Logger.Info($"Second measurement point {solve2.Coordinates} - Vector: {position2.Vector} - Position Angle: {position2.PositionAngle}{point2MountInfoString}");
 
                     TPAPAVM.ActivateThirdStep();
 
@@ -499,7 +508,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     var position3 = new Position(solve3.Coordinates, solve3.PositionAngle, Latitude, Longitude, Elevation, refractionParameter);
 
-                    Logger.Info($"Third measurement point {solve3.Coordinates} - Vector: {position3.Vector} - Position Angle: {position3.PositionAngle}");
+                    var point3MountInfo = telescopeMediator.GetInfo();
+                    string point3MountInfoString = "";
+                    if (point3MountInfo.Connected) {
+                        point3MountInfoString = $" - Mount RA: {point3MountInfo.RightAscensionString}; Mount Dec: {point3MountInfo.DeclinationString}";
+                    }
+                    Logger.Info($"Third measurement point {solve3.Coordinates} - Vector: {position3.Vector} - Position Angle: {position3.PositionAngle}{point3MountInfoString}");
 
                     progress?.Report(GetStatus("Calculating Error"));
 

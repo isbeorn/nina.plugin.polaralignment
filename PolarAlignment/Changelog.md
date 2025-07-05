@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.2.3.8
+- Log mount position when connected on each measurement point
+
 ## Version 2.2.3.7
 - Fix messagebroker message parsing for filter name
 
