@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## Version 2.2.4.0
+- Removed the position angle spread warning as it was not giving any useful information
+- Instead the declination spread that the driver is reporting is now measured and a warning is shown if it exceeds 2 arcseconds. The declination axis should not move at all during measurements.
+
 ## Version 2.2.3.8
 - Log mount position when connected on each measurement point
 

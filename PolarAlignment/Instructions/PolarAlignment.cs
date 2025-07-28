@@ -517,8 +517,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     progress?.Report(GetStatus("Calculating Error"));
 
+                    Angle decSpread = Angle.Zero;
+                    if (point1MountInfo.Connected && point2MountInfo.Connected && point3MountInfo.Connected) {
+                        double CalculateDeclinationSpread(double value1, double value2, double value3) {
+                            double min = Math.Min(value1, Math.Min(value2, value3));
+                            double max = Math.Max(value1, Math.Max(value2, value3));
+                            return max - min;
+                        }
+                        decSpread = Angle.ByDegree(CalculateDeclinationSpread(point1MountInfo.Declination, point2MountInfo.Declination, point3MountInfo.Declination));
+                    }
 
-                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, Elevation, refractionParameter, Properties.Settings.Default.RefractionAdjustment);
+                    TPAPAVM.PolarErrorDetermination = new PolarErrorDetermination(solve3, position1, position2, position3, Latitude, Longitude, Elevation, refractionParameter, Properties.Settings.Default.RefractionAdjustment, decSpread.ArcSeconds);
 
                     Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.InitialMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.InitialMountAxisTotalError}");
 

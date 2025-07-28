@@ -499,7 +499,7 @@ namespace NINA.Plugins.PolarAlignment {
 
 
     public class PolarErrorDetermination : BaseINPC {
-        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude, double elevation, RefractionParameters refractionParameters, bool correctForRefraction) {
+        public PolarErrorDetermination(PlateSolveResult referenceFrame, Position position1, Position position2, Position position3, Angle latitude, Angle longitude, double elevation, RefractionParameters refractionParameters, bool correctForRefraction, double declinationSpreadArcsec) {
             Latitude = latitude;
             Longitude = longitude;
             Elevation = elevation;
@@ -508,6 +508,8 @@ namespace NINA.Plugins.PolarAlignment {
             FirstPosition = position1;
             SecondPosition = position2;
             ThirdPosition = position3;
+
+            DeclinationSpreadArcsec = declinationSpreadArcsec;
 
             var planeVector = Vector3.DeterminePlaneVector(FirstPosition.Vector, SecondPosition.Vector, ThirdPosition.Vector);
 
@@ -520,19 +522,6 @@ namespace NINA.Plugins.PolarAlignment {
             InitialMountAxisErrorPosition = new Position(planeVector, Latitude, Longitude, Elevation);
 
             CalculateMountAxisError(refractionParameters, correctForRefraction);
-            PositionAngleSpread = CalculatePositionAngleSpread(FirstPosition.PositionAngle, SecondPosition.PositionAngle, ThirdPosition.PositionAngle);
-        }
-        private double CalculatePositionAngleSpread(double value1, double value2, double value3) {
-            var distance1 = CalculateDistance(value1, value2);
-            var distance2 = CalculateDistance(value2, value3);
-            var distance3 = CalculateDistance(value3, value1);
-
-            return Math.Max(distance1, Math.Max(distance2, distance3));
-        }
-        private double CalculateDistance(double value1, double value2) {
-            double directDistance = Math.Abs(value1 - value2);
-            double wrapAroundDistance = 360 - directDistance;
-            return Math.Min(directDistance, wrapAroundDistance);
         }
 
         public Angle Latitude { get; }
@@ -583,9 +572,10 @@ namespace NINA.Plugins.PolarAlignment {
                 RaisePropertyChanged();
             }
         }
+        public double DeclinationSpreadArcsec { get; init; }
 
-        public bool PositionAngleSpreadLarge {
-            get => PositionAngleSpread > 5;
+        public bool DeclinationSpreadLarge {
+            get => DeclinationSpreadArcsec > 2;
         }
 
         public bool InitialErrorLarge {
@@ -634,8 +624,6 @@ namespace NINA.Plugins.PolarAlignment {
                 }
             }
         }
-
-        public double PositionAngleSpread { get; }
 
         /// <summary>
         /// Calculate the error based on the measured telescope axis compared to the polar axis

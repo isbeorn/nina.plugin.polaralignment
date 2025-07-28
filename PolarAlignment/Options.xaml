@@ -1265,23 +1265,20 @@
                     Height="40"
                     Stretch="Uniform"
                     StretchDirection="DownOnly"
-                    Visibility="{Binding PolarErrorDetermination.PositionAngleSpreadLarge, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <StackPanel Orientation="Vertical">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="36"
-                                Text="Position angle between points is large [ " />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="36"
-                                Text="{Binding PolarErrorDetermination.PositionAngleSpread, StringFormat=N2}" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="36"
-                                Text="° ] so polar alignment will be inaccurate." />
-                        </StackPanel>
-                        <TextBlock HorizontalAlignment="Center" FontSize="36">This happens when the initial error is too large or if there is flexure in the system.</TextBlock>
+                    Visibility="{Binding PolarErrorDetermination.DeclinationSpreadLarge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="36"
+                            Text="Mount's reported declination changed by " />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="36"
+                            Text="{Binding PolarErrorDetermination.DeclinationSpreadArcsec, StringFormat=N2}" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="36"
+                            Text=" arcseconds between measurements. This may affect polar alignment accuracy." />
                     </StackPanel>
                 </Viewbox>
             </Grid>
