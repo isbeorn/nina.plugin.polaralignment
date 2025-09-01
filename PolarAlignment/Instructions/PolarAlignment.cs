@@ -788,7 +788,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 var adjustedRate = rate;
                 if (foundRate.Item2 < rate) {
-                    Logger.Warning($"Provided MoveRate of {rate} is not supported. Using {adjustedRate} instead");
+                    Logger.Warning($"Provided MoveRate of {rate} is not supported. Using {foundRate.Item2} instead");
                     //The closest rate is below the specified move rate as no move rate is found for the value
                     adjustedRate = foundRate.Item2;
                 }
