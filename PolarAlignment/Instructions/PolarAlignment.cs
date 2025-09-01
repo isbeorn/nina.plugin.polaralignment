@@ -78,7 +78,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private double alignmentTolerance;
         private IList<string> issues = new List<string>();
         private const string ResumeAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(PolarAlignment)}_ResumeAlignment";
-        private const string PauseAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(PolarAlignment)}_PauseAlignment";
+        private const string PauseAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(PolarAlignment)}_PauseAlignment";        
 
         [OnDeserializing]
         public void OnDeserializing(StreamingContext context) {
@@ -396,6 +396,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public override async Task Execute(IProgress<ApplicationStatus> externalProgress, CancellationToken token) {
             try {
                 using (var localCTS = CancellationTokenSource.CreateLinkedTokenSource(token)) {
+                    Guid correlatedGuid = Guid.NewGuid();
                     pauseTS = new PauseTokenSource();
                     try {
                         TPAPAVM?.Dispose();
@@ -405,6 +406,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     IProgress<ApplicationStatus> progress = new Progress<ApplicationStatus>(p => {
                         TPAPAVM.Status = p;
                         externalProgress?.Report(p);
+                        messageBroker?.Publish(new PolarAlignmentProgressMessage(correlatedGuid, p));
                     });
 
                     windowService.Show(TPAPAVM, Loc.Instance["LblPolarAlignment"], System.Windows.ResizeMode.CanResizeWithGrip, System.Windows.WindowStyle.SingleBorderWindow);
@@ -548,7 +550,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     await TPAPAVM.SelectNewReferenceStar(TPAPAVM.Center, localCTS.Token);
 
                     var sw = Stopwatch.StartNew();
-                    Guid correlatedGuid = Guid.NewGuid();
                     do {
                         await WaitIfPaused(localCTS.Token, progress);
 
@@ -1024,6 +1025,28 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 win.Top = mainwindow.Top + (mainwindow.Height - win.ActualHeight) / 2;
             }
         }
+    }
+
+    public class PolarAlignmentProgressMessage(Guid correlatedGuid, ApplicationStatus status) : IMessage {
+        public Guid SenderId => Guid.Parse(PolarAlignmentPlugin.PluginId);
+
+        public string Sender => nameof(PolarAlignmentPlugin);
+
+        public DateTimeOffset SentAt => DateTime.UtcNow;
+
+        public Guid MessageId => Guid.NewGuid();
+
+        public DateTimeOffset? Expiration => null;
+
+        public Guid? CorrelationId => correlatedGuid;
+
+        public int Version => 1;
+
+        public IDictionary<string, object> CustomHeaders => new Dictionary<string, object>();
+
+        public string Topic => $"{nameof(PolarAlignmentPlugin)}_{nameof(PolarAlignment)}_Progress";
+
+        public object Content { get; } = status;
     }
     
     public class PolarAlignmentErrorMessage(Guid correlatedGuid, double altitudeError, double azimuthError, double totalError) : IMessage {
