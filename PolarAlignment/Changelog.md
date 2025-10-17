@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## Version 2.2.4.2
+- When polar alignment is started, guiding will be stopped automatically
+
 ## Version 2.2.4.1
 - Polar alignment progress is now sent via message broker using message topic `PolarAlignmentPlugin_PolarAlignment_Progress` for other plugins to consume.
 

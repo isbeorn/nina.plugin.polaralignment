@@ -21,6 +21,7 @@ using NINA.Plugins.PolarAlignment.Properties;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.SequenceItem;
 using NINA.Sequencer.Validations;
+using NINA.WPF.Base.Mediator;
 using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
@@ -65,6 +66,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private ITelescopeMediator telescopeMediator;
         private IWindowService windowService;
         private readonly IMessageBroker messageBroker;
+        private readonly IGuiderMediator guiderMediator;
         private IPlateSolverFactory plateSolverFactory;
         private IDomeMediator domeMediator;
         private IWeatherDataMediator weatherDataMediator;
@@ -112,7 +114,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             IPlateSolverFactory plateSolverFactory,
             IDomeMediator domeMediator,
             IWeatherDataMediator weatherDataMediator,
-            IMessageBroker messageBroker) : this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService(), messageBroker) {
+            IMessageBroker messageBroker,
+            IGuiderMediator guiderMediator) : this(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolverFactory, domeMediator, weatherDataMediator, new CustomWindowService(), messageBroker, guiderMediator) {
             
             Filter = null;
         }
@@ -127,7 +130,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             IDomeMediator domeMediator,
             IWeatherDataMediator weatherDataMediator,
             IWindowService windowService,
-            IMessageBroker messageBroker) {
+            IMessageBroker messageBroker,
+            IGuiderMediator guiderMediator) {
             
             this.profileService = profileService;
             this.cameraMediator = cameraMediator;
@@ -136,6 +140,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             this.telescopeMediator = telescopeMediator;
             this.windowService = windowService;
             this.messageBroker = messageBroker;
+            this.guiderMediator = guiderMediator;
             this.plateSolverFactory = plateSolverFactory;
             this.domeMediator = domeMediator;
             this.weatherDataMediator = weatherDataMediator;
@@ -167,7 +172,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             this.messageBroker.Subscribe(PauseAlignmentTopic, this);
         }
 
-        private PolarAlignment(PolarAlignment copyMe) : this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator, copyMe.messageBroker) {
+        private PolarAlignment(PolarAlignment copyMe) : this(copyMe.profileService, copyMe.cameraMediator, copyMe.imagingMediator, copyMe.fwMediator, copyMe.telescopeMediator, copyMe.plateSolverFactory, copyMe.domeMediator, copyMe.weatherDataMediator, copyMe.messageBroker, copyMe.guiderMediator) {
             CopyMetaData(copyMe);
         }
 
@@ -415,6 +420,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                             localCTS?.Cancel();
                         } catch { }
                     };
+
+                    if (guiderMediator?.GetInfo()?.Connected == true) { 
+                        Logger.Info("Stopping guiding to start polar alignment.");
+                        try {
+                            await guiderMediator.StopGuiding(token);
+                        } catch { }
+                        
+                    }
 
                     var currentPosition = telescopeMediator.GetInfo().Connected ? telescopeMediator.GetCurrentPosition().Transform(Latitude, Longitude) : null;
                     Logger.Info($"""
