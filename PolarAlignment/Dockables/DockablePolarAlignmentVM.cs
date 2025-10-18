@@ -35,6 +35,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
         private IApplicationStatusMediator applicationStatusMediator;
         private ICameraMediator cameraMediator;
         private IWeatherDataMediator weatherDataMediator;
+        private readonly IGuiderMediator guiderMediator;
         private CancellationTokenSource executeCTS;
         private const string StartAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(DockablePolarAlignmentVM)}_StartAlignment";
         private const string StopAlignmentTopic = $"{nameof(PolarAlignmentPlugin)}_{nameof(DockablePolarAlignmentVM)}_StopAlignment";
@@ -49,7 +50,8 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
                                         IDomeMediator domeMediator,
                                         IPlateSolverFactory plateSolveFactory,
                                         IWeatherDataMediator weatherDataMediator,
-                                        IMessageBroker messageBroker) : base(profileService) {
+                                        IMessageBroker messageBroker,
+                                        IGuiderMediator guiderMediator) : base(profileService) {
             Title = "Three Point Polar Alignment";
             OptionsExpanded = true;
             var dict = new ResourceDictionary();
@@ -61,8 +63,9 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
             this.applicationStatusMediator = applicationStatusMediator;
             this.cameraMediator = cameraMediator;
             this.weatherDataMediator = weatherDataMediator;
+            this.guiderMediator = guiderMediator;
 
-            this.PolarAlignment = new Instructions.PolarAlignment(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolveFactory, domeMediator, weatherDataMediator, new DummyService(), messageBroker);
+            this.PolarAlignment = new Instructions.PolarAlignment(profileService, cameraMediator, imagingMediator, fwMediator, telescopeMediator, plateSolveFactory, domeMediator, weatherDataMediator, new DummyService(), messageBroker, guiderMediator);
 
             ExecuteCommand = new AsyncCommand<bool>(
                 async () => { 
