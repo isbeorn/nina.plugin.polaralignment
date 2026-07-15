@@ -29,9 +29,18 @@ using System.Windows.Media;
 namespace NINA.Plugins.PolarAlignment {
     public class TPAPAVM : BaseINPC, IDisposable {
 
-        public TPAPAVM(IProfileService profileService, IWeatherDataMediator weatherDataMediator) {
+        public TPAPAVM(IProfileService profileService, IWeatherDataMediator weatherDataMediator)
+            : this(profileService, weatherDataMediator, null, null) {
+        }
+
+        internal TPAPAVM(IProfileService profileService,
+                         IWeatherDataMediator weatherDataMediator,
+                         Func<IRenderedImage, Point, IProgress<ApplicationStatus>, CancellationToken, Task<Point>> referenceStarLocator,
+                         TimeProvider timeProvider = null) {
             this.profileService = profileService;
             this.weatherDataMediator = weatherDataMediator;
+            this.referenceStarLocator = referenceStarLocator ?? GetClosestStarPosition;
+            this.timeProvider = timeProvider ?? TimeProvider.System;
             Status = new ApplicationStatus();
 
             Steps = new List<TPPAStep>() {
@@ -96,38 +105,78 @@ namespace NINA.Plugins.PolarAlignment {
 
         private SemaphoreSlim selectNewStarLock = new SemaphoreSlim(1);
         private SemaphoreSlim starDetectionLock = new SemaphoreSlim(1);
+        private static readonly TimeSpan ReferenceStarRedetectionInterval = TimeSpan.FromSeconds(120);
+        private const double ReferenceStarRedetectionFieldShiftDegrees = 0.5;
+        private readonly Func<IRenderedImage, Point, IProgress<ApplicationStatus>, CancellationToken, Task<Point>> referenceStarLocator;
+        private readonly TimeProvider timeProvider;
+        private DateTimeOffset? referenceStarLastDetectedAt;
+        private Coordinates referenceStarDetectionField;
 
-        public async Task SelectNewReferenceStar(Point p, CancellationToken token) {
+        public Task SelectNewReferenceStar(Point p, CancellationToken token) {
+            return SetReferenceStar(p, true, token);
+        }
+
+        internal Task UseImageCenterAsReference(CancellationToken token) {
+            return SetReferenceStar(Center, false, token);
+        }
+
+        private async Task SetReferenceStar(Point p, bool detectStar, CancellationToken token) {
             await selectNewStarLock.WaitAsync();
             try {
-                ReferenceStar = await GetClosestStarPosition(Image, p, default, token);
-                ReferenceStarCoordinates = PolarErrorDetermination.CurrentReferenceFrame.Coordinates.Shift(ReferenceStar.X - Center.X,
-                                                                                                           ReferenceStar.Y - Center.Y,
-                                                                                                           GetProjectionAngle(PolarErrorDetermination.CurrentReferenceFrame),
-                                                                                                           ArcsecPerPix,
-                                                                                                           ArcsecPerPix);
+                if (detectStar) {
+                    await DetectAndLockReferenceStar(PolarErrorDetermination.CurrentReferenceFrame,
+                                                     p,
+                                                     default,
+                                                     token);
+                } else {
+                    ReferenceStar = p;
+                    ReferenceStarCoordinates = null;
+                    referenceStarLastDetectedAt = null;
+                    referenceStarDetectionField = null;
+                }
 
-                var refractionParams = RefractionParameters.GetRefractionParameters(weatherDataMediator.GetInfo());
-                var useContinuousErrorEstimator = UseContinuousErrorEstimator;
-                var overlay = await Task.Run(() => useContinuousErrorEstimator
-                    ? BuildErrorDetailComputation(PolarErrorDetermination,
-                                                  ReferenceStar,
-                                                  Center,
-                                                  ArcsecPerPix,
-                                                  refractionParams)
-                    : BuildLegacyErrorDetailComputation(PolarErrorDetermination,
-                                                        ReferenceStar,
-                                                        Center,
-                                                        ArcsecPerPix,
-                                                        refractionParams),
-                                             token);
-                ApplyErrorDetailComputation(overlay);
+                await UpdateReferenceStarOverlay(token);
             } catch (Exception ex) {
-                Logger.Error("An error occurred during selection of new reference star", ex);
-                Notification.ShowWarning("Failed to determine new reference star on current image");
+                var action = detectStar ? "selection of new reference star" : "initialization of image-center reference";
+                Logger.Error($"An error occurred during {action}", ex);
+                Notification.ShowWarning(detectStar
+                    ? "Failed to determine new reference star on current image"
+                    : "Failed to initialize the correction overlay at the image center");
             } finally {
                 selectNewStarLock.Release();
             }
+        }
+
+        internal async Task DetectAndLockReferenceStar(PlateSolveResult referenceFrame,
+                                                       Point detectionReference,
+                                                       IProgress<ApplicationStatus> progress,
+                                                       CancellationToken token) {
+            ReferenceStar = await referenceStarLocator(Image, detectionReference, progress, token);
+            ReferenceStarCoordinates = referenceFrame.Coordinates.Shift(ReferenceStar.X - Center.X,
+                                                                         ReferenceStar.Y - Center.Y,
+                                                                         GetProjectionAngle(referenceFrame),
+                                                                         ArcsecPerPix,
+                                                                         ArcsecPerPix);
+            referenceStarLastDetectedAt = timeProvider.GetUtcNow();
+            referenceStarDetectionField = referenceFrame.Coordinates;
+        }
+
+        private async Task UpdateReferenceStarOverlay(CancellationToken token) {
+            var refractionParams = RefractionParameters.GetRefractionParameters(weatherDataMediator.GetInfo());
+            var useContinuousErrorEstimator = UseContinuousErrorEstimator;
+            var overlay = await Task.Run(() => useContinuousErrorEstimator
+                ? BuildErrorDetailComputation(PolarErrorDetermination,
+                                              ReferenceStar,
+                                              Center,
+                                              ArcsecPerPix,
+                                              refractionParams)
+                : BuildLegacyErrorDetailComputation(PolarErrorDetermination,
+                                                    ReferenceStar,
+                                                    Center,
+                                                    ArcsecPerPix,
+                                                    refractionParams),
+                                         token);
+            ApplyErrorDetailComputation(overlay);
         }
 
 
@@ -163,15 +212,7 @@ namespace NINA.Plugins.PolarAlignment {
                 lastContinuousEstimateStable = true;
             }
 
-            if (ReferenceStarCoordinates != null) {
-                var projectedReferenceStar = await Task.Run(() => ReferenceStarCoordinates.XYProjection(psr.Coordinates,
-                                                                                                         Center,
-                                                                                                         ArcsecPerPix,
-                                                                                                         ArcsecPerPix,
-                                                                                                         GetProjectionAngle(psr)),
-                                                            token);
-                ReferenceStar = await GetClosestStarPosition(Image, projectedReferenceStar, progress, token);
-            }
+            await UpdateReferenceStar(psr, progress, token);
 
             var overlay = await Task.Run(() => useContinuousErrorEstimator
                 ? BuildErrorDetailComputation(PolarErrorDetermination,
@@ -188,6 +229,57 @@ namespace NINA.Plugins.PolarAlignment {
             ApplyErrorDetailComputation(overlay);
             WaitingForUpdate = false;
             return estimateStable;
+        }
+
+        internal async Task UpdateReferenceStar(PlateSolveResult psr, IProgress<ApplicationStatus> progress, CancellationToken token) {
+            await selectNewStarLock.WaitAsync(token);
+            try {
+                var referenceStarCoordinates = ReferenceStarCoordinates;
+                if (referenceStarCoordinates == null) {
+                    ReferenceStar = Center;
+                    return;
+                }
+
+                var projectedReferenceStar = await Task.Run(() => referenceStarCoordinates.XYProjection(psr.Coordinates,
+                                                                                                        Center,
+                                                                                                        ArcsecPerPix,
+                                                                                                        ArcsecPerPix,
+                                                                                                        GetProjectionAngle(psr)),
+                                                            token);
+                var outsideImage = ReferenceStarOutsideImage(Image, projectedReferenceStar);
+                var elapsed = referenceStarLastDetectedAt.HasValue
+                    ? timeProvider.GetUtcNow() - referenceStarLastDetectedAt.Value
+                    : TimeSpan.MaxValue;
+                var fieldShiftDegrees = referenceStarDetectionField == null
+                    ? double.PositiveInfinity
+                    : (psr.Coordinates - referenceStarDetectionField).Distance.Degree;
+                var redetectionRequired = outsideImage
+                    || elapsed >= ReferenceStarRedetectionInterval
+                    || fieldShiftDegrees > ReferenceStarRedetectionFieldShiftDegrees;
+
+                if (redetectionRequired) {
+                    await DetectAndLockReferenceStar(psr,
+                                                     outsideImage ? Center : projectedReferenceStar,
+                                                     progress,
+                                                     token);
+                } else {
+                    ReferenceStar = projectedReferenceStar;
+                }
+            } finally {
+                selectNewStarLock.Release();
+            }
+        }
+
+        private static bool ReferenceStarOutsideImage(IRenderedImage image, Point referenceStar) {
+            if (!double.IsFinite(referenceStar.X) || !double.IsFinite(referenceStar.Y)) { return true; }
+
+            var renderedImage = image?.Image;
+            if (renderedImage == null) { return false; }
+
+            return referenceStar.X < 0
+                || referenceStar.X >= renderedImage.PixelWidth
+                || referenceStar.Y < 0
+                || referenceStar.Y >= renderedImage.PixelHeight;
         }
 
         public async Task MoveCloser(IProgress<ApplicationStatus> progress, CancellationToken token) {
@@ -530,7 +622,7 @@ namespace NINA.Plugins.PolarAlignment {
                         NoiseReduction = profileService.ActiveProfile.ImageSettings.NoiseReduction
                     };
 
-                    // Reference-star reacquisition is the last heavy post-solve step in the TPPA loop.
+                    // Reference-star selection and locked-mode reacquisition can still be heavy image-analysis steps.
                     // Some star-detection paths do noticeable synchronous work before yielding, so
                     // invoke the detector from a background task and only marshal the finished result back.
                     var detectionResult = await Task.Run(async () => await detection.Detect(image,
@@ -933,7 +1025,16 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         public TopocentricCoordinates GetDestinationCoordinates(double azAngle, double altAngle, RefractionParameters refractionParameters) {
-            var referenceTopocentric = InitialReferenceFrame.Coordinates.Transform(Latitude, Longitude, Elevation);
+            // Keep both transforms on the same clock as the frame onto which the destination is projected.
+            var observationTime = CurrentReferenceFrame.Coordinates.DateTime;
+            var referenceTopocentric = InitialReferenceFrame.Coordinates.Transform(Latitude,
+                                                                                   Longitude,
+                                                                                   Elevation,
+                                                                                   0,
+                                                                                   0,
+                                                                                   0,
+                                                                                   0,
+                                                                                   observationTime.Now);
             var referenceVector = Vector3.CoordinatesToUnitVector(referenceTopocentric);
 
             var azimuthRotation = Angle.ByDegree(azAngle);
@@ -943,7 +1044,7 @@ namespace NINA.Plugins.PolarAlignment {
             var altitudeAxis = Vector3.RotateByRodrigues(new Vector3(0, 1, 0), new Vector3(0, 0, 1), azimuthRotation);
             var finalDestination = Vector3.RotateByRodrigues(azimuthDestination, altitudeAxis, altitudeRotation);
 
-            return finalDestination.ToTopocentric(Latitude, Longitude, Elevation);
+            return finalDestination.ToTopocentric(Latitude, Longitude, Elevation, observationTime);
         }
 
     }

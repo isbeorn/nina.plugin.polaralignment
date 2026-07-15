@@ -330,6 +330,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             NormalizeSignedDegrees(destination.Azimuth.Degree - expected.Azimuth.Degree).Should().BeApproximately(0, 0.1 / 3600.0);
             destination.Altitude.Degree.Should().BeApproximately(expected.Altitude.Degree, 0.1 / 3600.0);
+            destination.DateTime.Should().BeSameAs(determination.CurrentReferenceFrame.Coordinates.DateTime);
         }
 
         [Test]
@@ -435,7 +436,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
         public void TPAPAErrorOverlay_LegacyComputationKeepsImagePlaneErrorEstimate() {
             // The default live correction path is intentionally the legacy image-plane ratio/intersection
             // calculation. The continuous estimator can be enabled separately, but it must not replace
-            // this observable estimate unless that option is on.
+            // this observable estimate unless that option is on. The fixed current-frame clock also
+            // ensures that this estimate cannot drift as the wall clock advances.
             var latitude = Angle.ByDegree(48.0);
             var longitude = Angle.ByDegree(7.0);
             var elevation = 250d;
@@ -462,8 +464,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             overlay.HasErrorEstimate.Should().BeTrue();
             var azimuthErrorDegrees = overlay.AzimuthErrorDegrees.GetValueOrDefault();
             var altitudeErrorDegrees = overlay.AltitudeErrorDegrees.GetValueOrDefault();
-            azimuthErrorDegrees.Should().BeApproximately(3.0358, 1e-3);
-            altitudeErrorDegrees.Should().BeApproximately(-0.3988, 1e-3);
+            azimuthErrorDegrees.Should().BeApproximately(2.0075, 1e-3);
+            altitudeErrorDegrees.Should().BeApproximately(-0.1853, 1e-3);
         }
 
         [Test]
@@ -513,9 +515,15 @@ namespace NINA.Plugins.PolarAlignment.Test {
         private static TopocentricCoordinates GetLegacyDestinationCoordinates(PolarErrorDetermination determination,
                                                                               double azimuthAngleDegrees,
                                                                               double altitudeAngleDegrees) {
+            var observationTime = determination.CurrentReferenceFrame.Coordinates.DateTime;
             var referenceTopocentric = determination.InitialReferenceFrame.Coordinates.Transform(determination.Latitude,
                                                                                                 determination.Longitude,
-                                                                                                determination.Elevation);
+                                                                                                determination.Elevation,
+                                                                                                0,
+                                                                                                0,
+                                                                                                0,
+                                                                                                0,
+                                                                                                observationTime.Now);
             var referenceVector = Vector3.CoordinatesToUnitVector(referenceTopocentric);
             var azimuthRotation = Angle.ByDegree(azimuthAngleDegrees);
             var altitudeRotation = Angle.ByDegree(altitudeAngleDegrees);
@@ -525,7 +533,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             return finalDestination.ToTopocentric(determination.Latitude,
                                                   determination.Longitude,
-                                                  determination.Elevation);
+                                                  determination.Elevation,
+                                                  observationTime);
         }
 
         private static PolarErrorDetermination CreateDetermination(Angle latitude,

@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 2.2.6.3
+- Improved correction-loop performance by avoiding star detection until a reference star is manually selected, then projecting that locked star between frames and re-detecting only after 120 seconds, a field shift over 0.5 degrees, or an outside-image projection.
+
 ## Version 2.2.6.2
 - Fixed TPPA cancellation during plate solving so skipping the sequence item does not surface ASTAP sidecar cleanup errors.
 

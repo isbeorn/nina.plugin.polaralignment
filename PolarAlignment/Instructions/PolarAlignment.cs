@@ -576,7 +576,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     var height = TPAPAVM.Image.Image.PixelHeight;
                     TPAPAVM.Center = new Point(width / 2, height / 2);
 
-                    await TPAPAVM.SelectNewReferenceStar(TPAPAVM.Center, localCTS.Token);
+                    await TPAPAVM.UseImageCenterAsReference(localCTS.Token);
 
                     var sw = Stopwatch.StartNew();
                     do {
