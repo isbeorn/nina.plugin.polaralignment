@@ -35,9 +35,9 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var position3 = new Position(solve3, 0, latitude, longitude, elevation, refraction);
             
 
-            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() {  Coordinates = solve3 }, position1, position2, position3, latitude, longitude, elevation, refraction, true);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() {  Coordinates = solve3 }, position1, position2, position3, latitude, longitude, elevation, refraction, true, 0);
 
-            var error2 = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, elevation, refraction, true);
+            var error2 = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, elevation, refraction, true, 0);
 
             error.InitialMountAxisTotalError.Degree.Should().NotBeApproximately(0, 0001);
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(error2.InitialMountAxisAltitudeError.Degree, 1.0 / 3600.0);
@@ -66,7 +66,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var position3 = new Position(solve3, 0, latitude, longitude, elevation, refraction);
 
 
-            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, elevation, refraction, true);
+            var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = solve1 }, position3, position2, position1, latitude, longitude, elevation, refraction, true, 0);
 
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(0, 1.0 / 3600.0);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(0, 1.0 / 3600.0);
@@ -124,7 +124,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 }, 
                 new Position(s3, 0, latitude, longitude, elevation, refraction), 
                 new Position(s2, 0, latitude, longitude, elevation, refraction), 
-                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, true);
+                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, true, 0);
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }
@@ -168,7 +168,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
-                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, false);
+                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, false, 0);
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69.3/3600.0, 1.0 / 3600.0);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }
@@ -190,7 +190,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
-                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, true);
+                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, true, 0);
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 1.0/3600.0);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0/3600.0);
         }
@@ -211,7 +211,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
-                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, false);
+                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, false, 0);
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69.3 / 3600.0, 1.0/3600.0);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0/3600.0);
         }
@@ -233,7 +233,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
-                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, true);
+                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, true, 0);
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }
@@ -253,7 +253,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var error = new PolarErrorDetermination(new PlateSolving.PlateSolveResult() { Coordinates = s1 },
                 new Position(s3, 0, latitude, longitude, elevation, refraction),
                 new Position(s2, 0, latitude, longitude, elevation, refraction),
-                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, false);
+                new Position(s1, 0, latitude, longitude, elevation, refraction), latitude, longitude, elevation, refraction, false, 0);
             error.InitialMountAxisAltitudeError.Degree.Should().BeApproximately(1.0 - 69/3600.0, 1.0 / 3600.0);
             error.InitialMountAxisAzimuthError.Degree.Should().BeApproximately(1.0, 1.0 / 3600.0);
         }

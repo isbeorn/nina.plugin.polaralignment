@@ -50,6 +50,14 @@ The procedure consists of the following steps:
     + In automatic mode, the mount must be connected and must support RA-axis motion through ASCOM `MoveAxis`
     + In Manual Mode, you provide the RA-axis movement yourself and a mount connection is optional
 
+## What do I need to use the OAPA automated alignment system?
+
+* An OAPA-compatible motorized platform (two stepper motors adjusting the mount's altitude and azimuth)
+* A controller board running the reference OAPA firmware, available at [github.com/michelebergo/oapa-firmware](https://github.com/michelebergo/oapa-firmware)
+* A USB connection between the controller and the computer running N.I.N.A.
+* Select **OAPA** as the alignment system in the plugin options, connect, and run the built-in **Self-Calibration** once: it automatically measures your platform's gear response and backlash on the sky
+* After calibration, TPPA drives the platform automatically during the correction phase until the configured tolerance is reached
+
 ## The mount and camera are both connected, but the automatic-mode button is greyed out. Why?
 
 * Automatic mode requires the mount to move along the right ascension axis through the ASCOM [`MoveAxis`](https://ascom-standards.org/Help/Platform/html/M_ASCOM_DeviceInterface_ITelescopeV3_MoveAxis.htm) method, which is different from a normal slew.

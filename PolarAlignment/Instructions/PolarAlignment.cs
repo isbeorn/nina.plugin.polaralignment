@@ -578,6 +578,19 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     await TPAPAVM.UseImageCenterAsReference(localCTS.Token);
 
+                    // A single lucky solve must not end the procedure: require consecutive
+                    // confirmations below tolerance before auto-finishing.
+                    const int RequiredConsecutiveBelowTolerance = 2;
+                    var consecutiveBelowTolerance = 0;
+
+                    // Runaway guard: if automated corrections make the error worse this many
+                    // times in a row, the actuator model or calibration is wrong (wrong sign,
+                    // bad backlash, slipping mechanics). Stop moving instead of chasing it.
+                    const int MaxConsecutiveWorsenings = 3;
+                    var consecutiveWorsenings = 0;
+                    double? previousTotalErrorMinutes = null;
+                    var automatedAdjustmentsHalted = false;
+
                     var sw = Stopwatch.StartNew();
                     do {
                         await WaitIfPaused(localCTS.Token, progress);
@@ -600,20 +613,27 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                                 var totalErrorMinutes = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
                                 if (totalErrorMinutes <= AlignmentTolerance) {
-                                    Logger.Info($"Total Error is below alignment tolerance ({AlignmentTolerance}'). " +
-                                        $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'. " +
-                                        $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'. " +
-                                        $"Total Error: {Math.Round(totalErrorMinutes, 2)}'. " +
-                                        $"Automatically finishing polar alignment.");
-                                    Notification.ShowInformation(
-                                        $"Total Error is below alignment tolerance.{Environment.NewLine}" +
-                                        $"Tolerance: {AlignmentTolerance}{Environment.NewLine}'" +
-                                        $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
-                                        $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
-                                        $"Total Error: {Math.Round(totalErrorMinutes, 2)}'{Environment.NewLine}" +
-                                        $"Automatically finishing polar alignment.",
-                                        TimeSpan.FromMinutes(1));
-                                    localCTS.Cancel();
+                                    consecutiveBelowTolerance++;
+                                    if (consecutiveBelowTolerance >= RequiredConsecutiveBelowTolerance) {
+                                        Logger.Info($"Total Error is below alignment tolerance ({AlignmentTolerance}') for {consecutiveBelowTolerance} consecutive solves. " +
+                                            $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'. " +
+                                            $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'. " +
+                                            $"Total Error: {Math.Round(totalErrorMinutes, 2)}'. " +
+                                            $"Automatically finishing polar alignment.");
+                                        Notification.ShowInformation(
+                                            $"Total Error is below alignment tolerance.{Environment.NewLine}" +
+                                            $"Tolerance: {AlignmentTolerance}{Environment.NewLine}'" +
+                                            $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
+                                            $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
+                                            $"Total Error: {Math.Round(totalErrorMinutes, 2)}'{Environment.NewLine}" +
+                                            $"Automatically finishing polar alignment.",
+                                            TimeSpan.FromMinutes(1));
+                                        localCTS.Cancel();
+                                    } else {
+                                        Logger.Info($"Total Error {Math.Round(totalErrorMinutes, 2)}' is below alignment tolerance ({AlignmentTolerance}'), awaiting confirmation solve ({consecutiveBelowTolerance}/{RequiredConsecutiveBelowTolerance}).");
+                                    }
+                                } else {
+                                    consecutiveBelowTolerance = 0;
                                 }
                                 if (sw.Elapsed > TimeSpan.FromMinutes(5)) {
                                     Logger.Info("Correction phase exceeded 5 minutes");
@@ -622,7 +642,32 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                     sw.Reset();
                                 }
                                 localCTS.Token.ThrowIfCancellationRequested();
-                                await TPAPAVM.MoveCloser(progress, localCTS.Token);
+
+                                // Runaway detection: compare against the previous stable measurement.
+                                if (previousTotalErrorMinutes.HasValue && totalErrorMinutes > previousTotalErrorMinutes.Value + 0.05) {
+                                    consecutiveWorsenings++;
+                                } else {
+                                    consecutiveWorsenings = 0;
+                                }
+                                previousTotalErrorMinutes = totalErrorMinutes;
+
+                                if (!automatedAdjustmentsHalted && consecutiveWorsenings >= MaxConsecutiveWorsenings) {
+                                    automatedAdjustmentsHalted = true;
+                                    Logger.Error($"Automated adjustments halted: total error increased for {consecutiveWorsenings} consecutive measurements (now {Math.Round(totalErrorMinutes, 2)}'). Calibration factors or backlash compensation are likely wrong.");
+                                    Notification.ShowError(
+                                        $"Automated adjustments halted: the error has been increasing for {consecutiveWorsenings} consecutive measurements.{Environment.NewLine}" +
+                                        $"The alignment has been paused. Re-run the OAPA Self-Calibration (pointing toward the celestial pole) and restart the alignment,{Environment.NewLine}" +
+                                        "or resume to keep the error display active for manual adjustment.");
+                                    // Pausing makes the halt unmissable: a toast alone can be overlooked
+                                    // while the capture/solve loop keeps running as if nothing happened.
+                                    Pause();
+                                }
+
+                                // While a below-tolerance result awaits confirmation, hold the motors
+                                // still so the confirmation solve measures the same state.
+                                if (consecutiveBelowTolerance == 0 && !automatedAdjustmentsHalted) {
+                                    await TPAPAVM.MoveCloser(progress, localCTS.Token);
+                                }
                             } else {
                                 Logger.Warning("Skipping error publication and automated correction because the continuous estimate was unstable.");
                             }
@@ -951,7 +996,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
 
             if (PolarAlignmentPlugin.ActiveAlignmentSystemVM != null && PolarAlignmentPlugin.ActiveAlignmentSystemVM?.DoAutomatedAdjustments == true && AlignmentTolerance == 0) {
-                i.Add("Automated adjustments are enabled, but polar alignment tolerance is set to zero. Please set an alignment tolerance!");
+                i.Add("Automated adjustments are enabled, but polar alignment tolerance is set to zero. Please set an alignment tolerance greater than zero - decimal values like 0.5 arcmin are supported!");
             }
 
 

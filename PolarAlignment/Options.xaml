@@ -26,7 +26,7 @@
     <s:String x:Key="MoveTimeoutFactorToolTip">Multiplier applied to the computed automatic RA-move timeout. TPPA calculates the timeout as move distance divided by move rate, then multiplies by this factor.</s:String>
     <s:String x:Key="DefaultAzimuthOffsetToolTip">Default azimuth offset used when TPPA creates start coordinates instead of starting from the current position. In the southern hemisphere TPPA applies this offset relative to 180 degrees.</s:String>
     <s:String x:Key="DefaultAltitudeOffsetToolTip">Default altitude offset added when TPPA creates start coordinates instead of starting from the current position.</s:String>
-    <s:String x:Key="AlignmentToleranceToolTip">Arcminute threshold used for automatic completion when the reported total error falls at or below it. Automated adjustments require this value to be non-zero.</s:String>
+    <s:String x:Key="AlignmentToleranceToolTip">Arcminute threshold used for automatic completion when the reported total error falls at or below it. Decimal values are allowed, e.g. 0.5 for 30 arcseconds. Automated adjustments require this value to be non-zero.</s:String>
     <s:String x:Key="AltitudeErrorColorToolTip">Color used for the altitude-error overlay elements in the live TPPA display.</s:String>
     <s:String x:Key="AzimuthErrorColorToolTip">Color used for the azimuth-error overlay elements in the live TPPA display.</s:String>
     <s:String x:Key="TotalErrorColorToolTip">Color used for the total-error overlay elements in the live TPPA display.</s:String>
@@ -37,12 +37,14 @@
     <s:String x:Key="UseContinuousErrorEstimatorToolTip">When enabled, TPPA uses the experimental time-aware continuous estimator for live correction error. When disabled, TPPA uses the legacy image-plane calculation.</s:String>
     <s:String x:Key="StopTrackingWhenDoneToolTip">When enabled, TPPA turns sidereal tracking off in its cleanup path after the run ends.</s:String>
     <s:String x:Key="AutoPauseToolTip">When enabled, TPPA pauses itself after each continuous-correction update.</s:String>
-    <s:String x:Key="PolarAlignmentSystemToolTip">Selects which hardware adjustment system TPPA exposes as the active alignment system: None, UPAS, or OAPA.</s:String>
+    <s:String x:Key="PolarAlignmentSystemToolTip">Selects which hardware adjustment system TPPA exposes as the active alignment system: None, UPAS, or OAPA. OAPA requires a controller running the reference firmware, available at github.com/michelebergo/oapa-firmware.</s:String>
     <s:String x:Key="ReverseAzimuthToolTip">Negates azimuth-axis nudge and move commands sent through the selected hardware system.</s:String>
     <s:String x:Key="ReverseAltitudeToolTip">Negates altitude-axis nudge and move commands sent through the selected hardware system.</s:String>
     <s:String x:Key="AzimuthBacklashCompensationToolTip">If non-zero and the azimuth movement direction changes, TPPA sends an extra negative-then-positive relative X move of this size after the main move.</s:String>
+    <s:String x:Key="AltitudeBacklashCompensationToolTip">If non-zero and the altitude movement direction changes, TPPA sends an extra negative-then-positive relative Y move of this size after the main move. OAPA only; the Avalon UPAS altitude axis does not use backlash compensation.</s:String>
     <s:String x:Key="AutomatedAdjustmentsToolTip">When enabled, TPPA calls its automated correction routine and sends nudge commands through the selected hardware system during the correction phase.</s:String>
     <s:String x:Key="AutomatedAdjustmentSettleTimeToolTip">Number of seconds TPPA waits after each automated adjustment before continuing.</s:String>
+    <s:String x:Key="MaxAutomatedCorrectionToolTip">Safety ceiling for the automated per-cycle correction, in axis units (~arcminutes with a correct calibration factor). The effective per-cycle limit auto-scales with the measured error (80% of the current total error, minimum 5) and never exceeds this value. Range 1-30, default 30.</s:String>
     <s:String x:Key="ResetSettingsToolTip">Shows a confirmation dialog and then resets the TPPA plugin settings to their default values.</s:String>
     <s:String x:Key="AlignmentSystemConnectToolTip">Creates the selected hardware system, scans available serial ports for a matching device, and starts status polling.</s:String>
     <s:String x:Key="AlignmentSystemDisconnectToolTip">Disposes the current hardware connection and stops status polling.</s:String>
@@ -66,6 +68,8 @@
                             <ColumnDefinition />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -218,7 +222,7 @@
                             Margin="5,5,0,0"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Center"
-                            Text="{Binding AlignmentTolerance}"
+                            Text="{Binding AlignmentTolerance, StringFormat={}{0:0.##}}"
                             ToolTip="{StaticResource AlignmentToleranceToolTip}"
                             Unit="arcmin" />
 
@@ -460,11 +464,29 @@
                             Grid.Row="22"
                             Margin="0,5,0,0"
                             VerticalAlignment="Center"
+                            Text="Altitude backlash compensation"
+                            ToolTip="{StaticResource AltitudeBacklashCompensationToolTip}"
+                            Visibility="{Binding IsOAPASelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <ninactrl:UnitTextBox
+                            Grid.Row="22"
+                            Grid.Column="1"
+                            MinWidth="80"
+                            Margin="0,5,0,0"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Text="{Binding ActiveSystem.YBacklashCompensation}"
+                            ToolTip="{StaticResource AltitudeBacklashCompensationToolTip}"
+                            Unit="steps"
+                            Visibility="{Binding IsOAPASelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBlock
+                            Grid.Row="23"
+                            Margin="0,5,0,0"
+                            VerticalAlignment="Center"
                             Text="Do automated adjustments?"
                             ToolTip="{StaticResource AutomatedAdjustmentsToolTip}"
                             Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <StackPanel
-                            Grid.Row="22"
+                            Grid.Row="23"
                             Grid.Column="1"
                             Orientation="Horizontal">
                             <CheckBox
@@ -484,7 +506,7 @@
                                     Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             </Grid>
                         </StackPanel>
-                        <Grid Grid.Row="23" Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid Grid.Row="24" Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock
                                 Margin="0,5,0,0"
                                 VerticalAlignment="Center"
@@ -493,7 +515,7 @@
                                 Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </Grid>
                         <Grid
-                            Grid.Row="23"
+                            Grid.Row="24"
                             Grid.Column="1"
                             Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <ninactrl:UnitTextBox
@@ -506,8 +528,30 @@
                                 Unit="s"
                                 Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </Grid>
+                        <Grid Grid.Row="25" Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock
+                                Margin="0,5,0,0"
+                                VerticalAlignment="Center"
+                                Text="Max correction per cycle"
+                                ToolTip="{StaticResource MaxAutomatedCorrectionToolTip}"
+                                Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
                         <Grid
-                            Grid.Row="24"
+                            Grid.Row="25"
+                            Grid.Column="1"
+                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ninactrl:UnitTextBox
+                                MinWidth="80"
+                                Margin="5,5,0,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Text="{Binding MaxAutomatedCorrectionMagnitude, StringFormat={}{0:0.#}}"
+                                ToolTip="{StaticResource MaxAutomatedCorrectionToolTip}"
+                                Unit="arcmin"
+                                Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
+                        <Grid
+                            Grid.Row="26"
                             Grid.ColumnSpan="2"
                             Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock
@@ -517,7 +561,7 @@
                                 Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </Grid>
                         <Button
-                            Grid.Row="25"
+                            Grid.Row="27"
                             Margin="0,20,0,0"
                             Command="{Binding ResetSettingsCommand}"
                             ToolTip="{StaticResource ResetSettingsToolTip}">

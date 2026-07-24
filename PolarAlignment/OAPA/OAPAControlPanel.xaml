@@ -15,6 +15,11 @@
     </UserControl.Resources>
 
     <StackPanel>
+        <!-- Firmware reference -->
+        <TextBlock Margin="5,5,5,0">
+            <Run Text="Requires an OAPA-compatible controller running the reference firmware: " />
+            <Hyperlink NavigateUri="https://github.com/michelebergo/oapa-firmware" RequestNavigate="Hyperlink_RequestNavigate">github.com/michelebergo/oapa-firmware</Hyperlink>
+        </TextBlock>
         <!-- Motor Settings -->
         <Grid>
             <Grid.ColumnDefinitions>
@@ -53,7 +58,7 @@
                             </x:Array>
                         </ComboBox.ItemsSource>
                     </ComboBox>
-                    <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAGearRatioToolTip}">GearRatio</TextBlock>
+                    <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAGearRatioToolTip}">Calibration Factor</TextBlock>
                     <TextBox Grid.Row="0" Grid.Column="3" VerticalAlignment="Center" Margin="5" Text="{Binding XGearRatio}" ToolTip="{StaticResource OAPAGearRatioToolTip}" />
 
                     <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPARunCurrentToolTip}">Run (mA)</TextBlock>
@@ -94,7 +99,7 @@
                             </x:Array>
                         </ComboBox.ItemsSource>
                     </ComboBox>
-                    <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAGearRatioToolTip}">GearRatio</TextBlock>
+                    <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAGearRatioToolTip}">Calibration Factor</TextBlock>
                     <TextBox Grid.Row="0" Grid.Column="3" VerticalAlignment="Center" Margin="5" Text="{Binding YGearRatio}" ToolTip="{StaticResource OAPAGearRatioToolTip}" />
 
                     <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPARunCurrentToolTip}">Run (mA)</TextBlock>
@@ -207,5 +212,91 @@
                 </Grid>
             </GroupBox>
         </Grid>
+
+        <!-- Home Position - Only Visible When Connected -->
+        <GroupBox Header="Home Position"
+                  Margin="0,5,0,0"
+                  Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition />
+                    <ColumnDefinition />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Height="25" Margin="5" Command="{Binding GoHomeCommand}"
+                        ToolTip="Move both axes back to the stored home position">Go Home</Button>
+                <Button Grid.Column="1" Height="25" Margin="5" Command="{Binding SetHomeCommand}"
+                        ToolTip="Store the current axis positions as the home position. Note: the controller's position counter restarts at 0 on power-up, so the stored home is valid for the current power session.">Set Home</Button>
+                <StackPanel Grid.Column="2" Margin="5" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="X: " />
+                    <TextBlock Text="{Binding HomeX, StringFormat=N2}" />
+                    <TextBlock Text="  Y: " />
+                    <TextBlock Text="{Binding HomeY, StringFormat=N2}" />
+                </StackPanel>
+            </Grid>
+        </GroupBox>
+
+        <!-- Self-Calibration Panel - Only Visible When Connected -->
+        <GroupBox Header="Self-Calibration"
+                  Margin="0,5,0,0"
+                  Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Height="25" Margin="5" Padding="10,0" Command="{Binding CalibrateGearRatiosCommand}">Calibrate</Button>
+                    <TextBlock Grid.Column="1" Margin="5" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding CalibrationStatus}" />
+                </Grid>
+
+                <Grid Margin="5,5,5,0" Visibility="{Binding HasCalibrationResult, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Margin="0,0,0,10"
+                               FontWeight="Bold" FontSize="14"
+                               Text="&#x2705; Calibration complete &#x2014; review the discovered values below and click Apply or Discard." />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,10,5" Text="Discovered X factor:" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,20,5" Text="{Binding DiscoveredXRatio, StringFormat=F2}" FontWeight="Bold" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,0,10,5" Text="Current X factor:" />
+                    <TextBlock Grid.Row="1" Grid.Column="3" Margin="0,0,0,5" Text="{Binding XGearRatio, StringFormat=F2}" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,10,5" Text="Discovered Y factor:" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,20,5" Text="{Binding DiscoveredYRatio, StringFormat=F2}" FontWeight="Bold" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,0,10,5" Text="Current Y factor:" />
+                    <TextBlock Grid.Row="2" Grid.Column="3" Margin="0,0,0,5" Text="{Binding YGearRatio, StringFormat=F2}" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,10,5" Text="Discovered X backlash (arcmin):" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,20,5" Text="{Binding DiscoveredXBacklash, StringFormat=F2}" FontWeight="Bold" />
+                    <TextBlock Grid.Row="3" Grid.Column="2" Margin="0,0,10,5" Text="Discovered Y backlash (arcmin):" />
+                    <TextBlock Grid.Row="3" Grid.Column="3" Margin="0,0,0,5" Text="{Binding DiscoveredYBacklash, StringFormat=F2}" FontWeight="Bold" />
+
+                    <TextBlock Grid.Row="4" Grid.ColumnSpan="4" Margin="0,5,0,5" TextWrapping="Wrap" Text="{Binding CalibrationConsistencyMessage}" FontStyle="Italic" />
+
+                    <Grid Grid.Row="5" Grid.ColumnSpan="4" Margin="0,5,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Height="25" Margin="0,0,2.5,0" Command="{Binding ApplyCalibrationCommand}">Apply</Button>
+                        <Button Grid.Column="1" Height="25" Margin="2.5,0,0,0" Command="{Binding DiscardCalibrationCommand}">Discard</Button>
+                    </Grid>
+                </Grid>
+            </StackPanel>
+        </GroupBox>
     </StackPanel>
 </UserControl>

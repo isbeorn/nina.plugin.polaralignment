@@ -106,6 +106,66 @@ namespace NINA.Plugins.PolarAlignment.Test {
             sequence.SecondMove.Should().Be(-3f);
         }
 
+        [Test]
+        public void AutomatedAdjustmentController_MaximumMoveMagnitude_IsClampedToConfigurableRange() {
+            var controller = new AutomatedAdjustmentController();
+
+            controller.MaximumMoveMagnitude = 50;
+            controller.MaximumMoveMagnitude.Should().Be(AutomatedAdjustmentController.MaximumConfigurableMoveMagnitude);
+
+            controller.MaximumMoveMagnitude = 0.1;
+            controller.MaximumMoveMagnitude.Should().Be(AutomatedAdjustmentController.MinimumConfigurableMoveMagnitude);
+
+            controller.MaximumMoveMagnitude = 12;
+            controller.MaximumMoveMagnitude.Should().Be(12);
+        }
+
+        [Test]
+        public void AutomatedAdjustmentController_ProbeMagnitude_ScalesWithLargeError() {
+            // With a 2 degree (120') error and a raised cap, the identification probe should be
+            // larger than the 1-unit default so the response stays observable above solve noise.
+            var controller = new AutomatedAdjustmentController {
+                MaximumMoveMagnitude = 20
+            };
+            controller.UpdateObservation(2.0, 0.0);
+
+            var plan = controller.CreatePlan();
+
+            plan.IsProbe.Should().BeTrue();
+            Math.Abs(plan.XMagnitude + plan.YMagnitude).Should().BeApproximately(10.0, 0.001); // min(120 * 0.15, 20/2)
+        }
+
+        [Test]
+        public void AutomatedAdjustmentController_ProbeMagnitude_StaysGentleNearThePole() {
+            // Near the pole (3' error) the probe should remain at the conservative default.
+            var controller = new AutomatedAdjustmentController();
+            controller.UpdateObservation(0.05, 0.0);
+
+            var plan = controller.CreatePlan();
+
+            plan.IsProbe.Should().BeTrue();
+            Math.Abs(plan.XMagnitude + plan.YMagnitude).Should().BeApproximately(1.0, 0.001);
+        }
+
+        [Test]
+        public void AutomatedAdjustmentController_LargeError_ConvergesFasterWithRaisedCap() {
+            // Brian's field report: with a multi-degree initial error the default 5-unit cap
+            // needs many cycles. A raised cap must converge in fewer iterations on the same plant.
+            var plant = new[,] {
+                { -0.02, 0.00 },
+                { 0.00, -0.02 }
+            };
+
+            var defaultCapController = new AutomatedAdjustmentController();
+            var defaultCapResult = RunClosedLoop(defaultCapController, plant, initialAzimuthErrorDegrees: 1.5, initialAltitudeErrorDegrees: 1.0, maxIterations: 60);
+
+            var raisedCapController = new AutomatedAdjustmentController { MaximumMoveMagnitude = 25 };
+            var raisedCapResult = RunClosedLoop(raisedCapController, plant, initialAzimuthErrorDegrees: 1.5, initialAltitudeErrorDegrees: 1.0, maxIterations: 60);
+
+            raisedCapResult.FinalErrorDegrees.Should().BeLessThan(0.04);
+            raisedCapResult.Iterations.Should().BeLessThan(defaultCapResult.Iterations);
+        }
+
         private static ClosedLoopResult RunClosedLoop(AutomatedAdjustmentController controller,
                                                       double[,] plant,
                                                       double initialAzimuthErrorDegrees,

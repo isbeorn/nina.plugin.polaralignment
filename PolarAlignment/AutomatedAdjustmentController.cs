@@ -14,7 +14,9 @@ namespace NINA.Plugins.PolarAlignment {
     internal sealed class AutomatedAdjustmentController {
         /// <summary>
         /// Probe moves are intentionally small and conservative. They exist to identify
-        /// the local actuator response, not to make rapid progress.
+        /// the local actuator response, not to make rapid progress. When the measured error
+        /// is large, probes are scaled up (see <see cref="CreateProbePlan"/>) so the response
+        /// remains observable above the solve noise.
         /// </summary>
         private const double DefaultProbeMagnitude = 1.0;
         /// <summary>
@@ -23,10 +25,27 @@ namespace NINA.Plugins.PolarAlignment {
         /// </summary>
         private const double MinimumMoveMagnitude = 0.05;
         /// <summary>
-        /// Maximum correction magnitude issued in a single solve or move cycle.
-        /// Large residuals are intentionally corrected over multiple iterations.
+        /// Default for <see cref="MaximumMoveMagnitude"/>.
         /// </summary>
-        private const double MaximumMoveMagnitude = 5.0;
+        public const double DefaultMaximumMoveMagnitude = 5.0;
+        /// <summary>
+        /// Hard bounds for the user-configurable per-cycle move cap.
+        /// </summary>
+        public const double MinimumConfigurableMoveMagnitude = 1.0;
+        public const double MaximumConfigurableMoveMagnitude = 30.0;
+
+        private double maximumMoveMagnitude = DefaultMaximumMoveMagnitude;
+
+        /// <summary>
+        /// Maximum correction magnitude issued in a single solve or move cycle, in logical
+        /// nudge units (~arcminutes with a correct calibration factor). User-configurable so
+        /// large initial errors can be corrected in fewer cycles; residuals larger than this
+        /// are still corrected over multiple iterations.
+        /// </summary>
+        public double MaximumMoveMagnitude {
+            get => maximumMoveMagnitude;
+            set => maximumMoveMagnitude = Math.Max(MinimumConfigurableMoveMagnitude, Math.Min(MaximumConfigurableMoveMagnitude, value));
+        }
         /// <summary>
         /// Small damping term used as a numerical floor and as regularization when
         /// inverting the local response model.
@@ -151,7 +170,9 @@ namespace NINA.Plugins.PolarAlignment {
 
         /// <summary>
         /// Creates a probe move on the less-observed axis so the sample set becomes informative
-        /// in both columns of the local response matrix.
+        /// in both columns of the local response matrix. The probe is scaled with the measured
+        /// error so it stays observable above solve noise when the mount is far off, while
+        /// remaining gentle near the pole.
         /// </summary>
         private AutomatedAdjustmentPlan CreateProbePlan() {
             var xExcitation = 0.0;
@@ -162,15 +183,19 @@ namespace NINA.Plugins.PolarAlignment {
                 yExcitation += Math.Abs(sample.YMagnitude);
             }
 
+            var errorArcmin = currentObservation.TotalErrorDegrees * 60.0;
+            var probeMagnitude = Math.Max(DefaultProbeMagnitude,
+                                          Math.Min(errorArcmin * 0.15, MaximumMoveMagnitude / 2.0));
+
             if (xExcitation <= yExcitation) {
-                return new AutomatedAdjustmentPlan(DefaultProbeMagnitude,
+                return new AutomatedAdjustmentPlan(probeMagnitude,
                                                    0,
                                                    true,
                                                    "Probing azimuth response");
             }
 
             return new AutomatedAdjustmentPlan(0,
-                                               DefaultProbeMagnitude,
+                                               probeMagnitude,
                                                true,
                                                "Probing altitude response");
         }
@@ -186,6 +211,7 @@ namespace NINA.Plugins.PolarAlignment {
             var candidates = new List<AutomatedAdjustmentPlan>();
 
             if (TrySolveLeastSquaresCommand(responseModel, observation, out var rawX, out var rawY)) {
+                candidates.Add(CreateScaledPlan(rawX, rawY, 0.75, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.5, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.25, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.125, "Adaptive two-axis correction"));
@@ -241,7 +267,7 @@ namespace NINA.Plugins.PolarAlignment {
         /// <summary>
         /// Scales and clamps a raw move candidate to the controller's safe operating bounds.
         /// </summary>
-        private static AutomatedAdjustmentPlan CreateScaledPlan(double xMagnitude, double yMagnitude, double scale, string reason) {
+        private AutomatedAdjustmentPlan CreateScaledPlan(double xMagnitude, double yMagnitude, double scale, string reason) {
             return new AutomatedAdjustmentPlan(NormalizeMagnitude(xMagnitude * scale),
                                                NormalizeMagnitude(yMagnitude * scale),
                                                false,
@@ -252,11 +278,11 @@ namespace NINA.Plugins.PolarAlignment {
         /// Creates a one-axis fallback move by projecting the current error onto a single
         /// actuator response vector.
         /// </summary>
-        private static bool TryCreateSingleAxisPlan(double azimuthDeltaPerUnit,
-                                                    double altitudeDeltaPerUnit,
-                                                    AutomatedAdjustmentObservation observation,
-                                                    bool xAxis,
-                                                    out AutomatedAdjustmentPlan plan) {
+        private bool TryCreateSingleAxisPlan(double azimuthDeltaPerUnit,
+                                             double altitudeDeltaPerUnit,
+                                             AutomatedAdjustmentObservation observation,
+                                             bool xAxis,
+                                             out AutomatedAdjustmentPlan plan) {
             var leverage = azimuthDeltaPerUnit * azimuthDeltaPerUnit + altitudeDeltaPerUnit * altitudeDeltaPerUnit;
             if (leverage <= NormalEquationDamping) {
                 plan = null;
@@ -376,7 +402,7 @@ namespace NINA.Plugins.PolarAlignment {
         /// <summary>
         /// Applies the controller's deadband and move clamp to a raw command magnitude.
         /// </summary>
-        private static double NormalizeMagnitude(double magnitude) {
+        private double NormalizeMagnitude(double magnitude) {
             if (Math.Abs(magnitude) < MinimumMoveMagnitude) {
                 return 0;
             }

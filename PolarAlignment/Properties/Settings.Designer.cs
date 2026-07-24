@@ -334,7 +334,7 @@ namespace NINA.Plugins.PolarAlignment.Properties {
                 this["AvalonXBacklashCompensation"] = value;
             }
         }
-        
+
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
@@ -457,6 +457,18 @@ namespace NINA.Plugins.PolarAlignment.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAYBacklashCompensation {
+            get {
+                return ((float)(this["OAPAYBacklashCompensation"]));
+            }
+            set {
+                this["OAPAYBacklashCompensation"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool OAPAReverseAzimuth {
             get {
@@ -524,6 +536,54 @@ namespace NINA.Plugins.PolarAlignment.Properties {
             }
             set {
                 this["OAPAYHoldPercent"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string OAPALastPort {
+            get {
+                return ((string)(this["OAPALastPort"]));
+            }
+            set {
+                this["OAPALastPort"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAHomeX {
+            get {
+                return ((float)(this["OAPAHomeX"]));
+            }
+            set {
+                this["OAPAHomeX"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAHomeY {
+            get {
+                return ((float)(this["OAPAHomeY"]));
+            }
+            set {
+                this["OAPAHomeY"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("30")]
+        public double MaxAutomatedCorrectionMagnitude {
+            get {
+                return ((double)(this["MaxAutomatedCorrectionMagnitude"]));
+            }
+            set {
+                this["MaxAutomatedCorrectionMagnitude"] = value;
             }
         }
     }

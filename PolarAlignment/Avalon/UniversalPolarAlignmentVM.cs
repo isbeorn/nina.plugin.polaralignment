@@ -96,5 +96,10 @@ namespace NINA.Plugins.PolarAlignment.Avalon {
                 RaisePropertyChanged();
             }
         }
+
+        public override float YBacklashCompensation {
+            get => 0;
+            set { }
+        }
     }
 }

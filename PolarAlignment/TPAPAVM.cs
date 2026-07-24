@@ -298,6 +298,14 @@ namespace NINA.Plugins.PolarAlignment {
                 return;
             }
 
+            // Per-cycle move cap auto-scales with the current measured error so multi-degree
+            // initial errors converge in a handful of cycles without user intervention, while the
+            // final approach stays gentle. The "Max correction per cycle" setting acts as a
+            // safety ceiling on top of the auto-scaled value.
+            var currentTotalErrorArcmin = Math.Abs(PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
+            var autoCap = Math.Max(AutomatedAdjustmentController.DefaultMaximumMoveMagnitude, currentTotalErrorArcmin * 0.8);
+            automatedAdjustmentController.MaximumMoveMagnitude = Math.Min(autoCap, Properties.Settings.Default.MaxAutomatedCorrectionMagnitude);
+
             var plan = automatedAdjustmentController.CreatePlan();
             if (!plan.HasMovement) {
                 progress?.Report(new ApplicationStatus() { Status = plan.Reason });
