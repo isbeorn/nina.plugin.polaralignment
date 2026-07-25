@@ -173,14 +173,14 @@
                 <StackPanel Margin="5,0,0,0" Orientation="Horizontal">
                     <TextBlock VerticalAlignment="Center" Text="Alignment Tolerance">
                         <TextBlock.ToolTip>
-                            <TextBlock Text="Setting the Polar Alignment Tolerance to non-zero will specify a tolerance in arcminutes where the polar alignment routine automatically completes when below the threshold" />
+                            <TextBlock Text="Setting the Polar Alignment Tolerance to non-zero will specify a tolerance in arcminutes where the polar alignment routine automatically completes when below the threshold. Decimal values are allowed, e.g. 0.5 for 30 arcseconds" />
                         </TextBlock.ToolTip>
                     </TextBlock>
                     <ninactrl:UnitTextBox
                         MinWidth="40"
                         Margin="5,0,0,0"
                         VerticalAlignment="Center"
-                        Text="{Binding AlignmentTolerance, UpdateSourceTrigger=PropertyChanged}"
+                        Text="{Binding AlignmentTolerance, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"
                         Unit="arcmin" />
                 </StackPanel>
             </WrapPanel>
