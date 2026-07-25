@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 2.2.6.5
+- Automatic completion now requires 2 consecutive solves below the alignment tolerance before finishing, so a single lucky solve cannot end a non-converged procedure. While a below-tolerance result awaits confirmation, automated corrections hold still so the confirmation solve measures the same state.
+
 ## Version 2.2.6.4
 - Alignment Tolerance now accepts decimal values (e.g. `0.5` = 30 arcseconds). The instruction template bound the field with `UpdateSourceTrigger=PropertyChanged`, which re-parsed the text on every keystroke and silently swallowed the decimal separator — only integers could effectively be typed. The binding now commits on focus loss with `StringFormat 0.##`. Same fix applied to the Options "Default Alignment Tolerance" field; tooltips and the pre-flight validation message updated accordingly.
 
