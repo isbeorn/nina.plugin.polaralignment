@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 2.2.6.4
+- Alignment Tolerance now accepts decimal values (e.g. `0.5` = 30 arcseconds). The instruction template bound the field with `UpdateSourceTrigger=PropertyChanged`, which re-parsed the text on every keystroke and silently swallowed the decimal separator — only integers could effectively be typed. The binding now commits on focus loss with `StringFormat 0.##`. Same fix applied to the Options "Default Alignment Tolerance" field; tooltips and the pre-flight validation message updated accordingly.
+
 ## Version 2.2.6.3
 - Improved correction-loop performance by avoiding star detection until a reference star is manually selected, then projecting that locked star between frames and re-detecting only after 120 seconds, a field shift over 0.5 degrees, or an outside-image projection.
 

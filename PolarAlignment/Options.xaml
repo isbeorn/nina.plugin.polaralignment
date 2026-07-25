@@ -26,7 +26,7 @@
     <s:String x:Key="MoveTimeoutFactorToolTip">Multiplier applied to the computed automatic RA-move timeout. TPPA calculates the timeout as move distance divided by move rate, then multiplies by this factor.</s:String>
     <s:String x:Key="DefaultAzimuthOffsetToolTip">Default azimuth offset used when TPPA creates start coordinates instead of starting from the current position. In the southern hemisphere TPPA applies this offset relative to 180 degrees.</s:String>
     <s:String x:Key="DefaultAltitudeOffsetToolTip">Default altitude offset added when TPPA creates start coordinates instead of starting from the current position.</s:String>
-    <s:String x:Key="AlignmentToleranceToolTip">Arcminute threshold used for automatic completion when the reported total error falls at or below it. Automated adjustments require this value to be non-zero.</s:String>
+    <s:String x:Key="AlignmentToleranceToolTip">Arcminute threshold used for automatic completion when the reported total error falls at or below it. Decimal values are allowed, e.g. 0.5 for 30 arcseconds. Automated adjustments require this value to be non-zero.</s:String>
     <s:String x:Key="AltitudeErrorColorToolTip">Color used for the altitude-error overlay elements in the live TPPA display.</s:String>
     <s:String x:Key="AzimuthErrorColorToolTip">Color used for the azimuth-error overlay elements in the live TPPA display.</s:String>
     <s:String x:Key="TotalErrorColorToolTip">Color used for the total-error overlay elements in the live TPPA display.</s:String>
@@ -218,7 +218,7 @@
                             Margin="5,5,0,0"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Center"
-                            Text="{Binding AlignmentTolerance}"
+                            Text="{Binding AlignmentTolerance, StringFormat={}{0:0.##}}"
                             ToolTip="{StaticResource AlignmentToleranceToolTip}"
                             Unit="arcmin" />
 

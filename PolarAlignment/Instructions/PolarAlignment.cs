@@ -951,7 +951,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
 
             if (PolarAlignmentPlugin.ActiveAlignmentSystemVM != null && PolarAlignmentPlugin.ActiveAlignmentSystemVM?.DoAutomatedAdjustments == true && AlignmentTolerance == 0) {
-                i.Add("Automated adjustments are enabled, but polar alignment tolerance is set to zero. Please set an alignment tolerance!");
+                i.Add("Automated adjustments are enabled, but polar alignment tolerance is set to zero. Please set an alignment tolerance greater than zero - decimal values like 0.5 arcmin are supported!");
             }
 
 
