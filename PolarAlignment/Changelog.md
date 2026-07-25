@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 2.2.6.6
+- OAPA: added **Self-Calibration** to the OAPA control dock. For each axis the routine runs a large-lever sequence (baseline solve, priming leg, forward leg, reversal leg, reverse leg of 45' each; net commanded motion is zero) and derives the calibration factor from the two backlash-free legs and the **mechanical backlash** from the reversal-leg shortfall. Apply persists both.
+- OAPA calibration: azimuth displacements are corrected by **cos(field altitude)** — a base rotation of θ moves a field at altitude h by only θ·cos(h) — so the discovered values no longer depend on where the scope points. Calibration refuses to run the azimuth axis when the field is too close to the zenith (cos(alt) < 0.25).
+- OAPA calibration: baseline solve before any motion (an unsolvable field aborts at zero cost), best-effort position restore on mid-sequence failure, forward/reverse leg asymmetry warning (>20%), and automatic Reverse Az/Alt flag correction with a single verified retry.
+- OAPA: separate **altitude-axis backlash** value (measured by the calibration, editable in the Altitude Motor Settings panel).
+- OAPA: **Home Position** panel (Set Home / Go Home). Home is session-scoped: the controller's position counter restarts at 0 on power-up, so the stored home is discarded on every reconnect instead of persisting stale coordinates.
+- UI: renamed "GearRatio" to "Calibration Factor" in the OAPA panels (the value is a software calibration constant, not a mechanical reduction). Settings keys unchanged.
+
 ## Version 2.2.6.5
 - Automatic completion now requires 2 consecutive solves below the alignment tolerance before finishing, so a single lucky solve cannot end a non-converged procedure. While a below-tolerance result awaits confirmation, automated corrections hold still so the confirmation solve measures the same state.
 

@@ -17,6 +17,8 @@ using NINA.Plugins.PolarAlignment.Avalon;
 using NINA.Plugins.PolarAlignment.OAPA;
 using NINA.Profile;
 using NINA.Profile.Interfaces;
+using NINA.Equipment.Interfaces.Mediator;
+using NINA.PlateSolving.Interfaces;
 
 namespace NINA.Plugins.PolarAlignment {
     [Export(typeof(IPluginManifest))]
@@ -57,7 +59,11 @@ namespace NINA.Plugins.PolarAlignment {
         public static string PluginId { get; private set; }
 
         [ImportingConstructor]
-        public PolarAlignmentPlugin(IProfileService profileService) {
+        public PolarAlignmentPlugin(
+            IProfileService profileService,
+            IImagingMediator imagingMediator,
+            ITelescopeMediator telescopeMediator,
+            IPlateSolverFactory plateSolverFactory) {
             if (Properties.Settings.Default.UpdateSettings) {
                 Properties.Settings.Default.Upgrade();
                 Properties.Settings.Default.UpdateSettings = false;
@@ -65,7 +71,8 @@ namespace NINA.Plugins.PolarAlignment {
             }
             ResetSettingsCommand = new GalaSoft.MvvmLight.Command.RelayCommand(ResetSettings);
             UniversalPolarAlignmentVM = new UniversalPolarAlignmentVM(profileService);
-            UniversalPolarAlignmentOAPAVM = new UniversalPolarAlignmentOAPAVM(profileService);
+            UniversalPolarAlignmentOAPAVM = new UniversalPolarAlignmentOAPAVM(
+                profileService, imagingMediator, telescopeMediator, plateSolverFactory);
             PluginId = this.Identifier;
         }
 
