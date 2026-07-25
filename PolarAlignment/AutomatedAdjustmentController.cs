@@ -18,15 +18,26 @@ namespace NINA.Plugins.PolarAlignment {
         /// </summary>
         private const double DefaultProbeMagnitude = 1.0;
         /// <summary>
+        /// With a large residual, minimum-size probes drown in solve noise. Probes scale with
+        /// this fraction of the measured error so the identification signal stays well above
+        /// the noise floor, clamped to stay gentle near the pole.
+        /// </summary>
+        private const double ProbeErrorFraction = 0.15;
+        /// <summary>
         /// Commands below this magnitude are ignored to avoid chattering around zero and to
         /// prevent learning from motions that are likely smaller than backlash or slop.
         /// </summary>
         private const double MinimumMoveMagnitude = 0.05;
         /// <summary>
-        /// Maximum correction magnitude issued in a single solve or move cycle.
-        /// Large residuals are intentionally corrected over multiple iterations.
+        /// Default maximum correction magnitude issued in a single solve or move cycle.
+        /// Large residuals are intentionally corrected over multiple iterations. Systems can
+        /// supply a different limit through <see cref="MaximumMoveMagnitude"/>.
         /// </summary>
-        private const double MaximumMoveMagnitude = 5.0;
+        internal const double DefaultMaximumMoveMagnitude = 5.0;
+        /// <summary>Lower bound accepted for <see cref="MaximumMoveMagnitude"/>.</summary>
+        internal const double MinimumConfigurableMoveMagnitude = 1.0;
+        /// <summary>Upper bound accepted for <see cref="MaximumMoveMagnitude"/>.</summary>
+        internal const double MaximumConfigurableMoveMagnitude = 30.0;
         /// <summary>
         /// Small damping term used as a numerical floor and as regularization when
         /// inverting the local response model.
@@ -46,13 +57,43 @@ namespace NINA.Plugins.PolarAlignment {
         /// Maximum number of recent identification samples retained in the local model.
         /// </summary>
         private const int MaxSamples = 12;
+        /// <summary>
+        /// Number of consecutive corrective executions that worsened the measured error
+        /// before the controller declares a runaway and stops issuing moves. Only
+        /// observations that follow an executed corrective plan are evaluated, so manual
+        /// alignments and solve noise can never trip the detection.
+        /// </summary>
+        private const int MaxConsecutiveWorsenings = 3;
+        /// <summary>
+        /// Noise margin (degrees) a post-move observation must exceed before it counts as a
+        /// worsening; keeps solve jitter from accumulating into a false runaway.
+        /// </summary>
+        private const double WorseningNoiseMarginDegrees = 0.05 / 60.0;
 
         private readonly Queue<ResponseSample> samples = new Queue<ResponseSample>();
         private AutomatedAdjustmentObservation currentObservation;
         private PendingPlan pendingPlan;
         private bool hasObservation;
+        private int consecutiveWorsenings;
+        private double maximumMoveMagnitude = DefaultMaximumMoveMagnitude;
 
         public int SampleCount => samples.Count;
+
+        /// <summary>
+        /// Gets whether consecutive corrective moves kept making the measured error worse,
+        /// indicating a wrong actuator model or calibration. When set, the controller stops
+        /// issuing moves until <see cref="Reset"/> is called.
+        /// </summary>
+        public bool RunawayDetected { get; private set; }
+
+        /// <summary>
+        /// Maximum correction magnitude issued in a single cycle, supplied per cycle by the
+        /// selected alignment system. Clamped to the configurable bounds.
+        /// </summary>
+        public double MaximumMoveMagnitude {
+            get => maximumMoveMagnitude;
+            set => maximumMoveMagnitude = Math.Max(MinimumConfigurableMoveMagnitude, Math.Min(MaximumConfigurableMoveMagnitude, value));
+        }
 
         /// <summary>
         /// Gets whether the current sample set is rich enough and well-conditioned enough
@@ -70,6 +111,8 @@ namespace NINA.Plugins.PolarAlignment {
             currentObservation = null;
             pendingPlan = null;
             hasObservation = false;
+            consecutiveWorsenings = 0;
+            RunawayDetected = false;
         }
 
         /// <summary>
@@ -89,8 +132,19 @@ namespace NINA.Plugins.PolarAlignment {
                                              deltaAzimuth,
                                              deltaAltitude));
 
-                if (!pendingPlan.Plan.IsProbe && latestObservation.TotalErrorDegrees > pendingPlan.BeforeMoveObservation.TotalErrorDegrees * ModelResetWorseningFactor) {
-                    samples.Clear();
+                if (!pendingPlan.Plan.IsProbe) {
+                    if (latestObservation.TotalErrorDegrees > pendingPlan.BeforeMoveObservation.TotalErrorDegrees + WorseningNoiseMarginDegrees) {
+                        consecutiveWorsenings++;
+                        if (consecutiveWorsenings >= MaxConsecutiveWorsenings) {
+                            RunawayDetected = true;
+                        }
+                    } else {
+                        consecutiveWorsenings = 0;
+                    }
+
+                    if (latestObservation.TotalErrorDegrees > pendingPlan.BeforeMoveObservation.TotalErrorDegrees * ModelResetWorseningFactor) {
+                        samples.Clear();
+                    }
                 }
 
                 pendingPlan = null;
@@ -110,6 +164,10 @@ namespace NINA.Plugins.PolarAlignment {
         public AutomatedAdjustmentPlan CreatePlan() {
             if (!hasObservation) {
                 return AutomatedAdjustmentPlan.Skip("No continuous error measurement is available yet.");
+            }
+
+            if (RunawayDetected) {
+                return AutomatedAdjustmentPlan.Skip($"Automated adjustments halted: the error increased for {MaxConsecutiveWorsenings} consecutive corrective moves. Calibration factors or backlash compensation are likely wrong.");
             }
 
             if (TryBuildResponseModel(out var responseModel)) {
@@ -162,15 +220,21 @@ namespace NINA.Plugins.PolarAlignment {
                 yExcitation += Math.Abs(sample.YMagnitude);
             }
 
+            // Scale the probe with the measured error so identification stays above solve
+            // noise on large residuals, while remaining gentle near the pole.
+            var errorMagnitude = currentObservation.TotalErrorDegrees * 60.0;
+            var probeMagnitude = Math.Max(DefaultProbeMagnitude,
+                                          Math.Min(errorMagnitude * ProbeErrorFraction, MaximumMoveMagnitude / 2.0));
+
             if (xExcitation <= yExcitation) {
-                return new AutomatedAdjustmentPlan(DefaultProbeMagnitude,
+                return new AutomatedAdjustmentPlan(probeMagnitude,
                                                    0,
                                                    true,
                                                    "Probing azimuth response");
             }
 
             return new AutomatedAdjustmentPlan(0,
-                                               DefaultProbeMagnitude,
+                                               probeMagnitude,
                                                true,
                                                "Probing altitude response");
         }
@@ -186,6 +250,7 @@ namespace NINA.Plugins.PolarAlignment {
             var candidates = new List<AutomatedAdjustmentPlan>();
 
             if (TrySolveLeastSquaresCommand(responseModel, observation, out var rawX, out var rawY)) {
+                candidates.Add(CreateScaledPlan(rawX, rawY, 0.75, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.5, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.25, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.125, "Adaptive two-axis correction"));
@@ -241,7 +306,7 @@ namespace NINA.Plugins.PolarAlignment {
         /// <summary>
         /// Scales and clamps a raw move candidate to the controller's safe operating bounds.
         /// </summary>
-        private static AutomatedAdjustmentPlan CreateScaledPlan(double xMagnitude, double yMagnitude, double scale, string reason) {
+        private AutomatedAdjustmentPlan CreateScaledPlan(double xMagnitude, double yMagnitude, double scale, string reason) {
             return new AutomatedAdjustmentPlan(NormalizeMagnitude(xMagnitude * scale),
                                                NormalizeMagnitude(yMagnitude * scale),
                                                false,
@@ -252,11 +317,11 @@ namespace NINA.Plugins.PolarAlignment {
         /// Creates a one-axis fallback move by projecting the current error onto a single
         /// actuator response vector.
         /// </summary>
-        private static bool TryCreateSingleAxisPlan(double azimuthDeltaPerUnit,
-                                                    double altitudeDeltaPerUnit,
-                                                    AutomatedAdjustmentObservation observation,
-                                                    bool xAxis,
-                                                    out AutomatedAdjustmentPlan plan) {
+        private bool TryCreateSingleAxisPlan(double azimuthDeltaPerUnit,
+                                             double altitudeDeltaPerUnit,
+                                             AutomatedAdjustmentObservation observation,
+                                             bool xAxis,
+                                             out AutomatedAdjustmentPlan plan) {
             var leverage = azimuthDeltaPerUnit * azimuthDeltaPerUnit + altitudeDeltaPerUnit * altitudeDeltaPerUnit;
             if (leverage <= NormalEquationDamping) {
                 plan = null;
@@ -376,7 +441,7 @@ namespace NINA.Plugins.PolarAlignment {
         /// <summary>
         /// Applies the controller's deadband and move clamp to a raw command magnitude.
         /// </summary>
-        private static double NormalizeMagnitude(double magnitude) {
+        private double NormalizeMagnitude(double magnitude) {
             if (Math.Abs(magnitude) < MinimumMoveMagnitude) {
                 return 0;
             }

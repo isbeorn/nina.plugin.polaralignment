@@ -41,6 +41,7 @@
     <s:String x:Key="ReverseAzimuthToolTip">Negates azimuth-axis nudge and move commands sent through the selected hardware system.</s:String>
     <s:String x:Key="ReverseAltitudeToolTip">Negates altitude-axis nudge and move commands sent through the selected hardware system.</s:String>
     <s:String x:Key="AzimuthBacklashCompensationToolTip">If non-zero and the azimuth movement direction changes, TPPA sends an extra negative-then-positive relative X move of this size after the main move.</s:String>
+    <s:String x:Key="MaxCorrectionMagnitudeToolTip">Safety ceiling for the per-cycle correction size of the automated OAPA adjustments. The effective limit auto-scales with the measured error (80% of the current total error, minimum 5); this value only caps it. Range 1-30 arcmin.</s:String>
     <s:String x:Key="AutomatedAdjustmentsToolTip">When enabled, TPPA calls its automated correction routine and sends nudge commands through the selected hardware system during the correction phase.</s:String>
     <s:String x:Key="AutomatedAdjustmentSettleTimeToolTip">Number of seconds TPPA waits after each automated adjustment before continuing.</s:String>
     <s:String x:Key="ResetSettingsToolTip">Shows a confirmation dialog and then resets the TPPA plugin settings to their default values.</s:String>
@@ -66,6 +67,7 @@
                             <ColumnDefinition />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -516,8 +518,30 @@
                                 Text="Make sure to set your gear ratio to achieve 1 arcminute per step for each axis!"
                                 Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </Grid>
-                        <Button
+                        <Grid Grid.Row="25" Visibility="{Binding IsOAPASelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock
+                                Margin="0,5,0,0"
+                                VerticalAlignment="Center"
+                                Text="Max correction per cycle"
+                                ToolTip="{StaticResource MaxCorrectionMagnitudeToolTip}"
+                                Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
+                        <Grid
                             Grid.Row="25"
+                            Grid.Column="1"
+                            Visibility="{Binding IsOAPASelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ninactrl:UnitTextBox
+                                MinWidth="80"
+                                Margin="5,5,0,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Text="{Binding OAPAMaxCorrectionMagnitude, StringFormat={}{0:0.#}}"
+                                ToolTip="{StaticResource MaxCorrectionMagnitudeToolTip}"
+                                Unit="arcmin"
+                                Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
+                        <Button
+                            Grid.Row="26"
                             Margin="0,20,0,0"
                             Command="{Binding ResetSettingsCommand}"
                             ToolTip="{StaticResource ResetSettingsToolTip}">

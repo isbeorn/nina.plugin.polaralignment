@@ -1,5 +1,11 @@
 # Changelog
 
+## Version 2.2.6.7
+- Automated adjustments: the per-cycle correction limit is now a **capability supplied by the selected alignment system**, re-evaluated each cycle. OAPA scales it with the measured error (80% of the current total error, floor 5) under a new "Max correction per cycle" safety ceiling (1-30 arcmin, default 30), so multi-degree initial errors converge in a handful of cycles with zero configuration. UPAS and manual behavior unchanged (stock limit).
+- Automated adjustments: **identification probes scale with the measured error** (15% of the error, clamped between 1 and half the per-cycle limit) so probes are not drowned by solve noise on large errors while staying gentle near the pole. A 75% correction candidate is evaluated alongside the existing ones.
+- Automated adjustments: **runaway detection** inside the correction controller — if consecutive corrective moves make the measured error worse (3 in a row, with a noise margin), the controller stops issuing moves, an error notification is shown, and the alignment pauses. Only observations following an executed corrective move are evaluated, so manual alignments and solve noise can never trip it.
+- Automated adjustments: **backlash clearing is skipped when the commanded nudge is smaller than the compensation** — with a large compensation and sub-arcminute nudges, the out-and-back clearing excursion injected more error than the nudge removed. Manual absolute moves still always clear on reversal.
+
 ## Version 2.2.6.5
 - Automatic completion now requires 2 consecutive solves below the alignment tolerance before finishing, so a single lucky solve cannot end a non-converged procedure. While a below-tolerance result awaits confirmation, automated corrections hold still so the confirmation solve measures the same state.
 

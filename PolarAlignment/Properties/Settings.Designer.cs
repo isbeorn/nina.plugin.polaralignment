@@ -457,6 +457,18 @@ namespace NINA.Plugins.PolarAlignment.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("30")]
+        public double OAPAMaxCorrectionMagnitude {
+            get {
+                return ((double)(this["OAPAMaxCorrectionMagnitude"]));
+            }
+            set {
+                this["OAPAMaxCorrectionMagnitude"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool OAPAReverseAzimuth {
             get {

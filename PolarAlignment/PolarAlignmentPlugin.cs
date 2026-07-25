@@ -51,6 +51,22 @@ namespace NINA.Plugins.PolarAlignment {
         public bool IsUPASSelected => SelectedPolarAlignmentSystem == PolarAlignmentSystemType.UPAS;
         public bool IsOAPASelected => SelectedPolarAlignmentSystem == PolarAlignmentSystemType.OAPA;
 
+        /// <summary>
+        /// Safety ceiling for the OAPA per-cycle correction, clamped to the controller's
+        /// configurable bounds. The effective limit auto-scales with the measured error and
+        /// never exceeds this value.
+        /// </summary>
+        public double OAPAMaxCorrectionMagnitude {
+            get => Properties.Settings.Default.OAPAMaxCorrectionMagnitude;
+            set {
+                var clamped = Math.Max(AutomatedAdjustmentController.MinimumConfigurableMoveMagnitude,
+                                       Math.Min(AutomatedAdjustmentController.MaximumConfigurableMoveMagnitude, value));
+                Properties.Settings.Default.OAPAMaxCorrectionMagnitude = clamped;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
         /// <summary>Instance wrapper for XAML binding with PropertyChanged support.</summary>
         public IPolarAlignmentSystemVM ActiveSystem => ActiveAlignmentSystemVM;
 

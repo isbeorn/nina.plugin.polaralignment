@@ -97,6 +97,26 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
+        public double MaxCorrectionMagnitude {
+            get => Properties.Settings.Default.OAPAMaxCorrectionMagnitude;
+            set {
+                Properties.Settings.Default.OAPAMaxCorrectionMagnitude = value;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// OAPA correction-limit policy: scale with the measured error (80% of the current
+        /// total error) so multi-degree initial errors converge in a handful of cycles,
+        /// with the controller default as the floor for a gentle final approach and the
+        /// user setting as a pure safety ceiling.
+        /// </summary>
+        public override double GetMaximumCorrectionMagnitude(double currentTotalErrorArcmin) {
+            var autoScaled = System.Math.Max(AutomatedAdjustmentController.DefaultMaximumMoveMagnitude, currentTotalErrorArcmin * 0.8);
+            return System.Math.Min(autoScaled, MaxCorrectionMagnitude);
+        }
+
         public int XRunCurrent {
             get => Properties.Settings.Default.OAPAXRunCurrent;
             set {

@@ -99,7 +99,7 @@ namespace NINA.Plugins.PolarAlignment {
                 var lastDirection = upa.XLastDirection;
                 await upa.MoveRelative(Axis.XAxis, XSpeed, position, token).ConfigureAwait(false);
                 var currentDirection = upa.XLastDirection;
-                await ClearBacklash(lastDirection, currentDirection, token);
+                await ClearBacklash(position, lastDirection, currentDirection, token);
                 return true;
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -153,7 +153,9 @@ namespace NINA.Plugins.PolarAlignment {
 
                 await upa.MoveAbsolute(Axis.XAxis, XSpeed, target, token).ConfigureAwait(false);
                 var currentDirection = upa.XLastDirection;
-                await ClearBacklash(lastDirection, currentDirection, token);
+                // Manual absolute moves always clear on reversal: the user expects the axis
+                // to land settled, and there is no fine-approach nudge context here.
+                await ClearBacklash(float.MaxValue, lastDirection, currentDirection, token);
             } catch (Exception ex) {
                 Logger.Error(ex);
                 if (ex is TimeoutException) {
@@ -164,15 +166,23 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
-        private async Task ClearBacklash(LastDirection lastDirection, LastDirection currentDirection, CancellationToken token) {
-            if (lastDirection != currentDirection) {
-                if (Math.Abs(XBacklashCompensation) > 0) {
-                    Logger.Info("Direction changed. Clearing backlash");
-                    var sequence = BacklashCompensationPlanner.CreateSequence(XBacklashCompensation, currentDirection);
-                    await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.FirstMove, token).ConfigureAwait(false);
-                    await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.SecondMove, token).ConfigureAwait(false);
-                }
+        private async Task ClearBacklash(float movedMagnitude, LastDirection lastDirection, LastDirection currentDirection, CancellationToken token) {
+            if (BacklashCompensationPlanner.ShouldClear(movedMagnitude, XBacklashCompensation, lastDirection, currentDirection)) {
+                Logger.Info("Direction changed. Clearing backlash");
+                var sequence = BacklashCompensationPlanner.CreateSequence(XBacklashCompensation, currentDirection);
+                await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.FirstMove, token).ConfigureAwait(false);
+                await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.SecondMove, token).ConfigureAwait(false);
+            } else if (lastDirection != currentDirection && Math.Abs(XBacklashCompensation) > 0) {
+                Logger.Info($"Direction changed but commanded move ({movedMagnitude:F2}) is smaller than the backlash compensation ({XBacklashCompensation:F2}); skipping backlash clearing");
             }
+        }
+
+        /// <summary>
+        /// Default correction-limit capability: the controller's stock per-cycle bound.
+        /// Systems with a specific policy (e.g. OAPA error-proportional scaling) override this.
+        /// </summary>
+        public virtual double GetMaximumCorrectionMagnitude(double currentTotalErrorArcmin) {
+            return AutomatedAdjustmentController.DefaultMaximumMoveMagnitude;
         }
 
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]

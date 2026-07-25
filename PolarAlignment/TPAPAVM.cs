@@ -66,10 +66,18 @@ namespace NINA.Plugins.PolarAlignment {
 
         private readonly AutomatedAdjustmentController automatedAdjustmentController = new AutomatedAdjustmentController();
         private bool lastContinuousEstimateStable = true;
+        private bool runawayNotified;
+
+        /// <summary>
+        /// True when the automated controller detected a runaway (consecutive corrective
+        /// moves made the error worse) and stopped issuing moves.
+        /// </summary>
+        public bool AutomatedAdjustmentsHalted => automatedAdjustmentController.RunawayDetected;
 
         public void ActivateFirstStep() {
             automatedAdjustmentController.Reset();
             lastContinuousEstimateStable = true;
+            runawayNotified = false;
             Steps[0].Active = true;
             Steps[0].Relevant = true;
         }
@@ -298,8 +306,20 @@ namespace NINA.Plugins.PolarAlignment {
                 return;
             }
 
+            // The per-cycle correction limit is a capability of the selected system,
+            // re-evaluated each cycle against the currently measured error.
+            var currentTotalErrorArcmin = Math.Abs(PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
+            automatedAdjustmentController.MaximumMoveMagnitude = activeSystem.GetMaximumCorrectionMagnitude(currentTotalErrorArcmin);
+
             var plan = automatedAdjustmentController.CreatePlan();
             if (!plan.HasMovement) {
+                if (automatedAdjustmentController.RunawayDetected && !runawayNotified) {
+                    runawayNotified = true;
+                    Logger.Error(plan.Reason);
+                    Notification.ShowError(
+                        $"{plan.Reason}{Environment.NewLine}" +
+                        "Re-check the calibration factors and backlash compensation, then restart the alignment. The error display remains active for manual adjustment.");
+                }
                 progress?.Report(new ApplicationStatus() { Status = plan.Reason });
                 return;
             }
