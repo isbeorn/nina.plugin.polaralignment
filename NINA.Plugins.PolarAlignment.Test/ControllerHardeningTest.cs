@@ -85,6 +85,49 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void RunawayUnderLargeCorrections_IsClassifiedAsCalibrationSuspect() {
+            // Corrections of >= 1 unit that keep worsening the error point at the actuator
+            // model: wrong calibration factors or backlash compensation.
+            var controller = new AutomatedAdjustmentController();
+            var error = 0.5;
+            controller.UpdateObservation(error, 0.0);
+
+            for (var i = 0; i < 3; i++) {
+                controller.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(5.0, 0.0, false, "corrective"));
+                error += 0.1;
+                controller.UpdateObservation(error, 0.0);
+            }
+
+            controller.RunawayDetected.Should().BeTrue();
+            controller.RunawayLikelyEstimateDrift.Should().BeFalse();
+            controller.CreatePlan().Reason.Should().Contain("Calibration factors");
+        }
+
+        [Test]
+        public void RunawayUnderSubNoiseCorrections_IsClassifiedAsEstimateDrift() {
+            // Field-observed failure mode: during a long fine phase the continuous error
+            // estimate drifts on its own while the loop issues tiny corrections. Blaming
+            // the calibration in that case is wrong and sends the user down a rabbit hole;
+            // the correct remedy is a fresh measurement.
+            var controller = new AutomatedAdjustmentController();
+            var error = 0.010;
+            controller.UpdateObservation(error, 0.0);
+
+            for (var i = 0; i < 3; i++) {
+                controller.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(0.4, 0.0, false, "corrective"));
+                error += 0.005;
+                controller.UpdateObservation(error, 0.0);
+            }
+
+            controller.RunawayDetected.Should().BeTrue();
+            controller.RunawayLikelyEstimateDrift.Should().BeTrue();
+            controller.CreatePlan().Reason.Should().Contain("estimate has likely drifted");
+
+            controller.Reset();
+            controller.RunawayLikelyEstimateDrift.Should().BeFalse();
+        }
+
+        [Test]
         public void ObservationsWithoutExecutedPlans_NeverTripRunaway() {
             // The manual-alignment path: solves arrive and the error may fluctuate or grow,
             // but no plan is ever executed, so runaway detection must stay silent.

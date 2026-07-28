@@ -69,12 +69,22 @@ namespace NINA.Plugins.PolarAlignment {
         /// worsening; keeps solve jitter from accumulating into a false runaway.
         /// </summary>
         private const double WorseningNoiseMarginDegrees = 0.05 / 60.0;
+        /// <summary>
+        /// A worsening streak whose largest corrective move stayed below this magnitude
+        /// (logical nudge units, ~arcminutes) cannot plausibly be explained by wrong
+        /// calibration factors: sub-noise corrections do not move the mount enough to
+        /// drive the error away. Field logs show this pattern when the continuous error
+        /// estimate itself has drifted over a long correction phase; the runaway message
+        /// must not blame the calibration in that case.
+        /// </summary>
+        private const double CalibrationSuspectCorrectionMagnitude = 1.0;
 
         private readonly Queue<ResponseSample> samples = new Queue<ResponseSample>();
         private AutomatedAdjustmentObservation currentObservation;
         private PendingPlan pendingPlan;
         private bool hasObservation;
         private int consecutiveWorsenings;
+        private double streakLargestCorrectionMagnitude;
         private double maximumMoveMagnitude = DefaultMaximumMoveMagnitude;
 
         public int SampleCount => samples.Count;
@@ -85,6 +95,14 @@ namespace NINA.Plugins.PolarAlignment {
         /// issuing moves until <see cref="Reset"/> is called.
         /// </summary>
         public bool RunawayDetected { get; private set; }
+
+        /// <summary>
+        /// True when the detected runaway streak consisted only of small corrective moves
+        /// (below <see cref="CalibrationSuspectCorrectionMagnitude"/>): the likely cause is
+        /// a drifted error estimate, not wrong calibration, and the recommended remedy is
+        /// re-running the alignment to obtain a fresh measurement.
+        /// </summary>
+        public bool RunawayLikelyEstimateDrift { get; private set; }
 
         /// <summary>
         /// Maximum correction magnitude issued in a single cycle, supplied per cycle by the
@@ -112,7 +130,9 @@ namespace NINA.Plugins.PolarAlignment {
             pendingPlan = null;
             hasObservation = false;
             consecutiveWorsenings = 0;
+            streakLargestCorrectionMagnitude = 0;
             RunawayDetected = false;
+            RunawayLikelyEstimateDrift = false;
         }
 
         /// <summary>
@@ -135,11 +155,15 @@ namespace NINA.Plugins.PolarAlignment {
                 if (!pendingPlan.Plan.IsProbe) {
                     if (latestObservation.TotalErrorDegrees > pendingPlan.BeforeMoveObservation.TotalErrorDegrees + WorseningNoiseMarginDegrees) {
                         consecutiveWorsenings++;
+                        streakLargestCorrectionMagnitude = Math.Max(streakLargestCorrectionMagnitude,
+                                                                    Math.Max(Math.Abs(pendingPlan.Plan.XMagnitude), Math.Abs(pendingPlan.Plan.YMagnitude)));
                         if (consecutiveWorsenings >= MaxConsecutiveWorsenings) {
                             RunawayDetected = true;
+                            RunawayLikelyEstimateDrift = streakLargestCorrectionMagnitude < CalibrationSuspectCorrectionMagnitude;
                         }
                     } else {
                         consecutiveWorsenings = 0;
+                        streakLargestCorrectionMagnitude = 0;
                     }
 
                     if (latestObservation.TotalErrorDegrees > pendingPlan.BeforeMoveObservation.TotalErrorDegrees * ModelResetWorseningFactor) {
@@ -167,6 +191,9 @@ namespace NINA.Plugins.PolarAlignment {
             }
 
             if (RunawayDetected) {
+                if (RunawayLikelyEstimateDrift) {
+                    return AutomatedAdjustmentPlan.Skip($"Automated adjustments halted: the error increased for {MaxConsecutiveWorsenings} consecutive corrective moves, but the corrections were small. The error estimate has likely drifted; re-run the alignment to obtain a fresh measurement.");
+                }
                 return AutomatedAdjustmentPlan.Skip($"Automated adjustments halted: the error increased for {MaxConsecutiveWorsenings} consecutive corrective moves. Calibration factors or backlash compensation are likely wrong.");
             }
 

@@ -316,9 +316,10 @@ namespace NINA.Plugins.PolarAlignment {
                 if (automatedAdjustmentController.RunawayDetected && !runawayNotified) {
                     runawayNotified = true;
                     Logger.Error(plan.Reason);
-                    Notification.ShowError(
-                        $"{plan.Reason}{Environment.NewLine}" +
-                        "Re-check the calibration factors and backlash compensation, then restart the alignment. The error display remains active for manual adjustment.");
+                    var remedy = automatedAdjustmentController.RunawayLikelyEstimateDrift
+                        ? "This is usually estimate drift, not a calibration problem: re-run the alignment to re-measure. The error display remains active for manual adjustment."
+                        : "Re-check the calibration factors and backlash compensation, then restart the alignment. The error display remains active for manual adjustment.";
+                    Notification.ShowError($"{plan.Reason}{Environment.NewLine}{remedy}");
                 }
                 progress?.Report(new ApplicationStatus() { Status = plan.Reason });
                 return;
