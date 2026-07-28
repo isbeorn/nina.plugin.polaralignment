@@ -36,8 +36,14 @@ namespace NINA.Plugins.PolarAlignment {
         internal const double DefaultMaximumMoveMagnitude = 5.0;
         /// <summary>Lower bound accepted for <see cref="MaximumMoveMagnitude"/>.</summary>
         internal const double MinimumConfigurableMoveMagnitude = 1.0;
-        /// <summary>Upper bound accepted for <see cref="MaximumMoveMagnitude"/>.</summary>
-        internal const double MaximumConfigurableMoveMagnitude = 30.0;
+        /// <summary>
+        /// Upper bound accepted for <see cref="MaximumMoveMagnitude"/>. Values above 30 are
+        /// an explicit opt-in for multi-degree initial errors: they halve the coarse-phase
+        /// cycle count (field-tested: 9°52' start converged in ~4.7 min at 60 vs ~6.5 min
+        /// at 30) at the cost of a proportionally larger worst-case excursion before the
+        /// runaway detection stops the moves.
+        /// </summary>
+        internal const double MaximumConfigurableMoveMagnitude = 60.0;
         /// <summary>
         /// Small damping term used as a numerical floor and as regularization when
         /// inverting the local response model.

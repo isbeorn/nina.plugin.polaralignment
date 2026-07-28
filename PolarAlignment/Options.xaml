@@ -41,7 +41,7 @@
     <s:String x:Key="ReverseAzimuthToolTip">Negates azimuth-axis nudge and move commands sent through the selected hardware system.</s:String>
     <s:String x:Key="ReverseAltitudeToolTip">Negates altitude-axis nudge and move commands sent through the selected hardware system.</s:String>
     <s:String x:Key="AzimuthBacklashCompensationToolTip">If non-zero and the azimuth movement direction changes, TPPA sends an extra negative-then-positive relative X move of this size after the main move.</s:String>
-    <s:String x:Key="MaxCorrectionMagnitudeToolTip">Safety ceiling for the per-cycle correction size of the automated OAPA adjustments. The effective limit auto-scales with the measured error (80% of the current total error, minimum 5); this value only caps it. Range 1-30 arcmin.</s:String>
+    <s:String x:Key="MaxCorrectionMagnitudeToolTip">Safety ceiling for the per-cycle correction size of the automated OAPA adjustments. The effective limit auto-scales with the measured error (80% of the current total error, minimum 5); this value only caps it. Range 1-60 arcmin, default 30; values above 30 are an opt-in for multi-degree initial errors — fewer coarse cycles, but a larger worst-case excursion before the runaway detection stops the moves.</s:String>
     <s:String x:Key="AutomatedAdjustmentsToolTip">When enabled, TPPA calls its automated correction routine and sends nudge commands through the selected hardware system during the correction phase.</s:String>
     <s:String x:Key="AutomatedAdjustmentSettleTimeToolTip">Number of seconds TPPA waits after each automated adjustment before continuing.</s:String>
     <s:String x:Key="ResetSettingsToolTip">Shows a confirmation dialog and then resets the TPPA plugin settings to their default values.</s:String>
