@@ -9,8 +9,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
     public class OapaCalibrationGeometryTest {
 
-        private static CalibrationSolveSample Sample(double raDeg, double decDeg, double altDeg = 30) =>
-            new(raDeg, decDeg, altDeg);
+        private static CalibrationSolveSample Sample(double raDeg, double decDeg, double altDeg = 30, double azDeg = 100) =>
+            new(raDeg, decDeg, altDeg, azDeg);
 
         [Test]
         public void AngularSeparation_OneDegreeOfDec_IsOneDegree() {
@@ -43,16 +43,45 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public void TangentDotProduct_AntiparallelDisplacements_IsNegative() {
-            var a1 = Sample(10, 0);
-            var a2 = Sample(10, 0.5);
-            OapaCalibrationGeometry.TangentDotProduct(a1, a2, a2, a1).Should().BeNegative();
+        public void SignedDisplacement_AltitudeRisesOnPositiveCommand_IsConsistent() {
+            var a = Sample(10, 0, altDeg: 30);
+            var b = Sample(10, 0.5, altDeg: 30.75);
+            OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuthAxis: false, a, b, 45f).Should().BeTrue();
+            OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuthAxis: false, a, b, -45f).Should().BeFalse();
+        }
+
+        [Test]
+        public void SignedDisplacement_AltitudeFallsOnPositiveCommand_IsInconsistent() {
+            // A physically reversed altitude axis: the field drops when commanded up.
+            var a = Sample(10, 0, altDeg: 30);
+            var b = Sample(10, -0.5, altDeg: 29.25);
+            OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuthAxis: false, a, b, 45f).Should().BeFalse();
+            OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuthAxis: false, a, b, -45f).Should().BeTrue();
+        }
+
+        [Test]
+        public void SignedDisplacement_AzimuthUsesTopocentricAzimuth() {
+            var a = Sample(10, 0, azDeg: 100.0);
+            var b = Sample(10.5, 0, azDeg: 100.75);
+            OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuthAxis: true, a, b, 45f).Should().BeTrue();
+            OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuthAxis: true, a, b, -45f).Should().BeFalse();
+        }
+
+        [Test]
+        public void SignedDisplacement_AzimuthAcrossNorth_KeepsItsSign() {
+            // 359.9° -> 0.65° is +0.75° of azimuth, not -359.25°: the wrap must not flip the verdict.
+            var a = Sample(10, 0, azDeg: 359.9);
+            var b = Sample(10.5, 0, azDeg: 0.65);
+            OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuthAxis: true, a, b, 45f).Should().BeTrue();
+
+            var back = OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuthAxis: true, b, a, 45f);
+            back.Should().BeFalse("0.65° -> 359.9° is negative azimuth motion");
         }
 
         [Test]
         public void ComputeAxisCalibration_CleanLegs_YieldRatioAndZeroBacklash() {
             // Commanded 45' with ratio 100 moved the sky by 45' on every leg: ratio confirmed, no backlash.
-            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 45.0, 45.0, tangentDotNegative: true);
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 45.0, 45.0, directionConsistent: true);
             r.Ratio.Should().BeApproximately(100f, 0.01f);
             r.BacklashArcmin.Should().Be(0f);
             r.Consistent.Should().BeTrue();
@@ -62,14 +91,14 @@ namespace NINA.Plugins.PolarAlignment.Test {
         [Test]
         public void ComputeAxisCalibration_ReversalShortfall_IsMeasuredAsBacklash() {
             // Clean legs 45', reversal leg only 40': 5' lost to backlash.
-            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 40.0, 45.0, tangentDotNegative: true);
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 40.0, 45.0, directionConsistent: true);
             r.BacklashArcmin.Should().BeApproximately(5f, 0.01f);
         }
 
         [Test]
         public void ComputeAxisCalibration_RatioScalesWithMeasuredMotion() {
             // Commanded 45' only moved the sky 22.5': the true ratio is double the current one.
-            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 22.5, 22.5, 22.5, tangentDotNegative: true);
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 22.5, 22.5, 22.5, directionConsistent: true);
             r.Ratio.Should().BeApproximately(200f, 0.01f);
         }
 
@@ -80,7 +109,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             // physical backlash is 2.5'. The old formula returned 5' (the shortfall scaled
             // back into the obsolete command system), which after Apply would double the
             // compensation moves.
-            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 22.5, 20.0, 22.5, tangentDotNegative: true);
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 22.5, 20.0, 22.5, directionConsistent: true);
             r.Ratio.Should().BeApproximately(200f, 0.01f);
             r.BacklashArcmin.Should().BeApproximately(2.5f, 0.01f);
         }
@@ -94,7 +123,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 (100f, 100f, 5.0), (100f, 200f, 2.5), (200f, 100f, 10.0), (50f, 150f, 1.0) }) {
                 var clean = 45.0 * currentRatio / trueRatio;
                 var reversal = clean - physicalBacklash;
-                var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, currentRatio, clean, reversal, clean, tangentDotNegative: true);
+                var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, currentRatio, clean, reversal, clean, directionConsistent: true);
                 r.BacklashArcmin.Should().BeApproximately((float)physicalBacklash, 0.01f,
                     $"currentRatio={currentRatio}, trueRatio={trueRatio}");
             }
@@ -105,28 +134,28 @@ namespace NINA.Plugins.PolarAlignment.Test {
             // With a wrong ratio the physical legs are 22.5'; a 17.5' shortfall exceeds half
             // of the physical leg and must clamp against it, not against the commanded 45'.
             var warnings = new List<string>();
-            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 22.5, 5.0, 22.5, tangentDotNegative: true, warnings.Add);
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 22.5, 5.0, 22.5, directionConsistent: true, warnings.Add);
             r.BacklashArcmin.Should().BeApproximately(11.25f, 0.01f);
             warnings.Should().ContainSingle(w => w.Contains("clamping"));
         }
 
         [Test]
         public void ComputeAxisCalibration_LegAsymmetryAboveThreshold_IsFlagged() {
-            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 40.0, 30.0, tangentDotNegative: true);
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 40.0, 30.0, directionConsistent: true);
             r.Asymmetric.Should().BeTrue();
         }
 
         [Test]
         public void ComputeAxisCalibration_ExcessiveBacklash_IsClampedWithWarning() {
             var warnings = new List<string>();
-            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 10.0, 45.0, tangentDotNegative: true, warnings.Add);
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 10.0, 45.0, directionConsistent: true, warnings.Add);
             r.BacklashArcmin.Should().Be(22.5f);
             warnings.Should().ContainSingle(w => w.Contains("clamping"));
         }
 
         [Test]
         public void ComputeAxisCalibration_NoMeasurableMotion_Throws() {
-            var act = () => OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 0.05, 0.0, 0.05, tangentDotNegative: true);
+            var act = () => OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 0.05, 0.0, 0.05, directionConsistent: true);
             act.Should().Throw<InvalidOperationException>().WithMessage("*did not move*");
         }
     }
@@ -136,19 +165,23 @@ namespace NINA.Plugins.PolarAlignment.Test {
         /// <summary>
         /// Simulates an axis with a physical response and backlash. The backlash lives in the
         /// mechanics, so it is expressed in physical arcminutes and subtracted after the
-        /// response scaling. Solves report the accumulated physical position as a Dec offset
-        /// (1:1 for the altitude axis).
+        /// response scaling. A direction sign of -1 models physically inverted wiring: the
+        /// axis moves opposite to the commanded direction. Solves report the accumulated
+        /// physical position as a Dec offset and as topocentric altitude (1:1 for the
+        /// altitude axis).
         /// </summary>
         private sealed class FakeAxis : IOapaCalibrationMotion, IOapaCalibrationSolver {
             private readonly double responseScale;
             private readonly double physicalBacklashArcmin;
+            private readonly int directionSign;
             private double physicalPositionArcmin;
             private int lastSign;
             public readonly List<float> CommandedMoves = new();
 
-            public FakeAxis(double responseScale, double physicalBacklashArcmin) {
+            public FakeAxis(double responseScale, double physicalBacklashArcmin, int directionSign = 1) {
                 this.responseScale = responseScale;
                 this.physicalBacklashArcmin = physicalBacklashArcmin;
+                this.directionSign = directionSign;
             }
 
             public Task MoveRelative(Axis axis, float arcmin, CancellationToken token) {
@@ -159,12 +192,13 @@ namespace NINA.Plugins.PolarAlignment.Test {
                     effective = Math.Max(0, effective - physicalBacklashArcmin);
                 }
                 if (sign != 0) { lastSign = sign; }
-                physicalPositionArcmin += sign * effective;
+                physicalPositionArcmin += sign * directionSign * effective;
                 return Task.CompletedTask;
             }
 
             public Task<CalibrationSolveSample> CaptureAndSolve(CancellationToken token) {
-                return Task.FromResult(new CalibrationSolveSample(10.0, physicalPositionArcmin / 60.0, 30.0));
+                return Task.FromResult(new CalibrationSolveSample(
+                    10.0, physicalPositionArcmin / 60.0, 30.0 + physicalPositionArcmin / 60.0, 100.0));
             }
         }
 
@@ -184,6 +218,48 @@ namespace NINA.Plugins.PolarAlignment.Test {
             outcome.BacklashArcmin.Should().BeApproximately(5f, 0.5f, "backlash is physical axis arcminutes");
             outcome.Consistent.Should().BeTrue();
             outcome.Flipped.Should().BeFalse();
+        }
+
+        [Test]
+        public async Task Calibration_InvertedPhysicalResponse_FlipsAndSucceeds() {
+            // The axis physically moves opposite to the commanded direction. The first pass
+            // must detect the direction mismatch, the auto-flip retry must succeed, and the
+            // outcome must report Flipped so the caller persists the corrected Reverse flag.
+            var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 0.0, directionSign: -1);
+            var service = new OapaCalibrationService(axis, axis);
+
+            var outcome = await service.CalibrateAxisWithAutoReverse(
+                Axis.YAxis, currentRatio: 100f, reversed: false, "Y", null, CancellationToken.None);
+
+            outcome.Flipped.Should().BeTrue("an inverted physical response must be resolved by flipping Reverse");
+            outcome.Consistent.Should().BeTrue();
+            outcome.Ratio.Should().BeApproximately(100f, 1f);
+        }
+
+        private sealed class AlwaysNegativeAxis : IOapaCalibrationMotion, IOapaCalibrationSolver {
+            private double physicalPositionArcmin;
+            public Task MoveRelative(Axis axis, float arcmin, CancellationToken token) {
+                physicalPositionArcmin -= Math.Abs(arcmin);
+                return Task.CompletedTask;
+            }
+            public Task<CalibrationSolveSample> CaptureAndSolve(CancellationToken token) {
+                return Task.FromResult(new CalibrationSolveSample(
+                    10.0, physicalPositionArcmin / 60.0, 30.0 + physicalPositionArcmin / 60.0, 100.0));
+            }
+        }
+
+        [Test]
+        public async Task Calibration_DirectionUnresolvableByFlip_ReportsInconsistent() {
+            // An axis that always drifts the same way no matter the command: flipping Reverse
+            // cannot fix it, so the outcome must surface the inconsistency without a flip.
+            var axis = new AlwaysNegativeAxis();
+            var service = new OapaCalibrationService(axis, axis);
+
+            var outcome = await service.CalibrateAxisWithAutoReverse(
+                Axis.YAxis, currentRatio: 100f, reversed: false, "Y", null, CancellationToken.None);
+
+            outcome.Flipped.Should().BeFalse();
+            outcome.Consistent.Should().BeFalse();
         }
 
         [Test]
@@ -237,7 +313,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         private sealed class ZenithSolver : IOapaCalibrationSolver {
             public Task<CalibrationSolveSample> CaptureAndSolve(CancellationToken token) =>
-                Task.FromResult(new CalibrationSolveSample(10.0, 0.0, 85.0));
+                Task.FromResult(new CalibrationSolveSample(10.0, 0.0, 85.0, 100.0));
         }
     }
 }

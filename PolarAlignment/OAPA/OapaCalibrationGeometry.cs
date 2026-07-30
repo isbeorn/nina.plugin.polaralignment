@@ -4,9 +4,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
     /// <summary>
     /// A single plate-solved sample used by the OAPA self-calibration: the solved
-    /// field center plus its topocentric altitude at solve time.
+    /// field center plus its topocentric altitude and azimuth at solve time.
     /// </summary>
-    public readonly record struct CalibrationSolveSample(double RADegrees, double DecDegrees, double AltitudeDegrees);
+    public readonly record struct CalibrationSolveSample(double RADegrees, double DecDegrees, double AltitudeDegrees, double AzimuthDegrees);
 
     /// <summary>
     /// Result of calibrating a single axis from the four-solve leg sequence.
@@ -22,7 +22,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// </summary>
         public float BacklashArcmin { get; init; }
 
-        /// <summary>True when the forward and reversal legs are antiparallel on the tangent plane.</summary>
+        /// <summary>True when the forward leg moved in the topocentric direction the logical command asked for.</summary>
         public bool Consistent { get; init; }
 
         /// <summary>True when the two backlash-free legs disagree by more than the asymmetry threshold.</summary>
@@ -76,16 +76,25 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         }
 
         /// <summary>
-        /// Dot product of the displacement vectors a1→a2 and b1→b2 projected on the tangent
-        /// plane (RA·cos(dec), Dec) around a1. Negative means antiparallel displacements.
+        /// Whether the observed topocentric displacement between two samples matches the sign
+        /// of the logical command that produced it. A positive logical azimuth command must
+        /// increase the field's topocentric azimuth and a positive logical altitude command
+        /// its topocentric altitude — the convention the correction controller and the manual
+        /// nudge buttons assume. A physically reversed axis produces the opposite topocentric
+        /// direction, so this check fails on the first pass and succeeds after the Reverse
+        /// flag is flipped, which is what makes the auto-flip retry reachable.
         /// </summary>
-        public static double TangentDotProduct(CalibrationSolveSample a1, CalibrationSolveSample a2, CalibrationSolveSample b1, CalibrationSolveSample b2) {
-            double cosDec = Math.Cos(a1.DecDegrees * Math.PI / 180.0);
-            double vxA = (a2.RADegrees - a1.RADegrees) * cosDec;
-            double vyA = a2.DecDegrees - a1.DecDegrees;
-            double vxB = (b2.RADegrees - b1.RADegrees) * cosDec;
-            double vyB = b2.DecDegrees - b1.DecDegrees;
-            return vxA * vxB + vyA * vyB;
+        public static bool SignedDisplacementMatchesCommand(bool isAzimuthAxis, CalibrationSolveSample from, CalibrationSolveSample to, float logicalCommand) {
+            double delta = isAzimuthAxis
+                ? WrapDegrees(to.AzimuthDegrees - from.AzimuthDegrees)
+                : to.AltitudeDegrees - from.AltitudeDegrees;
+            return Math.Sign(delta) == Math.Sign(logicalCommand);
+        }
+
+        /// <summary>Maps an angle difference into (−180°, 180°] so azimuth deltas across north keep their sign.</summary>
+        private static double WrapDegrees(double degrees) {
+            var wrapped = degrees - 360.0 * Math.Round(degrees / 360.0);
+            return wrapped == -180.0 ? 180.0 : wrapped;
         }
 
         /// <summary>
@@ -99,7 +108,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         public static AxisCalibrationResult ComputeAxisCalibration(
             float commandedArcmin, float currentRatio,
             double forwardArcmin, double reversalArcmin, double reverseArcmin,
-            bool tangentDotNegative,
+            bool directionConsistent,
             Action<string> warn = null) {
 
             if (forwardArcmin < 0.1 || reverseArcmin < 0.1) {
@@ -133,7 +142,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             return new AxisCalibrationResult {
                 Ratio = observedRatio,
                 BacklashArcmin = backlash,
-                Consistent = tangentDotNegative,
+                Consistent = directionConsistent,
                 Asymmetric = asymmetric
             };
         }

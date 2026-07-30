@@ -128,10 +128,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 var forwardArcmin = OapaCalibrationGeometry.AxisDisplacementArcmin(isAzimuth, solveA, solveB);
                 var reversalArcmin = OapaCalibrationGeometry.AxisDisplacementArcmin(isAzimuth, solveB, solveC);
                 var reverseArcmin = OapaCalibrationGeometry.AxisDisplacementArcmin(isAzimuth, solveC, solveD);
-                var tangentDotNegative = OapaCalibrationGeometry.TangentDotProduct(solveA, solveB, solveB, solveC) < 0;
+                var directionConsistent = OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuth, solveA, solveB, commanded);
 
                 var result = OapaCalibrationGeometry.ComputeAxisCalibration(
-                    commanded, currentRatio, forwardArcmin, reversalArcmin, reverseArcmin, tangentDotNegative,
+                    commanded, currentRatio, forwardArcmin, reversalArcmin, reverseArcmin, directionConsistent,
                     warning => Logger.Warning($"OAPA cal {axisLabel}: {warning}"));
 
                 Logger.Info($"OAPA cal {axisLabel}: forward={forwardArcmin:F2}', reversal={reversalArcmin:F2}', reverse={reverseArcmin:F2}', " +

@@ -63,7 +63,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             var latitude = Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Latitude);
             var longitude = Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Longitude);
             var topocentric = solve.Coordinates.Transform(latitude, longitude, solve.Coordinates.DateTime.Now);
-            return new CalibrationSolveSample(solve.Coordinates.RADegrees, solve.Coordinates.Dec, topocentric.Altitude.Degree);
+            return new CalibrationSolveSample(solve.Coordinates.RADegrees, solve.Coordinates.Dec, topocentric.Altitude.Degree, topocentric.Azimuth.Degree);
         }
 
         private async Task<PlateSolveResult> CaptureAndSolveOnce(CancellationToken token) {
