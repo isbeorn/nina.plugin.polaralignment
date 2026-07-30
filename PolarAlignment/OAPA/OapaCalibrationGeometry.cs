@@ -15,7 +15,11 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// <summary>Discovered calibration factor (motor units per arcminute of axis motion).</summary>
         public float Ratio { get; init; }
 
-        /// <summary>Mechanical backlash measured from the reversal-leg shortfall, in arcminutes.</summary>
+        /// <summary>
+        /// Mechanical backlash measured from the reversal-leg shortfall, in physical axis
+        /// arcminutes (clean − reversal). Physical units make the value valid under the
+        /// discovered <see cref="Ratio"/> when later converted into compensation moves.
+        /// </summary>
         public float BacklashArcmin { get; init; }
 
         /// <summary>True when the forward and reversal legs are antiparallel on the tangent plane.</summary>
@@ -105,13 +109,17 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             var cleanArcmin = (forwardArcmin + reverseArcmin) / 2.0;
             float observedRatio = (float)(currentRatio * (commandedArcmin / cleanArcmin));
 
-            // The reversal leg lost this much commanded motion to backlash.
-            var backlash = (float)(commandedArcmin * (1.0 - reversalArcmin / cleanArcmin));
+            // The reversal leg physically comes up short by exactly the mechanical backlash.
+            // Measuring the shortfall directly keeps the value in physical axis arcminutes,
+            // valid under the discovered ratio: expressing it via the commanded size would
+            // scale it by the obsolete currentRatio and mis-size every later compensation
+            // move once the new ratio is applied.
+            var backlash = (float)(cleanArcmin - reversalArcmin);
             if (backlash < 0f) {
                 backlash = 0f;
-            } else if (backlash > commandedArcmin / 2f) {
-                warn?.Invoke($"Measured backlash {backlash:F2}' exceeds half the calibration step; clamping. Check for mechanical slippage.");
-                backlash = commandedArcmin / 2f;
+            } else if (backlash > cleanArcmin / 2.0) {
+                warn?.Invoke($"Measured backlash {backlash:F2}' exceeds half the physical calibration leg; clamping. Check for mechanical slippage.");
+                backlash = (float)(cleanArcmin / 2.0);
             }
 
             // The two clean legs measure the same physical motion; a large mismatch means the

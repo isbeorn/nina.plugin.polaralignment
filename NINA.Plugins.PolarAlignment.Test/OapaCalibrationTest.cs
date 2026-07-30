@@ -74,6 +74,43 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void ComputeAxisCalibration_WrongRatio_BacklashIsPhysical() {
+            // Regression for the coordinate-system bug: current ratio 100, true ratio 200.
+            // Commanded 45' legs physically move 22.5'; the reversal moves 20', so the
+            // physical backlash is 2.5'. The old formula returned 5' (the shortfall scaled
+            // back into the obsolete command system), which after Apply would double the
+            // compensation moves.
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 22.5, 20.0, 22.5, tangentDotNegative: true);
+            r.Ratio.Should().BeApproximately(200f, 0.01f);
+            r.BacklashArcmin.Should().BeApproximately(2.5f, 0.01f);
+        }
+
+        [Test]
+        public void ComputeAxisCalibration_BacklashEqualsPhysicalShortfallAcrossRatios() {
+            // Invariant: whatever the ratio error, BacklashArcmin is the physical shortfall
+            // clean - reversal, so compensating by it under the discovered ratio reproduces
+            // exactly the lost physical motion.
+            foreach (var (currentRatio, trueRatio, physicalBacklash) in new[] {
+                (100f, 100f, 5.0), (100f, 200f, 2.5), (200f, 100f, 10.0), (50f, 150f, 1.0) }) {
+                var clean = 45.0 * currentRatio / trueRatio;
+                var reversal = clean - physicalBacklash;
+                var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, currentRatio, clean, reversal, clean, tangentDotNegative: true);
+                r.BacklashArcmin.Should().BeApproximately((float)physicalBacklash, 0.01f,
+                    $"currentRatio={currentRatio}, trueRatio={trueRatio}");
+            }
+        }
+
+        [Test]
+        public void ComputeAxisCalibration_ExcessiveBacklash_ClampsAgainstPhysicalLeg() {
+            // With a wrong ratio the physical legs are 22.5'; a 17.5' shortfall exceeds half
+            // of the physical leg and must clamp against it, not against the commanded 45'.
+            var warnings = new List<string>();
+            var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 22.5, 5.0, 22.5, tangentDotNegative: true, warnings.Add);
+            r.BacklashArcmin.Should().BeApproximately(11.25f, 0.01f);
+            warnings.Should().ContainSingle(w => w.Contains("clamping"));
+        }
+
+        [Test]
         public void ComputeAxisCalibration_LegAsymmetryAboveThreshold_IsFlagged() {
             var r = OapaCalibrationGeometry.ComputeAxisCalibration(45f, 100f, 45.0, 40.0, 30.0, tangentDotNegative: true);
             r.Asymmetric.Should().BeTrue();
@@ -97,30 +134,32 @@ namespace NINA.Plugins.PolarAlignment.Test {
     public class OapaCalibrationServiceTest {
 
         /// <summary>
-        /// Simulates an axis with a physical response and backlash. Solves report the
-        /// accumulated physical position as a Dec offset (1:1 for the altitude axis).
+        /// Simulates an axis with a physical response and backlash. The backlash lives in the
+        /// mechanics, so it is expressed in physical arcminutes and subtracted after the
+        /// response scaling. Solves report the accumulated physical position as a Dec offset
+        /// (1:1 for the altitude axis).
         /// </summary>
         private sealed class FakeAxis : IOapaCalibrationMotion, IOapaCalibrationSolver {
             private readonly double responseScale;
-            private readonly double backlashArcmin;
+            private readonly double physicalBacklashArcmin;
             private double physicalPositionArcmin;
             private int lastSign;
             public readonly List<float> CommandedMoves = new();
 
-            public FakeAxis(double responseScale, double backlashArcmin) {
+            public FakeAxis(double responseScale, double physicalBacklashArcmin) {
                 this.responseScale = responseScale;
-                this.backlashArcmin = backlashArcmin;
+                this.physicalBacklashArcmin = physicalBacklashArcmin;
             }
 
             public Task MoveRelative(Axis axis, float arcmin, CancellationToken token) {
                 CommandedMoves.Add(arcmin);
                 var sign = Math.Sign(arcmin);
-                double effective = Math.Abs(arcmin);
+                double effective = Math.Abs(arcmin) * responseScale;
                 if (sign != 0 && lastSign != 0 && sign != lastSign) {
-                    effective = Math.Max(0, effective - backlashArcmin);
+                    effective = Math.Max(0, effective - physicalBacklashArcmin);
                 }
                 if (sign != 0) { lastSign = sign; }
-                physicalPositionArcmin += sign * effective * responseScale;
+                physicalPositionArcmin += sign * effective;
                 return Task.CompletedTask;
             }
 
@@ -130,23 +169,26 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task Calibration_RecoversResponseAndBacklash() {
-            // The axis physically moves half of what is commanded and loses 5' on reversal.
-            var axis = new FakeAxis(responseScale: 0.5, backlashArcmin: 5.0);
+        public async Task Calibration_RecoversResponseAndPhysicalBacklash() {
+            // The axis physically moves half of what is commanded and its mechanics lose
+            // 5 physical arcminutes on reversal. The discovered backlash must be those
+            // 5 physical arcminutes — not the shortfall re-expressed in the obsolete
+            // command system (which would be 10').
+            var axis = new FakeAxis(responseScale: 0.5, physicalBacklashArcmin: 5.0);
             var service = new OapaCalibrationService(axis, axis);
 
             var outcome = await service.CalibrateAxisWithAutoReverse(
                 Axis.YAxis, currentRatio: 100f, reversed: false, "Y", null, CancellationToken.None);
 
             outcome.Ratio.Should().BeApproximately(200f, 1f, "half the motion means double the factor");
-            outcome.BacklashArcmin.Should().BeApproximately(5f, 0.5f);
+            outcome.BacklashArcmin.Should().BeApproximately(5f, 0.5f, "backlash is physical axis arcminutes");
             outcome.Consistent.Should().BeTrue();
             outcome.Flipped.Should().BeFalse();
         }
 
         [Test]
         public async Task Calibration_NetCommandedMotionIsZero() {
-            var axis = new FakeAxis(responseScale: 1.0, backlashArcmin: 0.0);
+            var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 0.0);
             var service = new OapaCalibrationService(axis, axis);
 
             await service.CalibrateAxisWithAutoReverse(Axis.YAxis, 100f, false, "Y", null, CancellationToken.None);
@@ -170,7 +212,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         [Test]
         public async Task MidSequenceFailure_DrivesAccumulatedMotionBack() {
-            var axis = new FakeAxis(responseScale: 1.0, backlashArcmin: 0.0);
+            var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 0.0);
             // Baseline and solve A succeed; solve B fails, leaving two commanded legs outstanding.
             var service = new OapaCalibrationService(axis, new FailingSolver(axis, failFrom: 3));
 
@@ -184,7 +226,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         [Test]
         public void BaselineNearZenith_AbortsAzimuthBeforeAnyMotion() {
-            var axis = new FakeAxis(responseScale: 1.0, backlashArcmin: 0.0);
+            var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 0.0);
             var zenithSolver = new ZenithSolver();
             var service = new OapaCalibrationService(axis, zenithSolver);
 
