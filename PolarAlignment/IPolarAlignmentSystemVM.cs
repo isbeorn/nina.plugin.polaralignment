@@ -14,6 +14,13 @@ namespace NINA.Plugins.PolarAlignment {
         /// </summary>
         double GetMaximumCorrectionMagnitude(double currentTotalErrorArcmin);
 
+        /// <summary>
+        /// Whether the automated controller may use the aggressive correction profile
+        /// (error-scaled probes, 75% correction candidate) with this system. Systems
+        /// without a specific policy keep the legacy conservative profile.
+        /// </summary>
+        bool AggressiveCorrectionProfile { get; }
+
         Task Connect();
         void Disconnect();
         Task<bool> TryNudgeX(float position, CancellationToken token);

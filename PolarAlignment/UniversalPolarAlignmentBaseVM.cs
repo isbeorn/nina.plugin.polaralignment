@@ -178,6 +178,12 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         /// <summary>
+        /// The base policy keeps the legacy conservative controller profile; systems whose
+        /// hardware tolerates faster convergence (OAPA) opt into the aggressive one.
+        /// </summary>
+        public virtual bool AggressiveCorrectionProfile => false;
+
+        /// <summary>
         /// Default correction-limit capability: the controller's stock per-cycle bound.
         /// Systems with a specific policy (e.g. OAPA error-proportional scaling) override this.
         /// </summary>

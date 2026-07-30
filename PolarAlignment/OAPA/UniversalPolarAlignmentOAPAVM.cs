@@ -106,6 +106,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
+        // OAPA hardware tolerates the faster profile: error-scaled probes and the 75%
+        // correction candidate. UPAS and other systems keep the legacy behavior.
+        public override bool AggressiveCorrectionProfile => true;
+
         /// <summary>
         /// OAPA correction-limit policy: scale with the measured error (80% of the current
         /// total error) so multi-degree initial errors converge in a handful of cycles,

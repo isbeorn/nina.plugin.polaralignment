@@ -111,6 +111,15 @@ namespace NINA.Plugins.PolarAlignment {
         public bool RunawayLikelyEstimateDrift { get; private set; }
 
         /// <summary>
+        /// Opt-in correction profile supplied by the selected alignment system. The default
+        /// (false) reproduces the legacy controller exactly: fixed 1-unit probes and
+        /// correction candidates capped at 50% of the raw solution. OAPA opts into the
+        /// aggressive profile, which scales probes with the measured error and adds a 75%
+        /// correction candidate for faster convergence on multi-degree errors.
+        /// </summary>
+        public bool AggressiveCorrections { get; set; }
+
+        /// <summary>
         /// Maximum correction magnitude issued in a single cycle, supplied per cycle by the
         /// selected alignment system. Clamped to the configurable bounds.
         /// </summary>
@@ -253,11 +262,15 @@ namespace NINA.Plugins.PolarAlignment {
                 yExcitation += Math.Abs(sample.YMagnitude);
             }
 
-            // Scale the probe with the measured error so identification stays above solve
-            // noise on large residuals, while remaining gentle near the pole.
-            var errorMagnitude = currentObservation.TotalErrorDegrees * 60.0;
-            var probeMagnitude = Math.Max(DefaultProbeMagnitude,
+            // Aggressive profile only: scale the probe with the measured error so
+            // identification stays above solve noise on large residuals, while remaining
+            // gentle near the pole. The legacy profile keeps the fixed default probe.
+            var probeMagnitude = DefaultProbeMagnitude;
+            if (AggressiveCorrections) {
+                var errorMagnitude = currentObservation.TotalErrorDegrees * 60.0;
+                probeMagnitude = Math.Max(DefaultProbeMagnitude,
                                           Math.Min(errorMagnitude * ProbeErrorFraction, MaximumMoveMagnitude / 2.0));
+            }
 
             if (xExcitation <= yExcitation) {
                 return new AutomatedAdjustmentPlan(probeMagnitude,
@@ -283,7 +296,9 @@ namespace NINA.Plugins.PolarAlignment {
             var candidates = new List<AutomatedAdjustmentPlan>();
 
             if (TrySolveLeastSquaresCommand(responseModel, observation, out var rawX, out var rawY)) {
-                candidates.Add(CreateScaledPlan(rawX, rawY, 0.75, "Adaptive two-axis correction"));
+                if (AggressiveCorrections) {
+                    candidates.Add(CreateScaledPlan(rawX, rawY, 0.75, "Adaptive two-axis correction"));
+                }
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.5, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.25, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.125, "Adaptive two-axis correction"));

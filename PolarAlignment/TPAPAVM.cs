@@ -310,6 +310,7 @@ namespace NINA.Plugins.PolarAlignment {
             // re-evaluated each cycle against the currently measured error.
             var currentTotalErrorArcmin = Math.Abs(PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
             automatedAdjustmentController.MaximumMoveMagnitude = activeSystem.GetMaximumCorrectionMagnitude(currentTotalErrorArcmin);
+            automatedAdjustmentController.AggressiveCorrections = activeSystem.AggressiveCorrectionProfile;
 
             var plan = automatedAdjustmentController.CreatePlan();
             if (!plan.HasMovement) {

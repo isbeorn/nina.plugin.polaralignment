@@ -29,18 +29,109 @@ namespace NINA.Plugins.PolarAlignment.Test {
             // Large residual: the probe must rise above the default so identification
             // is not drowned by solve noise. 3 degrees error, cap 20 -> 0.15*180 = 27,
             // clamped to cap/2 = 10.
-            var farController = new AutomatedAdjustmentController { MaximumMoveMagnitude = 20 };
+            var farController = new AutomatedAdjustmentController { AggressiveCorrections = true, MaximumMoveMagnitude = 20 };
             farController.UpdateObservation(3.0, 0.0);
             var farProbe = farController.CreatePlan();
             farProbe.IsProbe.Should().BeTrue();
             Math.Abs(farProbe.XMagnitude + farProbe.YMagnitude).Should().BeApproximately(10.0, 0.01);
 
             // Near the pole (3' error) the probe stays at the conservative default.
-            var nearController = new AutomatedAdjustmentController { MaximumMoveMagnitude = 20 };
+            var nearController = new AutomatedAdjustmentController { AggressiveCorrections = true, MaximumMoveMagnitude = 20 };
             nearController.UpdateObservation(0.05, 0.0);
             var nearProbe = nearController.CreatePlan();
             nearProbe.IsProbe.Should().BeTrue();
             Math.Abs(nearProbe.XMagnitude + nearProbe.YMagnitude).Should().BeApproximately(1.0, 0.01);
+        }
+
+        [Test]
+        public void LegacyProfile_ProbeStaysAtDefault_RegardlessOfError() {
+            // UPAS regression: without the aggressive profile the probe must stay at the
+            // legacy 1.0 units even on a multi-degree error, where the aggressive profile
+            // would raise it to cap/2 = 2.5.
+            var controller = new AutomatedAdjustmentController();
+            controller.UpdateObservation(2.0, 0.0);
+
+            var probe = controller.CreatePlan();
+
+            probe.IsProbe.Should().BeTrue();
+            Math.Abs(probe.XMagnitude + probe.YMagnitude).Should().BeApproximately(1.0, 0.001);
+        }
+
+        [Test]
+        public void LegacyProfile_NeverEmitsThe75PercentCandidate() {
+            // Model learned from two clean probes: az response -0.1 per X unit, alt response
+            // -0.1 per Y unit; residual (0.3, 0.3) -> raw least-squares command (3, 3), well
+            // inside the cap so the scaling is directly visible in the chosen plan.
+            var controller = new AutomatedAdjustmentController();
+            controller.UpdateObservation(0.4, 0.4);
+            controller.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(1.0, 0, true, "probe"));
+            controller.UpdateObservation(0.3, 0.4);
+            controller.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(0, 1.0, true, "probe"));
+            controller.UpdateObservation(0.3, 0.3);
+
+            var plan = controller.CreatePlan();
+
+            // The legacy candidate set tops out at 50% of the raw solution; the aggressive
+            // 75% candidate would win the prediction and produce (2.25, 2.25).
+            plan.IsProbe.Should().BeFalse();
+            plan.XMagnitude.Should().BeApproximately(1.5, 0.01);
+            plan.YMagnitude.Should().BeApproximately(1.5, 0.01);
+        }
+
+        [Test]
+        public void AggressiveProfile_KeepsThe75PercentCandidate() {
+            var controller = new AutomatedAdjustmentController { AggressiveCorrections = true };
+            controller.UpdateObservation(0.4, 0.4);
+            controller.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(1.0, 0, true, "probe"));
+            controller.UpdateObservation(0.3, 0.4);
+            controller.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(0, 1.0, true, "probe"));
+            controller.UpdateObservation(0.3, 0.3);
+
+            var plan = controller.CreatePlan();
+
+            plan.XMagnitude.Should().BeApproximately(2.25, 0.01);
+            plan.YMagnitude.Should().BeApproximately(2.25, 0.01);
+        }
+
+        [Test]
+        public void LegacyProfile_KeepsLegacySequence_OnInvertedCrossCoupledResponses() {
+            // UPAS regression across the whole loop: inverted polarity on both axes plus
+            // cross-coupling. Every probe must stay at the legacy 1.0 units and the loop
+            // must still converge on 50%-scaled corrections alone.
+            var plant = new[,] {
+                { +0.06, +0.02 },
+                { +0.015, +0.05 }
+            };
+
+            var controller = new AutomatedAdjustmentController();
+            var azimuthError = 0.5;
+            var altitudeError = 0.4;
+            controller.UpdateObservation(azimuthError, altitudeError);
+
+            var converged = false;
+            for (var iteration = 0; iteration < 40; iteration++) {
+                var plan = controller.CreatePlan();
+                if (!plan.HasMovement) {
+                    break;
+                }
+
+                if (plan.IsProbe) {
+                    Math.Abs(plan.XMagnitude + plan.YMagnitude).Should().BeApproximately(1.0, 0.001);
+                }
+
+                azimuthError += plant[0, 0] * plan.XMagnitude + plant[0, 1] * plan.YMagnitude;
+                altitudeError += plant[1, 0] * plan.XMagnitude + plant[1, 1] * plan.YMagnitude;
+
+                controller.NoteSuccessfulExecution(plan);
+                controller.UpdateObservation(azimuthError, altitudeError);
+
+                if (Math.Sqrt(azimuthError * azimuthError + altitudeError * altitudeError) < 0.05) {
+                    converged = true;
+                    break;
+                }
+            }
+
+            converged.Should().BeTrue();
         }
 
         [Test]
@@ -52,8 +143,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 { 0.00, -0.05 }
             };
 
-            var stock = RunClosedLoop(new AutomatedAdjustmentController(), plant, 1.5, 1.0, maxIterations: 20);
-            var raised = RunClosedLoop(new AutomatedAdjustmentController { MaximumMoveMagnitude = 25 }, plant, 1.5, 1.0, maxIterations: 20);
+            var stock = RunClosedLoop(new AutomatedAdjustmentController { AggressiveCorrections = true }, plant, 1.5, 1.0, maxIterations: 20);
+            var raised = RunClosedLoop(new AutomatedAdjustmentController { AggressiveCorrections = true, MaximumMoveMagnitude = 25 }, plant, 1.5, 1.0, maxIterations: 20);
 
             raised.Iterations.Should().BeLessThan(stock.Iterations);
             raised.FinalErrorDegrees.Should().BeLessThan(0.05);
