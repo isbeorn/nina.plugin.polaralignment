@@ -1,4 +1,4 @@
-﻿using Accord.Math;
+using Accord.Math;
 using Accord.Math.Geometry;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -64,7 +64,7 @@ namespace NINA.Plugins.PolarAlignment {
         public IPolarAlignmentSystemVM ActiveAlignmentSystemVM => PolarAlignmentPlugin.ActiveAlignmentSystemVM;
         public bool UseContinuousErrorEstimator => Properties.Settings.Default.UseContinuousErrorEstimator;
 
-        private readonly AutomatedAdjustmentController automatedAdjustmentController = new AutomatedAdjustmentController();
+        internal readonly AutomatedAdjustmentController automatedAdjustmentController = new AutomatedAdjustmentController();
         private bool lastContinuousEstimateStable = true;
         private bool runawayNotified;
 

@@ -21,8 +21,10 @@ using NINA.Profile.Interfaces;
 namespace NINA.Plugins.PolarAlignment {
     [Export(typeof(IPluginManifest))]
     public class PolarAlignmentPlugin : PluginBase, INotifyPropertyChanged {
-        public static UniversalPolarAlignmentVM UniversalPolarAlignmentVM { get; private set; }
-        public static UniversalPolarAlignmentOAPAVM UniversalPolarAlignmentOAPAVM { get; private set; }
+        // Internal setters so tests can populate the instances the selected-system
+        // dispatch reads without constructing the MEF plugin.
+        public static UniversalPolarAlignmentVM UniversalPolarAlignmentVM { get; internal set; }
+        public static UniversalPolarAlignmentOAPAVM UniversalPolarAlignmentOAPAVM { get; internal set; }
 
         public static IPolarAlignmentSystemVM ActiveAlignmentSystemVM =>
             Properties.Settings.Default.SelectedPolarAlignmentSystem switch {
