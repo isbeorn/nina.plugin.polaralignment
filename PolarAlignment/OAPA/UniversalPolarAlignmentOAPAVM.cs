@@ -153,6 +153,11 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
+        // Route the shared clearing logic to the OAPA-specific altitude compensation.
+        protected override float GetBacklashCompensation(Axis axis) {
+            return axis == Axis.YAxis ? YBacklashCompensation : base.GetBacklashCompensation(axis);
+        }
+
         public int XRunCurrent {
             get => Properties.Settings.Default.OAPAXRunCurrent;
             set {
