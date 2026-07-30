@@ -87,6 +87,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
                 RaisePropertyChanged(nameof(PositionX));
+                RefreshHomeDisplay();
             }
         }
 
@@ -108,6 +109,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
                 RaisePropertyChanged(nameof(PositionY));
+                RefreshHomeDisplay();
             }
         }
 
@@ -215,6 +217,16 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         // The controller's position counter restarts at 0 on power-up, so absolute home
         // coordinates from a previous session are meaningless and potentially harmful.
         // Home therefore lives in VM state only and is invalidated on every connection change.
+        //
+        // Home marks a physical controller position, so it is stored in controller-native
+        // units: the displayed logical position is the controller position divided by the
+        // gear ratio, and MoveAbsolute multiplies by it again, so a logical value saved
+        // under one ratio drives somewhere else once the ratio changes (manual edit or
+        // ApplyCalibration). HomeX/HomeY are display-only projections under the current
+        // ratio, refreshed by the ratio setters.
+
+        private float homeXController;
+        private float homeYController;
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(GoHomeCommand))]
@@ -229,12 +241,20 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         public bool CanSetHome() => Connected && IsNotMoving;
         public bool CanGoHome() => Connected && IsNotMoving && HasHome;
 
+        private void RefreshHomeDisplay() {
+            if (!HasHome) { return; }
+            HomeX = homeXController / XGearRatio;
+            HomeY = homeYController / YGearRatio;
+        }
+
         [RelayCommand(CanExecute = nameof(CanSetHome))]
         public void SetHome() {
+            homeXController = PositionX * XGearRatio;
+            homeYController = PositionY * YGearRatio;
             HomeX = PositionX;
             HomeY = PositionY;
             HasHome = true;
-            Logger.Info($"OAPA home position set to X={HomeX:F2}, Y={HomeY:F2} (valid for this connection session)");
+            Logger.Info($"OAPA home position set to X={HomeX:F2}, Y={HomeY:F2} (controller {homeXController:F0}/{homeYController:F0}, valid for this connection session)");
             Notification.ShowInformation($"Home position saved for this session (X={HomeX:F2}, Y={HomeY:F2})");
         }
 
@@ -242,9 +262,11 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         public async Task GoHome(CancellationToken token) {
             try {
                 await RunOnUi(() => IsNotMoving = false);
-                Logger.Info($"OAPA moving to home position X={HomeX:F2}, Y={HomeY:F2}");
-                await upa.MoveAbsolute(Axis.XAxis, XSpeed, HomeX, token).ConfigureAwait(false);
-                await upa.MoveAbsolute(Axis.YAxis, YSpeed, HomeY, token).ConfigureAwait(false);
+                var targetX = homeXController / XGearRatio;
+                var targetY = homeYController / YGearRatio;
+                Logger.Info($"OAPA moving to home position X={targetX:F2}, Y={targetY:F2} (controller {homeXController:F0}/{homeYController:F0})");
+                await upa.MoveAbsolute(Axis.XAxis, XSpeed, targetX, token).ConfigureAwait(false);
+                await upa.MoveAbsolute(Axis.YAxis, YSpeed, targetY, token).ConfigureAwait(false);
             } catch (OperationCanceledException) {
             } catch (Exception ex) {
                 Logger.Error(ex);
