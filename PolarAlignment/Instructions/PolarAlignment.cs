@@ -583,7 +583,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     var autoFinishGate = new AutoFinishGate(2);
                     // Pausing on a detected runaway makes the halt unmissable: a toast alone
                     // can be overlooked while the capture/solve loop keeps running.
-                    var runawayPauseIssued = false;
+                    var runawayPauseGate = new RunawayPauseGate();
 
                     var sw = Stopwatch.StartNew();
                     do {
@@ -635,8 +635,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                 // still so the confirmation solve measures the same state.
                                 if (autoFinishGate.Consecutive == 0) {
                                     await TPAPAVM.MoveCloser(progress, localCTS.Token);
-                                    if (TPAPAVM.AutomatedAdjustmentsHalted && !runawayPauseIssued) {
-                                        runawayPauseIssued = true;
+                                    if (runawayPauseGate.ShouldPause(TPAPAVM.AutomatedAdjustmentsHalted)) {
                                         Pause();
                                     }
                                 }

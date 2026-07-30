@@ -83,7 +83,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             return vm;
         }
 
-        private static PolarErrorDetermination BuildErrorDetermination(double totalErrorDegrees) {
+        internal static PolarErrorDetermination BuildErrorDetermination(double totalErrorDegrees) {
             var latitude = Angle.ByDegree(49);
             var longitude = Angle.ByDegree(7);
             var elevation = 250d;
@@ -104,7 +104,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             return determination;
         }
 
-        private sealed class CustomTime : ICustomDateTime {
+        internal sealed class CustomTime : ICustomDateTime {
             private readonly DateTime time;
             public CustomTime(DateTime time) { this.time = time; }
             public DateTime Now => time;
