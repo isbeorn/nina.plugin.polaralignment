@@ -85,10 +85,22 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// flag is flipped, which is what makes the auto-flip retry reachable.
         /// </summary>
         public static bool SignedDisplacementMatchesCommand(bool isAzimuthAxis, CalibrationSolveSample from, CalibrationSolveSample to, float logicalCommand) {
-            double delta = isAzimuthAxis
-                ? WrapDegrees(to.AzimuthDegrees - from.AzimuthDegrees)
-                : to.AltitudeDegrees - from.AltitudeDegrees;
-            return Math.Sign(delta) == Math.Sign(logicalCommand);
+            return Math.Sign(SignedAxisDisplacementArcmin(isAzimuthAxis, from, to)) == Math.Sign(logicalCommand);
+        }
+
+        /// <summary>
+        /// Signed axis displacement between two samples, in arcminutes: positive when the field
+        /// moved in the positive topocentric direction of the axis. Azimuth deltas are wrapped
+        /// across north and corrected for cos(altitude) foreshortening; the cosine is floored at
+        /// <see cref="MinimumAzimuthCosAltitude"/> so restore paths never divide toward zero.
+        /// </summary>
+        public static double SignedAxisDisplacementArcmin(bool isAzimuthAxis, CalibrationSolveSample from, CalibrationSolveSample to) {
+            if (!isAzimuthAxis) {
+                return (to.AltitudeDegrees - from.AltitudeDegrees) * 60.0;
+            }
+            var meanAlt = (from.AltitudeDegrees + to.AltitudeDegrees) / 2.0;
+            var cosAlt = Math.Max(Math.Cos(meanAlt * Math.PI / 180.0), MinimumAzimuthCosAltitude);
+            return WrapDegrees(to.AzimuthDegrees - from.AzimuthDegrees) * 60.0 / cosAlt;
         }
 
         /// <summary>Maps an angle difference into (−180°, 180°] so azimuth deltas across north keep their sign.</summary>

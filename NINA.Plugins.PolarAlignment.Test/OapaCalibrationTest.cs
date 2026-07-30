@@ -200,6 +200,9 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 return Task.FromResult(new CalibrationSolveSample(
                     10.0, physicalPositionArcmin / 60.0, 30.0 + physicalPositionArcmin / 60.0, 100.0));
             }
+
+            /// <summary>Where the axis physically sits, in arcminutes from its start.</summary>
+            public double PhysicalPositionArcmin => physicalPositionArcmin;
         }
 
         [Test]
@@ -263,15 +266,29 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task Calibration_NetCommandedMotionIsZero() {
+        public async Task Calibration_ReturnsAxisToItsPhysicalStart() {
+            // Supersedes the old zero-command-sum assertion: with backlash, a zero net command
+            // does not mean the axis returned. The invariant is the physical position.
             var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 0.0);
             var service = new OapaCalibrationService(axis, axis);
 
             await service.CalibrateAxisWithAutoReverse(Axis.YAxis, 100f, false, "Y", null, CancellationToken.None);
 
-            float net = 0;
-            axis.CommandedMoves.ForEach(m => net += m);
-            net.Should().Be(0f, "the axis must end where it started");
+            axis.PhysicalPositionArcmin.Should().BeApproximately(0.0, 0.6, "the axis must end where it started");
+        }
+
+        [Test]
+        public async Task Calibration_WithBacklash_ClosesLoopAgainstBaseline() {
+            // The four-move sequence loses the backlash on the reversal leg, so a zero command
+            // sum leaves the axis ~backlash away from its start. The closing move measured
+            // against the baseline solve must bring it back.
+            var axis = new FakeAxis(responseScale: 0.5, physicalBacklashArcmin: 5.0);
+            var service = new OapaCalibrationService(axis, axis);
+
+            await service.CalibrateAxisWithAutoReverse(Axis.YAxis, 100f, false, "Y", null, CancellationToken.None);
+
+            axis.PhysicalPositionArcmin.Should().BeApproximately(0.0, 0.6,
+                "closing the loop against the baseline must undo the backlash offset");
         }
 
         private sealed class FailingSolver : IOapaCalibrationSolver {
@@ -286,18 +303,63 @@ namespace NINA.Plugins.PolarAlignment.Test {
             }
         }
 
+        /// <summary>Fails exactly one solve, letting the best-effort restore solve succeed.</summary>
+        private sealed class FailOnceSolver : IOapaCalibrationSolver {
+            private readonly IOapaCalibrationSolver inner;
+            private int calls;
+            private readonly int failAtCall;
+            private readonly Exception toThrow;
+            public FailOnceSolver(IOapaCalibrationSolver inner, int failAtCall, Exception toThrow = null) {
+                this.inner = inner;
+                this.failAtCall = failAtCall;
+                this.toThrow = toThrow ?? new InvalidOperationException("solver failed");
+            }
+            public Task<CalibrationSolveSample> CaptureAndSolve(CancellationToken token) {
+                calls++;
+                if (calls == failAtCall) { throw toThrow; }
+                return inner.CaptureAndSolve(token);
+            }
+        }
+
         [Test]
-        public async Task MidSequenceFailure_DrivesAccumulatedMotionBack() {
+        public async Task MidSequenceFailure_SolverUnavailable_FallsBackToCommandSumRestore() {
             var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 0.0);
-            // Baseline and solve A succeed; solve B fails, leaving two commanded legs outstanding.
+            // Solve B and everything after it fail, so the measured restore is impossible
+            // and the commanded-sum fallback must still bring the axis home.
             var service = new OapaCalibrationService(axis, new FailingSolver(axis, failFrom: 3));
 
             var act = () => service.CalibrateAxisWithAutoReverse(Axis.YAxis, 100f, false, "Y", null, CancellationToken.None);
             await act.Should().ThrowAsync<InvalidOperationException>();
 
-            float net = 0;
-            axis.CommandedMoves.ForEach(m => net += m);
-            net.Should().Be(0f, "the restore move must return the axis to its start");
+            axis.PhysicalPositionArcmin.Should().BeApproximately(0.0, 0.6, "the fallback restore must return the axis to its start");
+        }
+
+        [Test]
+        public async Task MidSequenceFailure_WithBacklash_RestoresAgainstBaseline() {
+            // Solve C fails after the reversal leg has eaten the backlash: the commanded sum
+            // says -45' outstanding, but the axis physically sits at +50'. The restore solve
+            // succeeds, so the measured residual - not the command sum - must be driven back.
+            var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 40.0);
+            var service = new OapaCalibrationService(axis, new FailOnceSolver(axis, failAtCall: 4));
+
+            var act = () => service.CalibrateAxisWithAutoReverse(Axis.YAxis, 100f, false, "Y", null, CancellationToken.None);
+            await act.Should().ThrowAsync<InvalidOperationException>();
+
+            axis.PhysicalPositionArcmin.Should().BeApproximately(0.0, 0.6,
+                "the measured restore must undo the backlash-distorted position");
+        }
+
+        [Test]
+        public async Task Cancellation_MidSequence_RestoresAgainstBaseline() {
+            var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 40.0);
+            var service = new OapaCalibrationService(axis,
+                new FailOnceSolver(axis, failAtCall: 4, new OperationCanceledException()));
+
+            var act = () => service.CalibrateAxisWithAutoReverse(Axis.YAxis, 100f, false, "Y", null, CancellationToken.None);
+            await act.Should().ThrowAsync<OperationCanceledException>();
+
+            axis.PhysicalPositionArcmin.Should().BeApproximately(0.0, 0.6,
+                "cancellation must not strand the axis away from its start");
         }
 
         [Test]
