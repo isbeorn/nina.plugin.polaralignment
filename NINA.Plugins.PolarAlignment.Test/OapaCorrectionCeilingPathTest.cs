@@ -31,6 +31,32 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void MaxCorrectionMagnitude_OwnerClampsAndPersistsTheClampedValue() {
+            // The OAPA VM is the sole owner of the persisted setting: the 1-60 invariant
+            // must hold on disk no matter which public surface wrote the value.
+            var vm = new UniversalPolarAlignmentOAPAVM(null);
+
+            vm.MaxCorrectionMagnitude = 0.2;
+            vm.MaxCorrectionMagnitude.Should().Be(AutomatedAdjustmentController.MinimumConfigurableMoveMagnitude);
+            Properties.Settings.Default.OAPAMaxCorrectionMagnitude.Should().Be(AutomatedAdjustmentController.MinimumConfigurableMoveMagnitude);
+
+            vm.MaxCorrectionMagnitude = 500;
+            vm.MaxCorrectionMagnitude.Should().Be(AutomatedAdjustmentController.MaximumConfigurableMoveMagnitude);
+            Properties.Settings.Default.OAPAMaxCorrectionMagnitude.Should().Be(AutomatedAdjustmentController.MaximumConfigurableMoveMagnitude);
+
+            vm.MaxCorrectionMagnitude = 12;
+            vm.MaxCorrectionMagnitude.Should().Be(12);
+        }
+
+        [Test]
+        public void EffectiveCeiling_RespectsTheConfigurableRange_AfterAnOutOfRangeWrite() {
+            var vm = new UniversalPolarAlignmentOAPAVM(null);
+            vm.MaxCorrectionMagnitude = 500;
+
+            vm.GetMaximumCorrectionMagnitude(600).Should().Be(AutomatedAdjustmentController.MaximumConfigurableMoveMagnitude);
+        }
+
+        [Test]
         public void SelectedSystemDispatch_ReturnsTheMatchingVM() {
             var upas = new UniversalPolarAlignmentVM(null);
             var oapa = new UniversalPolarAlignmentOAPAVM(null);

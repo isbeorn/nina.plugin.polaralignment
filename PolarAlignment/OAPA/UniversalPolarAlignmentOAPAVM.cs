@@ -97,10 +97,18 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
+        /// <summary>
+        /// Safety ceiling for the per-cycle correction. Sole owner of the persisted
+        /// setting: the clamp to the controller's configurable bounds lives here, so the
+        /// 1-60 invariant holds no matter which public surface wrote the value (the
+        /// plugin options property is a pure XAML adapter delegating to this one).
+        /// </summary>
         public double MaxCorrectionMagnitude {
             get => Properties.Settings.Default.OAPAMaxCorrectionMagnitude;
             set {
-                Properties.Settings.Default.OAPAMaxCorrectionMagnitude = value;
+                var clamped = System.Math.Max(AutomatedAdjustmentController.MinimumConfigurableMoveMagnitude,
+                                              System.Math.Min(AutomatedAdjustmentController.MaximumConfigurableMoveMagnitude, value));
+                Properties.Settings.Default.OAPAMaxCorrectionMagnitude = clamped;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
             }
