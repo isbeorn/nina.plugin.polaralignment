@@ -55,7 +55,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         private static (UniversalPolarAlignmentOAPAVM vm, FakeSystem system) OapaVm(float xCompensation, float yCompensation) {
-            var vm = new UniversalPolarAlignmentOAPAVM(null, null, null, null);
+            var vm = new UniversalPolarAlignmentOAPAVM(null, null, null, null, null);
             var system = new FakeSystem();
             vm.upa = system;
             vm.ReverseAzimuth = false;

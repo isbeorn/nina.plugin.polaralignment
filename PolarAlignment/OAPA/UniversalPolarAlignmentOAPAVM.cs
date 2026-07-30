@@ -4,6 +4,7 @@ using NINA.Plugins.PolarAlignment.OAPA;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NINA.Core.Utility.Notification;
+using NINA.Equipment.Equipment.MyCamera;
 using NINA.Equipment.Interfaces.Mediator;
 using NINA.PlateSolving.Interfaces;
 using System;
@@ -15,13 +16,17 @@ using System.Windows;
 namespace NINA.Plugins.PolarAlignment.OAPA {
     public partial class UniversalPolarAlignmentOAPAVM : UniversalPolarAlignmentBaseVM {
         private readonly IOapaCalibrationSolver calibrationSolver;
+        private readonly ICameraMediator cameraMediator;
+        private readonly CameraBlockToken cameraBlockToken = new();
 
         public UniversalPolarAlignmentOAPAVM(
             IProfileService profileService,
             IImagingMediator imagingMediator,
             ITelescopeMediator telescopeMediator,
-            IPlateSolverFactory plateSolverFactory) : base(profileService) {
+            IPlateSolverFactory plateSolverFactory,
+            ICameraMediator cameraMediator) : base(profileService) {
             calibrationSolver = new OapaPlateSolveSampler(profileService, imagingMediator, telescopeMediator, plateSolverFactory);
+            this.cameraMediator = cameraMediator;
 
             // Connected and IsNotMoving live on the base VM. Their generated
             // [NotifyCanExecuteChangedFor] attributes can't reference commands declared on
@@ -236,7 +241,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         [RelayCommand(CanExecute = nameof(CanGoHome))]
         public async Task GoHome(CancellationToken token) {
             try {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
                 Logger.Info($"OAPA moving to home position X={HomeX:F2}, Y={HomeY:F2}");
                 await upa.MoveAbsolute(Axis.XAxis, XSpeed, HomeX, token).ConfigureAwait(false);
                 await upa.MoveAbsolute(Axis.YAxis, YSpeed, HomeY, token).ConfigureAwait(false);
@@ -245,7 +250,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Logger.Error(ex);
                 Notification.ShowError($"Failed to move to home position: {ex.Message}");
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
 
@@ -280,7 +285,17 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         [ObservableProperty]
         private string calibrationConsistencyMessage = string.Empty;
 
-        public bool CanCalibrate() => Connected && IsNotMoving && !CalibrationRunning;
+        public bool CanCalibrate() => Connected && IsNotMoving && !CalibrationRunning && CameraIsFree();
+
+        // The capture block owner is identified by reference; a dedicated token keeps the
+        // camera-consumer plumbing off the public VM surface. A null mediator (tests,
+        // headless hosts) means "always free" with no-op acquisition.
+        private bool CameraIsFree() => cameraMediator == null || cameraMediator.IsFreeToCapture(cameraBlockToken);
+
+        private sealed class CameraBlockToken : ICameraConsumer {
+            public void UpdateDeviceInfo(CameraInfo deviceInfo) { }
+            public void Dispose() { }
+        }
 
         private sealed class SpeedAwareMotion : IOapaCalibrationMotion {
             private readonly UniversalPolarAlignmentOAPAVM vm;
@@ -294,8 +309,17 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         [RelayCommand(CanExecute = nameof(CanCalibrate))]
         public Task CalibrateGearRatios(CancellationToken token) {
             return Task.Run(async () => {
+                // CanExecute is evaluated at UI time; re-check here so a sequence or another
+                // TPPA run that acquired the camera in the meantime cannot be interrupted.
+                if (!CameraIsFree()) {
+                    Logger.Warning("OAPA self-calibration refused: another consumer owns the camera");
+                    Notification.ShowWarning("Cannot calibrate: the camera is in use by a sequence or another imaging process.");
+                    await RunOnUi(() => CalibrationStatus = "Camera busy - calibration not started");
+                    return;
+                }
+                cameraMediator?.RegisterCaptureBlock(cameraBlockToken);
                 try {
-                    await Application.Current.Dispatcher.BeginInvoke(() => {
+                    await RunOnUi(() => {
                         IsNotMoving = false;
                         CalibrationRunning = true;
                         HasCalibrationResult = false;
@@ -305,17 +329,17 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
                     Logger.Info("OAPA self-calibration started");
                     var service = new OapaCalibrationService(new SpeedAwareMotion(this), calibrationSolver);
-                    Action<string> reportStatus = s => Application.Current.Dispatcher.BeginInvoke(() => CalibrationStatus = s);
+                    Action<string> reportStatus = s => _ = RunOnUi(() => CalibrationStatus = s);
 
                     var x = await service.CalibrateAxisWithAutoReverse(
                         Axis.XAxis, XGearRatio, ReverseAzimuth, "X (Azimuth)", reportStatus, token);
                     if (x.Flipped) {
-                        await Application.Current.Dispatcher.BeginInvoke(() => ReverseAzimuth = !ReverseAzimuth);
+                        await RunOnUi(() => ReverseAzimuth = !ReverseAzimuth);
                     }
                     var y = await service.CalibrateAxisWithAutoReverse(
                         Axis.YAxis, YGearRatio, ReverseAltitude, "Y (Altitude)", reportStatus, token);
                     if (y.Flipped) {
-                        await Application.Current.Dispatcher.BeginInvoke(() => ReverseAltitude = !ReverseAltitude);
+                        await RunOnUi(() => ReverseAltitude = !ReverseAltitude);
                     }
 
                     string consistencyMsg;
@@ -334,7 +358,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                         consistencyMsg += $" \u26a0 Forward/reverse legs on {axes} differ by more than 20%: the discovered values may be unreliable. Re-run with the scope pointing at a lower-altitude, star-rich field.";
                     }
 
-                    await Application.Current.Dispatcher.BeginInvoke(() => {
+                    await RunOnUi(() => {
                         DiscoveredXRatio = x.Ratio;
                         DiscoveredYRatio = y.Ratio;
                         DiscoveredXBacklash = x.BacklashArcmin;
@@ -350,13 +374,14 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                         TimeSpan.FromSeconds(30));
                 } catch (OperationCanceledException) {
                     Logger.Info("OAPA self-calibration cancelled");
-                    await Application.Current.Dispatcher.BeginInvoke(() => CalibrationStatus = "Cancelled");
+                    await RunOnUi(() => CalibrationStatus = "Cancelled");
                 } catch (Exception ex) {
                     Logger.Error(ex);
                     Notification.ShowError($"Calibration failed: {ex.Message}");
-                    await Application.Current.Dispatcher.BeginInvoke(() => CalibrationStatus = $"Failed: {ex.Message}");
+                    await RunOnUi(() => CalibrationStatus = $"Failed: {ex.Message}");
                 } finally {
-                    await Application.Current.Dispatcher.BeginInvoke(() => {
+                    cameraMediator?.ReleaseCaptureBlock(cameraBlockToken);
+                    await RunOnUi(() => {
                         CalibrationRunning = false;
                         IsNotMoving = true;
                     });
