@@ -11,13 +11,26 @@ using System.Windows;
 
 namespace NINA.Plugins.PolarAlignment {
     public abstract partial class UniversalPolarAlignmentBaseVM : BaseVM, IPolarAlignmentSystemVM {
-        protected IPolarAlignmentSystem upa;
+        protected internal IPolarAlignmentSystem upa;
 
         protected abstract IPolarAlignmentSystem CreateSystem();
         protected abstract string SystemName { get; }
 
         protected UniversalPolarAlignmentBaseVM(IProfileService profileService) : base(profileService) {
             IsNotMoving = true;
+        }
+
+        /// <summary>
+        /// Marshals UI-affecting property changes to the dispatcher when a WPF application
+        /// exists; test hosts without one invoke directly.
+        /// </summary>
+        protected static async Task RunOnUi(Action action) {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null) {
+                await dispatcher.BeginInvoke(action);
+            } else {
+                action();
+            }
         }
 
         [ObservableProperty]
@@ -59,7 +72,7 @@ namespace NINA.Plugins.PolarAlignment {
             if (upa?.Connected == true) { return Task.CompletedTask; }
             return Task.Run(async () => {
                 try {
-                    await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                    await RunOnUi(() => IsNotMoving = true);
 
                     upa = CreateSystem();
                     _ = StartPoll();
@@ -90,16 +103,20 @@ namespace NINA.Plugins.PolarAlignment {
             await TryNudgeX(position, token);
         }
 
-        public async Task<bool> TryNudgeX(float position, CancellationToken token) {
+        // Manual nudges keep the legacy contract: always clear backlash on reversal.
+        public Task<bool> TryNudgeX(float position, CancellationToken token) =>
+            TryNudgeXCore(position, skipClearingBelowCompensation: false, token);
+
+        protected async Task<bool> TryNudgeXCore(float position, bool skipClearingBelowCompensation, CancellationToken token) {
             try {
                 if (ReverseAzimuth) { position = position * -1; }
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
 
                 Logger.Info($"Nudging {SystemName} along X axis by {position}");
                 var lastDirection = upa.XLastDirection;
                 await upa.MoveRelative(Axis.XAxis, XSpeed, position, token).ConfigureAwait(false);
                 var currentDirection = upa.XLastDirection;
-                await ClearBacklash(position, lastDirection, currentDirection, token);
+                await ClearBacklash(skipClearingBelowCompensation ? position : float.MaxValue, lastDirection, currentDirection, token);
                 return true;
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -108,7 +125,7 @@ namespace NINA.Plugins.PolarAlignment {
                 }
                 return false;
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
 
@@ -120,7 +137,7 @@ namespace NINA.Plugins.PolarAlignment {
         public async Task<bool> TryNudgeY(float position, CancellationToken token) {
             try {
                 if (ReverseAltitude) { position = position * -1; }
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
 
                 Logger.Info($"Nudging {SystemName} along Y axis by {position}");
                 await upa.MoveRelative(Axis.YAxis, YSpeed, position, token).ConfigureAwait(false);
@@ -132,9 +149,17 @@ namespace NINA.Plugins.PolarAlignment {
                 }
                 return false;
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
+
+        /// <summary>
+        /// Automated fine-approach nudges default to the exact manual behavior. Systems
+        /// with a skip-clearing policy (OAPA) override these.
+        /// </summary>
+        public virtual Task<bool> TryFineNudgeX(float position, CancellationToken token) => TryNudgeX(position, token);
+
+        public virtual Task<bool> TryFineNudgeY(float position, CancellationToken token) => TryNudgeY(position, token);
 
         public new void RaiseAllPropertiesChanged() {
             base.RaiseAllPropertiesChanged();
@@ -143,7 +168,7 @@ namespace NINA.Plugins.PolarAlignment {
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
         public async Task MoveX(CancellationToken token) {
             try {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
 
                 var target = TargetPositionX;
                 if (ReverseAzimuth) { target = target * -1; }
@@ -153,8 +178,6 @@ namespace NINA.Plugins.PolarAlignment {
 
                 await upa.MoveAbsolute(Axis.XAxis, XSpeed, target, token).ConfigureAwait(false);
                 var currentDirection = upa.XLastDirection;
-                // Manual absolute moves always clear on reversal: the user expects the axis
-                // to land settled, and there is no fine-approach nudge context here.
                 await ClearBacklash(float.MaxValue, lastDirection, currentDirection, token);
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -162,7 +185,7 @@ namespace NINA.Plugins.PolarAlignment {
                     Notification.ShowError($"Movement timeout: {ex.Message}");
                 }
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
 
@@ -194,7 +217,7 @@ namespace NINA.Plugins.PolarAlignment {
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
         public async Task MoveY(CancellationToken token) {
             try {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
 
                 var target = TargetPositionY;
                 if (ReverseAltitude) { target = target * -1; }
@@ -207,7 +230,7 @@ namespace NINA.Plugins.PolarAlignment {
                     Notification.ShowError($"Movement timeout: {ex.Message}");
                 }
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
 

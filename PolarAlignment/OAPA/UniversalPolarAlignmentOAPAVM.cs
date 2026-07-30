@@ -111,6 +111,15 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         public override bool AggressiveCorrectionProfile => true;
 
         /// <summary>
+        /// OAPA fine-approach policy: skip the backlash-clearing excursion when the
+        /// corrective nudge is smaller than the compensation itself - with multi-arcminute
+        /// backlash the out-and-back excursion injects more error than the nudge removes.
+        /// Manual nudges are unaffected and always clear on reversal.
+        /// </summary>
+        public override System.Threading.Tasks.Task<bool> TryFineNudgeX(float position, System.Threading.CancellationToken token) =>
+            TryNudgeXCore(position, skipClearingBelowCompensation: true, token);
+
+        /// <summary>
         /// OAPA correction-limit policy: scale with the measured error (80% of the current
         /// total error) so multi-degree initial errors converge in a handful of cycles,
         /// with the controller default as the floor for a gentle final approach and the

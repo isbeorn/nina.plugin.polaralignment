@@ -334,7 +334,7 @@ namespace NINA.Plugins.PolarAlignment {
             var executedY = 0.0;
 
             if (Math.Abs(plan.XMagnitude) > 0) {
-                if (!await activeSystem.TryNudgeX((float)plan.XMagnitude, token)) {
+                if (!await activeSystem.TryFineNudgeX((float)plan.XMagnitude, token)) {
                     automatedAdjustmentController.NoteFailedExecution();
                     return;
                 }
@@ -342,7 +342,7 @@ namespace NINA.Plugins.PolarAlignment {
             }
 
             if (Math.Abs(plan.YMagnitude) > 0) {
-                if (!await activeSystem.TryNudgeY((float)plan.YMagnitude, token)) {
+                if (!await activeSystem.TryFineNudgeY((float)plan.YMagnitude, token)) {
                     if (Math.Abs(executedX) > 0) {
                         automatedAdjustmentController.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(executedX,
                                                                                                            0,
