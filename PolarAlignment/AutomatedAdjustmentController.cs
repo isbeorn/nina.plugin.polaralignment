@@ -76,21 +76,24 @@ namespace NINA.Plugins.PolarAlignment {
         /// </summary>
         private const double WorseningNoiseMarginDegrees = 0.05 / 60.0;
         /// <summary>
-        /// A worsening streak whose largest corrective move stayed below this magnitude
-        /// (logical nudge units, ~arcminutes) cannot plausibly be explained by wrong
-        /// calibration factors: sub-noise corrections do not move the mount enough to
-        /// drive the error away. Field logs show this pattern when the continuous error
-        /// estimate itself has drifted over a long correction phase; the runaway message
-        /// must not blame the calibration in that case.
+        /// A worsening streak in which no move visibly shifted the measured error by at
+        /// least this much (degrees; 1 arcminute, well above the worsening noise margin)
+        /// cannot plausibly be explained by wrong calibration factors: the mount barely
+        /// responded, so the moves cannot have caused the worsening. Field logs show this
+        /// pattern when the continuous error estimate itself has drifted over a long
+        /// correction phase; the runaway message must not blame the calibration then.
+        /// The classification deliberately uses the observed sky response rather than the
+        /// commanded magnitude - a commanded size only maps to a physical size when the
+        /// calibration is already right, which is exactly what is in question here.
         /// </summary>
-        private const double CalibrationSuspectCorrectionMagnitude = 1.0;
+        private const double CalibrationSuspectResponseDegrees = 1.0 / 60.0;
 
         private readonly Queue<ResponseSample> samples = new Queue<ResponseSample>();
         private AutomatedAdjustmentObservation currentObservation;
         private PendingPlan pendingPlan;
         private bool hasObservation;
         private int consecutiveWorsenings;
-        private double streakLargestCorrectionMagnitude;
+        private double streakLargestObservedResponseDegrees;
         private double maximumMoveMagnitude = DefaultMaximumMoveMagnitude;
 
         public int SampleCount => samples.Count;
@@ -103,10 +106,10 @@ namespace NINA.Plugins.PolarAlignment {
         public bool RunawayDetected { get; private set; }
 
         /// <summary>
-        /// True when the detected runaway streak consisted only of small corrective moves
-        /// (below <see cref="CalibrationSuspectCorrectionMagnitude"/>): the likely cause is
-        /// a drifted error estimate, not wrong calibration, and the recommended remedy is
-        /// re-running the alignment to obtain a fresh measurement.
+        /// True when no move in the detected runaway streak produced a measurable sky
+        /// response (below <see cref="CalibrationSuspectResponseDegrees"/>): the likely
+        /// cause is a drifted error estimate, not wrong calibration, and the recommended
+        /// remedy is re-running the alignment to obtain a fresh measurement.
         /// </summary>
         public bool RunawayLikelyEstimateDrift { get; private set; }
 
@@ -145,7 +148,7 @@ namespace NINA.Plugins.PolarAlignment {
             pendingPlan = null;
             hasObservation = false;
             consecutiveWorsenings = 0;
-            streakLargestCorrectionMagnitude = 0;
+            streakLargestObservedResponseDegrees = 0;
             RunawayDetected = false;
             RunawayLikelyEstimateDrift = false;
         }
@@ -170,15 +173,15 @@ namespace NINA.Plugins.PolarAlignment {
                 if (!pendingPlan.Plan.IsProbe) {
                     if (latestObservation.TotalErrorDegrees > pendingPlan.BeforeMoveObservation.TotalErrorDegrees + WorseningNoiseMarginDegrees) {
                         consecutiveWorsenings++;
-                        streakLargestCorrectionMagnitude = Math.Max(streakLargestCorrectionMagnitude,
-                                                                    Math.Max(Math.Abs(pendingPlan.Plan.XMagnitude), Math.Abs(pendingPlan.Plan.YMagnitude)));
+                        var observedResponse = Math.Sqrt(deltaAzimuth * deltaAzimuth + deltaAltitude * deltaAltitude);
+                        streakLargestObservedResponseDegrees = Math.Max(streakLargestObservedResponseDegrees, observedResponse);
                         if (consecutiveWorsenings >= MaxConsecutiveWorsenings) {
                             RunawayDetected = true;
-                            RunawayLikelyEstimateDrift = streakLargestCorrectionMagnitude < CalibrationSuspectCorrectionMagnitude;
+                            RunawayLikelyEstimateDrift = streakLargestObservedResponseDegrees < CalibrationSuspectResponseDegrees;
                         }
                     } else {
                         consecutiveWorsenings = 0;
-                        streakLargestCorrectionMagnitude = 0;
+                        streakLargestObservedResponseDegrees = 0;
                     }
 
                     if (latestObservation.TotalErrorDegrees > pendingPlan.BeforeMoveObservation.TotalErrorDegrees * ModelResetWorseningFactor) {
@@ -207,7 +210,7 @@ namespace NINA.Plugins.PolarAlignment {
 
             if (RunawayDetected) {
                 if (RunawayLikelyEstimateDrift) {
-                    return AutomatedAdjustmentPlan.Skip($"Automated adjustments halted: the error increased for {MaxConsecutiveWorsenings} consecutive corrective moves, but the corrections were small. The error estimate has likely drifted; re-run the alignment to obtain a fresh measurement.");
+                    return AutomatedAdjustmentPlan.Skip($"Automated adjustments halted: the error increased for {MaxConsecutiveWorsenings} consecutive corrective moves, but the mount's measured response to them was negligible. The error estimate has likely drifted; re-run the alignment to obtain a fresh measurement.");
                 }
                 return AutomatedAdjustmentPlan.Skip($"Automated adjustments halted: the error increased for {MaxConsecutiveWorsenings} consecutive corrective moves. Calibration factors or backlash compensation are likely wrong.");
             }

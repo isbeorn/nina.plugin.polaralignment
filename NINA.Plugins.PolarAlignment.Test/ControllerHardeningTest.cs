@@ -177,8 +177,9 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         [Test]
         public void RunawayUnderLargeCorrections_IsClassifiedAsCalibrationSuspect() {
-            // Corrections of >= 1 unit that keep worsening the error point at the actuator
-            // model: wrong calibration factors or backlash compensation.
+            // Moves whose measured sky response is large (6' per move) and keeps worsening
+            // the error point at the actuator model: wrong calibration factors or backlash
+            // compensation.
             var controller = new AutomatedAdjustmentController();
             var error = 0.5;
             controller.UpdateObservation(error, 0.0);
@@ -197,9 +198,10 @@ namespace NINA.Plugins.PolarAlignment.Test {
         [Test]
         public void RunawayUnderSubNoiseCorrections_IsClassifiedAsEstimateDrift() {
             // Field-observed failure mode: during a long fine phase the continuous error
-            // estimate drifts on its own while the loop issues tiny corrections. Blaming
-            // the calibration in that case is wrong and sends the user down a rabbit hole;
-            // the correct remedy is a fresh measurement.
+            // estimate drifts on its own while the loop issues tiny corrections whose
+            // measured sky response stays sub-arcminute. Blaming the calibration in that
+            // case is wrong and sends the user down a rabbit hole; the correct remedy is
+            // a fresh measurement.
             var controller = new AutomatedAdjustmentController();
             var error = 0.010;
             controller.UpdateObservation(error, 0.0);
@@ -216,6 +218,48 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             controller.Reset();
             controller.RunawayLikelyEstimateDrift.Should().BeFalse();
+        }
+
+        [Test]
+        public void RunawayWithLargeObservedResponse_IsCalibrationSuspect_EvenForSmallDiagonalCommands() {
+            // The circular case: commanded magnitude only maps to physical size when the
+            // calibration is already right. Small diagonal (0.8, 0.8) commands that visibly
+            // drive the measured error away by 6' per move are precisely a calibration
+            // failure and must never be blamed on estimate drift.
+            var controller = new AutomatedAdjustmentController();
+            var error = 0.5;
+            controller.UpdateObservation(error, 0.0);
+
+            for (var i = 0; i < 3; i++) {
+                controller.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(0.8, 0.8, false, "corrective"));
+                error += 0.1;
+                controller.UpdateObservation(error, 0.0);
+            }
+
+            controller.RunawayDetected.Should().BeTrue();
+            controller.RunawayLikelyEstimateDrift.Should().BeFalse();
+            controller.CreatePlan().Reason.Should().Contain("Calibration factors");
+        }
+
+        [Test]
+        public void RunawayWithNegligibleObservedResponse_IsEstimateDrift_EvenForLargeCommands() {
+            // A grossly overstated gear ratio: large commands barely move the mount, so the
+            // sky response stays sub-arcminute while the error creeps up on its own. The
+            // moves cannot have caused the worsening; the drift remedy (re-measure) is the
+            // right call regardless of the commanded size.
+            var controller = new AutomatedAdjustmentController();
+            var error = 0.010;
+            controller.UpdateObservation(error, 0.0);
+
+            for (var i = 0; i < 3; i++) {
+                controller.NoteSuccessfulExecution(new AutomatedAdjustmentPlan(5.0, 0.0, false, "corrective"));
+                error += 0.005;
+                controller.UpdateObservation(error, 0.0);
+            }
+
+            controller.RunawayDetected.Should().BeTrue();
+            controller.RunawayLikelyEstimateDrift.Should().BeTrue();
+            controller.CreatePlan().Reason.Should().Contain("estimate has likely drifted");
         }
 
         [Test]
