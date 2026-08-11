@@ -27,6 +27,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         private readonly IImagingMediator imagingMediator;
         private readonly ITelescopeMediator telescopeMediator;
         private readonly IPlateSolverFactory plateSolverFactory;
+        private DateTime? sessionEpoch;
 
         public OapaPlateSolveSampler(
             IProfileService profileService,
@@ -59,11 +60,30 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 (lastException != null ? $": {lastException.Message}" : string.Empty));
         }
 
+        /// <summary>Resets the reference epoch: the next solve of this pass will define it.</summary>
+        public void BeginCalibration() {
+            sessionEpoch = null;
+        }
+
         private CalibrationSolveSample ToSample(PlateSolveResult solve) {
             var latitude = Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Latitude);
             var longitude = Angle.ByDegree(profileService.ActiveProfile.AstrometrySettings.Longitude);
-            var topocentric = solve.Coordinates.Transform(latitude, longitude, solve.Coordinates.DateTime.Now);
-            return new CalibrationSolveSample(solve.Coordinates.RADegrees, solve.Coordinates.Dec, topocentric.Altitude.Degree, topocentric.Azimuth.Degree);
+            var epoch = sessionEpoch ??= solve.Coordinates.DateTime.Now;
+            return ToSample(solve.Coordinates, latitude, longitude, epoch);
+        }
+
+        /// <summary>
+        /// Transforms a solved field center to the calibration sample frame at the given
+        /// reference epoch. All samples of one calibration pass share a single epoch (the
+        /// pass's first solve): a tracked field keeps its RA/Dec while its Alt/Az drifts
+        /// with sidereal time, so per-solve epochs would alias sky rotation into every
+        /// displacement comparison. Kept as a seam so the contract is testable: the same
+        /// RA/Dec transformed at the same epoch must yield the same Alt/Az no matter when
+        /// the solve actually happened.
+        /// </summary>
+        internal static CalibrationSolveSample ToSample(Coordinates coordinates, Angle latitude, Angle longitude, DateTime epoch) {
+            var topocentric = coordinates.Transform(latitude, longitude, epoch);
+            return new CalibrationSolveSample(coordinates.RADegrees, coordinates.Dec, topocentric.Altitude.Degree, topocentric.Azimuth.Degree);
         }
 
         private async Task<PlateSolveResult> CaptureAndSolveOnce(CancellationToken token) {

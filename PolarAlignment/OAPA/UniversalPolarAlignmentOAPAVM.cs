@@ -386,14 +386,28 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                         DiscoveredXBacklash = x.BacklashArcmin;
                         DiscoveredYBacklash = y.BacklashArcmin;
                         CalibrationConsistencyMessage = consistencyMsg;
-                        CalibrationStatus = $"Done. X={x.Ratio:F2}, Y={y.Ratio:F2}, backlash X={x.BacklashArcmin:F2}', Y={y.BacklashArcmin:F2}'";
+                        CalibrationStatus = $"Done. X={x.Ratio:F2}, Y={y.Ratio:F2}, backlash X={x.BacklashArcmin:F2}', Y={y.BacklashArcmin:F2}'" +
+                            (x.RestoredToBaseline && y.RestoredToBaseline ? string.Empty : " ⚠ not returned to start");
                         HasCalibrationResult = true;
                     });
 
-                    Logger.Info($"OAPA calibration result: X={x.Ratio:F2}, Y={y.Ratio:F2}, backlash X={x.BacklashArcmin:F2}', Y={y.BacklashArcmin:F2}', consistency: X={x.Consistent}, Y={y.Consistent}");
-                    Notification.ShowInformation(
-                        $"Calibration done. X factor: {x.Ratio:F2}, Y factor: {y.Ratio:F2}, backlash X: {x.BacklashArcmin:F2}', Y: {y.BacklashArcmin:F2}'",
-                        TimeSpan.FromSeconds(30));
+                    Logger.Info($"OAPA calibration result: X={x.Ratio:F2}, Y={y.Ratio:F2}, backlash X={x.BacklashArcmin:F2}', Y={y.BacklashArcmin:F2}', consistency: X={x.Consistent}, Y={y.Consistent}, " +
+                        $"restored: X={x.RestoredToBaseline} ({x.ClosingResidualArcmin:F2}'), Y={y.RestoredToBaseline} ({y.ClosingResidualArcmin:F2}')");
+                    // "Measured" and "physically back at the start" are different claims: a
+                    // calibration whose closing failed must not be announced as plain success,
+                    // or the platform silently keeps the calibration's last displacement.
+                    if (x.RestoredToBaseline && y.RestoredToBaseline) {
+                        Notification.ShowInformation(
+                            $"Calibration done. X factor: {x.Ratio:F2}, Y factor: {y.Ratio:F2}, backlash X: {x.BacklashArcmin:F2}', Y: {y.BacklashArcmin:F2}'",
+                            TimeSpan.FromSeconds(30));
+                    } else {
+                        var offAxes = new List<string>();
+                        if (!x.RestoredToBaseline) { offAxes.Add($"Azimuth ({(float.IsNaN(x.ClosingResidualArcmin) ? "residual unknown" : $"{x.ClosingResidualArcmin:F1}' off")})"); }
+                        if (!y.RestoredToBaseline) { offAxes.Add($"Altitude ({(float.IsNaN(y.ClosingResidualArcmin) ? "residual unknown" : $"{y.ClosingResidualArcmin:F1}' off")})"); }
+                        Notification.ShowWarning(
+                            $"Calibration measured (X: {x.Ratio:F2}, Y: {y.Ratio:F2}), but the platform did not verifiably return to its starting position: {string.Join(", ", offAxes)}. " +
+                            "The measured factors are valid; re-check your polar alignment before imaging.");
+                    }
                 } catch (OperationCanceledException) {
                     Logger.Info("OAPA self-calibration cancelled");
                     await RunOnUi(() => CalibrationStatus = "Cancelled");

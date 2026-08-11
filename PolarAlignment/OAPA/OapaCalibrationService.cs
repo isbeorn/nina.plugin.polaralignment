@@ -14,6 +14,16 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
     public interface IOapaCalibrationSolver {
         /// <summary>Captures an image and plate-solves it, retrying internally as configured.</summary>
         Task<CalibrationSolveSample> CaptureAndSolve(CancellationToken token);
+
+        /// <summary>
+        /// Marks the start of a calibration pass so the solver can freeze its topocentric
+        /// reference epoch. A tracked field keeps its RA/Dec while its Alt/Az drifts with
+        /// sidereal time, so samples transformed each at their own wall-clock time alias
+        /// sky rotation into platform motion — the displacement comparisons only mean
+        /// "axis motion" when every sample of a pass is expressed at one common epoch.
+        /// Default is a no-op for solvers that are time-invariant already (test fakes).
+        /// </summary>
+        void BeginCalibration() { }
     }
 
     /// <summary>Outcome of calibrating one axis, including the auto-reverse retry.</summary>
@@ -24,6 +34,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         public bool Asymmetric { get; init; }
         /// <summary>True when the Reverse flag had to be flipped (and the flip verified) to obtain a consistent result.</summary>
         public bool Flipped { get; init; }
+        /// <summary>True only when the closing moves verifiably returned the axis to its baseline (residual within tolerance).</summary>
+        public bool RestoredToBaseline { get; init; }
+        /// <summary>Residual against the baseline after the closing moves, in axis arcminutes; NaN when it could not be measured.</summary>
+        public float ClosingResidualArcmin { get; init; }
     }
 
     /// <summary>
@@ -81,7 +95,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             BacklashArcmin = r.BacklashArcmin,
             Consistent = r.Consistent,
             Asymmetric = r.Asymmetric,
-            Flipped = flipped
+            Flipped = flipped,
+            RestoredToBaseline = r.RestoredToBaseline,
+            ClosingResidualArcmin = r.ClosingResidualArcmin
         };
 
         private async Task<AxisCalibrationResult> CalibrateAxis(
@@ -91,6 +107,13 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             float commanded = calibrationStepArcmin;
             float step = reversed ? -commanded : commanded;
             bool isAzimuth = axis == Axis.XAxis;
+
+            // Freeze the solver's topocentric epoch for this pass: displacements between
+            // samples must measure axis motion only, not the sidereal drift of a tracked
+            // field's Alt/Az between solve times. The signed comparisons (direction check,
+            // close loop, restore) span minutes — enough for whole arcminutes of phantom
+            // motion near the pole.
+            solver.BeginCalibration();
 
             // Fail fast on an unsolvable field before commanding any motion.
             reportStatus?.Invoke($"{axisLabel}: baseline solve...");
@@ -103,8 +126,16 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
 
             float movedArcmin = 0f;
+            // Whether the axis has physically left its baseline. Deliberately NOT the
+            // commanded sum: with backlash the sum returns to zero while the mechanism is
+            // still displaced (the reversal legs lose motion the forward legs delivered),
+            // so a failure at that exact moment would skip the restore and leave the
+            // platform off its starting position. Once any move has been commanded, only a
+            // verified restore may clear the need for one.
+            var needsRestore = false;
             try {
                 reportStatus?.Invoke($"{axisLabel}: priming +{commanded:F0}'...");
+                needsRestore = true;
                 await motion.MoveRelative(axis, step, token).ConfigureAwait(false);
                 movedArcmin += step;
                 var solveA = await solver.CaptureAndSolve(token).ConfigureAwait(false);
@@ -139,9 +170,13 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Logger.Info($"OAPA cal {axisLabel}: forward={forwardArcmin:F2}', reversal={reversalArcmin:F2}', reverse={reverseArcmin:F2}', " +
                     $"ratio={result.Ratio:F2}, backlash={result.BacklashArcmin:F2}', consistent={result.Consistent}, asymmetric={result.Asymmetric}");
 
-                await CloseLoopAgainstBaseline(axis, isAzimuth, baseline, solveA, solveB, solveD, step, axisLabel, reportStatus, token).ConfigureAwait(false);
+                // The closing outcome is carried on the result: a calibration that measured
+                // fine but did not verifiably return home must say so, not report full success.
+                var (restored, closingResidual) = await CloseLoopAgainstBaseline(axis, isAzimuth, baseline, solveA, solveB, solveD, step, axisLabel, reportStatus, token).ConfigureAwait(false);
+                result.RestoredToBaseline = restored;
+                result.ClosingResidualArcmin = closingResidual;
                 return result;
-            } catch (Exception) when (movedArcmin != 0f) {
+            } catch (Exception) when (needsRestore) {
                 await BestEffortRestore(axis, isAzimuth, baseline, movedArcmin, axisLabel).ConfigureAwait(false);
                 throw;
             }
@@ -157,17 +192,20 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// backlash-free in the nominal case. One correction, one verification solve, no
         /// loops; the move is capped at one calibration step for pathological responses.
         /// </summary>
-        private async Task CloseLoopAgainstBaseline(
+        private async Task<(bool restored, float residualArcmin)> CloseLoopAgainstBaseline(
             Axis axis, bool isAzimuth,
             CalibrationSolveSample baseline, CalibrationSolveSample solveA, CalibrationSolveSample solveB, CalibrationSolveSample solveD,
             float wireStep, string axisLabel, Action<string> reportStatus, CancellationToken token) {
 
             try {
                 var residual = OapaCalibrationGeometry.SignedAxisDisplacementArcmin(isAzimuth, baseline, solveD);
-                if (Math.Abs(residual) < RestoreToleranceArcmin) { return; }
+                if (Math.Abs(residual) < RestoreToleranceArcmin) { return (true, (float)residual); }
 
                 var responsePerWire = OapaCalibrationGeometry.SignedAxisDisplacementArcmin(isAzimuth, solveA, solveB) / wireStep;
-                if (Math.Abs(responsePerWire) < 1e-3) { return; }
+                if (Math.Abs(responsePerWire) < 1e-3) {
+                    Logger.Warning($"OAPA cal {axisLabel}: response too small to close the loop; the axis was not returned to its baseline");
+                    return (false, (float)residual);
+                }
 
                 var closing = (float)Math.Clamp(-residual / responsePerWire, -calibrationStepArcmin, calibrationStepArcmin);
                 reportStatus?.Invoke($"{axisLabel}: returning to start ({residual:+0.0;-0.0}' off)...");
@@ -175,10 +213,18 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
                 var verify = await solver.CaptureAndSolve(token).ConfigureAwait(false);
                 var finalResidual = OapaCalibrationGeometry.SignedAxisDisplacementArcmin(isAzimuth, baseline, verify);
-                Logger.Info($"OAPA cal {axisLabel}: closed loop against baseline; residual {finalResidual:F2}' (was {residual:F2}')");
+                var withinTolerance = Math.Abs(finalResidual) < RestoreToleranceArcmin;
+                Logger.Info($"OAPA cal {axisLabel}: closed loop against baseline; residual {finalResidual:F2}' (was {residual:F2}')" +
+                    (withinTolerance ? string.Empty : " - out of tolerance, the axis is not back at its baseline"));
+                return (withinTolerance, (float)finalResidual);
+            } catch (OperationCanceledException) {
+                // Cancellation stays a cancellation: it propagates so the caller's
+                // best-effort restore runs and the user sees "cancelled", not a success.
+                throw;
             } catch (Exception ex) {
                 // The calibration result is already measured; a failed closing move must not discard it.
                 Logger.Warning($"OAPA cal {axisLabel}: failed to close the loop against the baseline ({ex.Message})");
+                return (false, float.NaN);
             }
         }
 

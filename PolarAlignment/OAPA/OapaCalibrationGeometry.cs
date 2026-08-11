@@ -27,6 +27,18 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
         /// <summary>True when the two backlash-free legs disagree by more than the asymmetry threshold.</summary>
         public bool Asymmetric { get; init; }
+
+        /// <summary>
+        /// True only when the closing moves verifiably returned the axis to its baseline:
+        /// the measured residual came in under the restore tolerance. "Measured" and
+        /// "physically back at the start" are different claims — a calibration whose
+        /// closing failed keeps its measured values and reports false here. Settable
+        /// because the closing phase runs after the measured result is assembled.
+        /// </summary>
+        public bool RestoredToBaseline { get; set; }
+
+        /// <summary>Residual against the baseline after the closing moves, in axis arcminutes; NaN when it could not be measured.</summary>
+        public float ClosingResidualArcmin { get; set; } = float.NaN;
     }
 
     /// <summary>
