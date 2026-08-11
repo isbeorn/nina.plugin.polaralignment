@@ -87,23 +87,38 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public void BacklashCompensationPlanner_PositiveDirection_EndsLoadedPositive() {
-            // When the target direction is positive, backlash clearing should finish with
-            // a positive preload so the final mechanical state matches the requested direction.
-            var sequence = BacklashCompensationPlanner.CreateSequence(3f, LastDirection.Positive);
-
-            sequence.FirstMove.Should().Be(-3f);
-            sequence.SecondMove.Should().Be(3f);
+        public void BacklashCompensationPlanner_RecoversTheShortfall_InTheTargetDirection() {
+            // The move that reversed into the target direction fell short by the play it
+            // crossed; the recovery is a single further move of the full compensation in
+            // that same direction - no new reversal, so no new play is paid. (The physical
+            // arrival is asserted against a dead-travel mechanism in
+            // UniversalPolarAlignmentVMBacklashTest.)
+            BacklashCompensationPlanner.CreateSequence(3f, LastDirection.Positive).Should().Equal(3f);
+            BacklashCompensationPlanner.CreateSequence(3f, LastDirection.Negative).Should().Equal(-3f);
         }
 
         [Test]
-        public void BacklashCompensationPlanner_NegativeDirection_EndsLoadedNegative() {
-            // The mirrored case of the test above: after a negative-direction reversal,
-            // the backlash sequence should finish in the negative direction.
-            var sequence = BacklashCompensationPlanner.CreateSequence(3f, LastDirection.Negative);
+        public void TheOldZeroSumPair_UnderDeadTravel_RecoveredNothing() {
+            // Why the pair (−B, +B) had to go, in its own arithmetic. A mechanism with
+            // dead travel B that has just moved in direction d: the pair's first leg
+            // (−d·B) reverses and is fully eaten by the play; the second (+d·B) reverses
+            // again and is fully eaten again. Physical displacement: zero, and the target
+            // move's original shortfall of B survives untouched.
+            const float B = 3f;
+            float engagement = B;    // just moved positive: engaged positive
+            float physical = 0f;
 
-            sequence.FirstMove.Should().Be(3f);
-            sequence.SecondMove.Should().Be(-3f);
+            float Advance(float d) {
+                if (d > 0) { var eaten = Math.Min(B - engagement, d); engagement += eaten; return d - eaten; }
+                var eatenNeg = Math.Min(engagement, -d);
+                engagement -= eatenNeg;
+                return -(-d - eatenNeg);
+            }
+
+            physical += Advance(-B); // old pair, first leg
+            physical += Advance(+B); // old pair, second leg
+
+            physical.Should().Be(0f, "both legs of the zero-sum pair are consumed by the play they reverse into");
         }
 
         private static ClosedLoopResult RunClosedLoop(AutomatedAdjustmentController controller,

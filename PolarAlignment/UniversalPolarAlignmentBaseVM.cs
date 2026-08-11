@@ -194,9 +194,9 @@ namespace NINA.Plugins.PolarAlignment {
                 var compensation = GetBacklashCompensation(axis);
                 if (Math.Abs(compensation) > 0) {
                     Logger.Info($"Direction changed on {axis}. Clearing backlash");
-                    var sequence = BacklashCompensationPlanner.CreateSequence(compensation, currentDirection);
-                    await upa.MoveRelative(axis, speed, sequence.FirstMove, token).ConfigureAwait(false);
-                    await upa.MoveRelative(axis, speed, sequence.SecondMove, token).ConfigureAwait(false);
+                    foreach (var move in BacklashCompensationPlanner.CreateSequence(compensation, currentDirection)) {
+                        await upa.MoveRelative(axis, speed, move, token).ConfigureAwait(false);
+                    }
                 }
             }
         }
