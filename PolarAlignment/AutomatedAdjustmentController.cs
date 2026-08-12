@@ -13,10 +13,11 @@ namespace NINA.Plugins.PolarAlignment {
     /// </summary>
     internal sealed class AutomatedAdjustmentController {
         /// <summary>
-        /// Probe moves are intentionally small and conservative. They exist to identify
-        /// the local actuator response, not to make rapid progress.
+        /// The X axis uses a coarser probe because its hardware response is much coarser than
+        /// the Y axis. Probe moves identify the local actuator response rather than make progress.
         /// </summary>
-        private const double DefaultProbeMagnitude = 1.0;
+        private const double XAxisProbeMagnitude = 10.0;
+        private const double YAxisProbeMagnitude = 1.0;
         /// <summary>
         /// Commands below this magnitude are ignored to avoid chattering around zero and to
         /// prevent learning from motions that are likely smaller than backlash or slop.
@@ -163,14 +164,14 @@ namespace NINA.Plugins.PolarAlignment {
             }
 
             if (xExcitation <= yExcitation) {
-                return new AutomatedAdjustmentPlan(DefaultProbeMagnitude,
+                return new AutomatedAdjustmentPlan(XAxisProbeMagnitude,
                                                    0,
                                                    true,
                                                    "Probing azimuth response");
             }
 
             return new AutomatedAdjustmentPlan(0,
-                                               DefaultProbeMagnitude,
+                                               YAxisProbeMagnitude,
                                                true,
                                                "Probing altitude response");
         }

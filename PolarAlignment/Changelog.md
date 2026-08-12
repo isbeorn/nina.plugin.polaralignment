@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 2.2.6.6
+- Increased automated adjustment X-axis probing from 1 to 10 units to account for its coarser response while preserving the 1-unit Y-axis probe.
+
 ## Version 2.2.6.5
 - Automatic completion now requires 2 consecutive solves below the alignment tolerance before finishing, so a single lucky solve cannot end a non-converged procedure. While a below-tolerance result awaits confirmation, automated corrections hold still so the confirmation solve measures the same state.
 

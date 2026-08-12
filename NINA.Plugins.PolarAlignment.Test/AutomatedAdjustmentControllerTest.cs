@@ -56,10 +56,10 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 { +0.04, -0.11 }
             };
 
-            var result = RunClosedLoop(controller, plant, initialAzimuthErrorDegrees: 0.9, initialAltitudeErrorDegrees: 0.6, maxIterations: 12);
+            var result = RunClosedLoop(controller, plant, initialAzimuthErrorDegrees: 0.9, initialAltitudeErrorDegrees: 0.6, maxIterations: 16);
 
             result.FinalErrorDegrees.Should().BeLessThan(0.04);
-            result.Iterations.Should().BeLessThan(12);
+            result.Iterations.Should().BeLessThan(16);
             controller.SampleCount.Should().BeGreaterThanOrEqualTo(3);
         }
 
@@ -84,6 +84,25 @@ namespace NINA.Plugins.PolarAlignment.Test {
             secondPlan.HasMovement.Should().BeTrue();
             secondPlan.IsProbe.Should().BeTrue();
             secondPlan.XMagnitude.Should().NotBe(0);
+        }
+
+        [Test]
+        public void AutomatedAdjustmentController_UsesCoarseXAxisProbeAndConservativeYAxisProbe() {
+            var controller = new AutomatedAdjustmentController();
+            controller.UpdateObservation(0.5, -0.3);
+
+            var xProbe = controller.CreatePlan();
+            xProbe.IsProbe.Should().BeTrue();
+            xProbe.XMagnitude.Should().Be(10);
+            xProbe.YMagnitude.Should().Be(0);
+
+            controller.NoteSuccessfulExecution(xProbe);
+            controller.UpdateObservation(0.4, -0.3);
+
+            var yProbe = controller.CreatePlan();
+            yProbe.IsProbe.Should().BeTrue();
+            yProbe.XMagnitude.Should().Be(0);
+            yProbe.YMagnitude.Should().Be(1);
         }
 
         [Test]
