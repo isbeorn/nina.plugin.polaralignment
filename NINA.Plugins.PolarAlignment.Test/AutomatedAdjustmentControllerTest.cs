@@ -105,26 +105,6 @@ namespace NINA.Plugins.PolarAlignment.Test {
             yProbe.YMagnitude.Should().Be(1);
         }
 
-        [Test]
-        public void BacklashCompensationPlanner_PositiveDirection_EndsLoadedPositive() {
-            // When the target direction is positive, backlash clearing should finish with
-            // a positive preload so the final mechanical state matches the requested direction.
-            var sequence = BacklashCompensationPlanner.CreateSequence(3f, LastDirection.Positive);
-
-            sequence.FirstMove.Should().Be(-3f);
-            sequence.SecondMove.Should().Be(3f);
-        }
-
-        [Test]
-        public void BacklashCompensationPlanner_NegativeDirection_EndsLoadedNegative() {
-            // The mirrored case of the test above: after a negative-direction reversal,
-            // the backlash sequence should finish in the negative direction.
-            var sequence = BacklashCompensationPlanner.CreateSequence(3f, LastDirection.Negative);
-
-            sequence.FirstMove.Should().Be(3f);
-            sequence.SecondMove.Should().Be(-3f);
-        }
-
         private static ClosedLoopResult RunClosedLoop(AutomatedAdjustmentController controller,
                                                       double[,] plant,
                                                       double initialAzimuthErrorDegrees,

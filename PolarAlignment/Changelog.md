@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 2.2.6.7
+- Fixed UPAS azimuth backlash compensation.
+
 ## Version 2.2.6.6
 - Increased automated adjustment X-axis probing from 1 to 10 units to account for its coarser response while preserving the 1-unit Y-axis probe.
 

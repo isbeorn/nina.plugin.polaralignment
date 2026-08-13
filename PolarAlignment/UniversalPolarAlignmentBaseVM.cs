@@ -96,10 +96,9 @@ namespace NINA.Plugins.PolarAlignment {
                 await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
 
                 Logger.Info($"Nudging {SystemName} along X axis by {position}");
-                var lastDirection = upa.XLastDirection;
                 await upa.MoveRelative(Axis.XAxis, XSpeed, position, token).ConfigureAwait(false);
                 var currentDirection = upa.XLastDirection;
-                await ClearBacklash(lastDirection, currentDirection, token);
+                await ClearBacklash(currentDirection, token);
                 return true;
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -149,11 +148,9 @@ namespace NINA.Plugins.PolarAlignment {
                 if (ReverseAzimuth) { target = target * -1; }
 
                 Logger.Info($"Moving {SystemName} along X axis to {target}");
-                var lastDirection = upa.XLastDirection;
-
                 await upa.MoveAbsolute(Axis.XAxis, XSpeed, target, token).ConfigureAwait(false);
                 var currentDirection = upa.XLastDirection;
-                await ClearBacklash(lastDirection, currentDirection, token);
+                await ClearBacklash(currentDirection, token);
             } catch (Exception ex) {
                 Logger.Error(ex);
                 if (ex is TimeoutException) {
@@ -164,15 +161,13 @@ namespace NINA.Plugins.PolarAlignment {
             }
         }
 
-        private async Task ClearBacklash(LastDirection lastDirection, LastDirection currentDirection, CancellationToken token) {
-            if (lastDirection != currentDirection) {
-                if (Math.Abs(XBacklashCompensation) > 0) {
-                    Logger.Info("Direction changed. Clearing backlash");
-                    var sequence = BacklashCompensationPlanner.CreateSequence(XBacklashCompensation, currentDirection);
-                    await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.FirstMove, token).ConfigureAwait(false);
-                    await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.SecondMove, token).ConfigureAwait(false);
-                }
-            }
+        private async Task ClearBacklash(LastDirection currentDirection, CancellationToken token) {
+            var sequence = BacklashCompensationPlanner.CreateSequence(XBacklashCompensation, currentDirection);
+            if (sequence.FirstMove == 0) { return; }
+
+            Logger.Info("Clearing backlash and restoring positive preload");
+            await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.FirstMove, token).ConfigureAwait(false);
+            await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.SecondMove, token).ConfigureAwait(false);
         }
 
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
