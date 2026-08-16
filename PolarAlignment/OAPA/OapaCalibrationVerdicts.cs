@@ -60,6 +60,15 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         public const double DirectionalRelativeThreshold = 0.20;
 
         public static AxisVerdictDerivation Derive(AxisCalibrationMeasurements m, string axisLabel) {
+            // An axis where neither direction produced measurable motion has measured no
+            // scale at all, so there is no factor to report - only a failed pass. Same
+            // condition the engagement probe already fails on, found one stage later.
+            if (!IsUsableResponse(m.ForwardResponse) && !IsUsableResponse(m.ReverseResponse)) {
+                throw new InvalidOperationException(
+                    $"{axisLabel}: neither direction produced measurable motion ({m.ForwardResponse:F3}/{m.ReverseResponse:F3} '/unit); " +
+                    "check the clutch, the motor current and the speed of this axis");
+            }
+
             // The backlash transitions are evaluated against the response of the
             // direction the axis was travelling toward, so a direction asymmetry does
             // not masquerade as backlash (or as slippage).
@@ -88,19 +97,32 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             // evaluated against the *other* direction's response, so the pair goes with
             // it. Field evidence: fwd=0.860 against rev=0.102 produced a factor three
             // times what the axis delivered during the corrections that followed.
-            var responseSuspect = responseAgreement < ResponseAgreementFloor;
+            //
+            // A direction that produced no motion at all is stated separately rather than
+            // left to the agreement arithmetic: it is the same verdict for a stronger
+            // reason, and saying so explicitly keeps it true no matter how the ratio of
+            // two degenerate numbers happens to come out.
+            var responseSuspect = !IsUsableResponse(m.ForwardResponse)
+                                  || !IsUsableResponse(m.ReverseResponse)
+                                  || responseAgreement < ResponseAgreementFloor;
 
             double backlash;
             var directional = false;
             var backlashSuspect = responseSuspect;
             var significant = Math.Max(backlashForward, backlashReverse);
-            if (significant < 2 * m.DetectionThresholdArcmin) {
-                backlash = 0; // both transitions indistinguishable from noise
-            } else if (backlashSuspect || Math.Min(rawForward, rawReverse) < -m.DetectionThresholdArcmin) {
+            if (backlashSuspect || Math.Min(rawForward, rawReverse) < -m.DetectionThresholdArcmin) {
                 // An impossible transition invalidates the pair, not just itself: both
                 // are computed from the same two responses over the same escalated leg.
+                //
+                // This is tested before the noise floor because `significant` is built
+                // from the *clamped* values: an impossible -5' whose partner also clamps
+                // to zero leaves it at zero, and the pair would otherwise be dismissed as
+                // "both below the noise" - reporting a clean "no play" for a pass that
+                // measured something physically impossible.
                 backlashSuspect = true;
                 backlash = 0;
+            } else if (significant < 2 * m.DetectionThresholdArcmin) {
+                backlash = 0; // both transitions indistinguishable from noise
             } else {
                 // A transition indistinguishable from zero paired against a significant
                 // one cannot establish directionality. Zero-against-large is the field
@@ -151,12 +173,22 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             // factor 1.7x too large, and recalibrating on top of that compounded it to
             // 3.6x, while the strong direction alone was within a few percent of the
             // truth. When the pair is suspect, the strong direction IS the scale.
-            var scaleResponse = responseSuspect ? Math.Max(m.ForwardResponse, m.ReverseResponse) : meanResponse;
+            // Math.Max propagates NaN, and the stronger direction is the one being trusted
+            // here, so the pick has to skip a direction that measured nothing rather than
+            // let it poison the scale.
+            var scaleResponse = responseSuspect ? StrongerUsableResponse(m) : meanResponse;
+
+            var ratio = (float)(m.CurrentRatio / scaleResponse);
+            if (!float.IsFinite(ratio)) {
+                throw new InvalidOperationException(
+                    $"{axisLabel}: the measured response does not yield a usable calibration factor " +
+                    $"({m.ForwardResponse:F3}/{m.ReverseResponse:F3} '/unit)");
+            }
 
             var result = new AxisCalibrationResult {
-                Ratio = (float)(m.CurrentRatio / scaleResponse),
-                ForwardRatio = (float)(m.CurrentRatio / m.ForwardResponse),
-                ReverseRatio = (float)(m.CurrentRatio / m.ReverseResponse),
+                Ratio = ratio,
+                ForwardRatio = PerDirectionRatio(m.CurrentRatio, m.ForwardResponse),
+                ReverseRatio = PerDirectionRatio(m.CurrentRatio, m.ReverseResponse),
                 BacklashArcmin = (float)backlash,
                 NoiseSigmaArcmin = (float)m.NoiseSigmaArcmin,
                 Consistent = m.DirectionConsistent,
@@ -173,6 +205,37 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 BacklashForwardArcmin = backlashForward,
                 BacklashReverseArcmin = backlashReverse
             };
+        }
+
+        /// <summary>
+        /// Whether a measured response can be divided by. Zero means the direction did not
+        /// move; NaN and infinity mean the measurement itself failed. All three are the
+        /// same statement: this direction measured nothing.
+        /// </summary>
+        private static bool IsUsableResponse(double response) {
+            return response > 0 && !double.IsInfinity(response);
+        }
+
+        /// <summary>The stronger of the two responses, ignoring one that measured nothing.</summary>
+        private static double StrongerUsableResponse(AxisCalibrationMeasurements m) {
+            if (!IsUsableResponse(m.ForwardResponse)) { return m.ReverseResponse; }
+            if (!IsUsableResponse(m.ReverseResponse)) { return m.ForwardResponse; }
+            return Math.Max(m.ForwardResponse, m.ReverseResponse);
+        }
+
+        /// <summary>
+        /// The factor a single direction measured, or NaN when that direction produced no
+        /// motion. Dividing by a zero response yields infinity, and a plausible-looking
+        /// substitute would be worse: these two values are reported to the user in the
+        /// calibration summary, and a direction that measured nothing must read as nothing
+        /// rather than as a number someone could act on.
+        /// </summary>
+        private static float PerDirectionRatio(float currentRatio, double response) {
+            if (!IsUsableResponse(response)) {
+                return float.NaN;
+            }
+            var ratio = (float)(currentRatio / response);
+            return float.IsFinite(ratio) ? ratio : float.NaN;
         }
     }
 }

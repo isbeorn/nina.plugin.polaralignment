@@ -23,6 +23,63 @@ namespace NINA.Plugins.PolarAlignment.Test {
             OppositeTravelArcmin: 40.0);  // 5' lost entering the opposite direction
 
         [Test]
+        public void ImpossibleTransition_PairedWithAZeroOther_IsStillSuspect_NotJustNoise() {
+            // Review case (upstream #20): an impossible transition whose partner clamps to
+            // zero leaves `significant` at zero, so the pair looks like "both below the
+            // noise floor" while one of them is physically impossible. The reversal here
+            // travelled 10' where the response predicts 5' - twice the predicted travel,
+            // which no amount of play can produce - and the pass must say so rather than
+            // report a clean "no measurable backlash".
+            var m = Healthy() with {
+                ForwardResponse = 0.5,
+                ReverseResponse = 0.5,
+                BacklashLegArcmin = 10f,
+                DetectionThresholdArcmin = 1.0,
+                ReversalTravelArcmin = 10.0,  // raw forward = 10*0.5 - 10 = -5'
+                OppositeTravelArcmin = 5.0    // raw reverse = 10*0.5 - 5  =  0'
+            };
+
+            var d = OapaCalibrationVerdicts.Derive(m, "test");
+
+            d.Result.BacklashSuspect.Should().BeTrue(
+                "a transition that travelled further than the response predicts invalidates the pair, " +
+                "whatever the clamped values look like");
+            d.Result.BacklashArcmin.Should().Be(0);
+            d.Result.DirectionalBacklash.Should().BeFalse();
+        }
+
+        [Test]
+        public void ADirectionThatStalled_ReportsNaN_WhileTheScaleComesFromTheHealthyOne() {
+            // Review case (upstream #20): dividing by a response of zero yields Infinity,
+            // and an infinite "steps per arcminute" is one careless consumer away from the
+            // settings. A stalled direction is not a stalled axis though: the healthy
+            // direction still measured the scale (the field rule for an axis losing steps
+            // against gravity), so the pass keeps its factor and only the stalled
+            // direction's own figure reads as nothing.
+            var m = Healthy() with { ForwardResponse = 0.0, ReverseResponse = 0.8 };
+
+            var d = OapaCalibrationVerdicts.Derive(m, "test");
+
+            float.IsNaN(d.Result.ForwardRatio).Should().BeTrue("a direction that did not move measured no factor");
+            d.Result.Ratio.Should().BeApproximately(100f / 0.8f, 0.01f, "the healthy direction carries the scale");
+            float.IsFinite(d.Result.Ratio).Should().BeTrue();
+            d.Result.ResponseSuspect.Should().BeTrue("a direction that did not move cannot be half of a usable measurement");
+            d.Result.BacklashSuspect.Should().BeTrue();
+        }
+
+        [Test]
+        public void AnAxisThatMeasuredNothingInEitherDirection_FailsThePass() {
+            // No scale was measured at all, so there is no factor to report - only a failed
+            // calibration, the same verdict the engagement probe gives for an axis that
+            // never moved, reached one stage later.
+            var m = Healthy() with { ForwardResponse = 0.0, ReverseResponse = 0.0 };
+
+            var act = () => OapaCalibrationVerdicts.Derive(m, "Y");
+
+            act.Should().Throw<InvalidOperationException>().WithMessage("*neither direction produced measurable motion*");
+        }
+
+        [Test]
         public void SymmetricAxis_CollapsesThePairToTheMean_AndScalesByTheMeanResponse() {
             var d = OapaCalibrationVerdicts.Derive(Healthy(), "test");
 
