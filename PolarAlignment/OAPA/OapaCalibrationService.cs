@@ -209,6 +209,19 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             // Whether any move has produced a measured response yet. Until it has, an
             // overshoot is a statement about the configured factor rather than about the axis.
             var responseKnown = false;
+            // The best response measured so far, held outside the sequence so the failure path
+            // can reach it. A restore has to turn sky arcminutes back into a command, and this
+            // is the only honest exchange rate the pass ever has; without it the restore
+            // assumes one arcminute per unit, the assumption this sequence exists to replace.
+            //
+            // Signed, and per unit of wire rather than per logical arcminute, because the
+            // restore commands wire directly: the sign carries both the physical wiring and
+            // the flipped direction of an auto-reverse retry. An unsigned one points the
+            // restore the wrong way on exactly the rigs that needed the retry, and since each
+            // iteration then measures a larger residual, it drives the axis away faster with
+            // every move. This is the same quantity CloseLoopAgainstBaseline is handed on the
+            // success path; the failure path had no equivalent.
+            double bestResponse = 0;
             CalibrationSolveSample last = default;
             CalibrationSolveSample baseline = default;
 
@@ -265,7 +278,15 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     // measurement at all, so a factor far above the truth spends the whole
                     // travel budget in a single command. Telling that user to check that the
                     // axis moves freely is the opposite of the advice they need.
-                    if (!responseKnown) {
+                    //
+                    // The implied factor is this move's command over this move's displacement,
+                    // so it is only a factor while that displacement is evidence of something.
+                    // A budget breached while the current move delivered nothing is not the
+                    // probe overshooting - it is the field itself moving under an axis that is
+                    // barely responding - and dividing by that displacement would put an
+                    // infinity in front of the user under a sentence claiming their probe went
+                    // too far. The same floor the engagement diagnosis uses for the same reason.
+                    if (!responseKnown && Math.Abs(d) > MinimumCredibleTravelArcmin) {
                         var impliedRatio = currentRatio * logicalArcmin / Math.Abs(d);
                         throw new InvalidOperationException(
                             $"{axisLabel}: the first {logicalArcmin:F0}' probe moved the axis {d:F0}', past the " +
@@ -334,6 +355,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     var d = await MoveAndMeasure(probe, +1f).ConfigureAwait(false);
                     if (Math.Abs(d) >= threshold) {
                         roughResponse = Math.Abs(d) / probe;
+                        bestResponse = d / (dirSign * probe);
                         engagedProbe = probe;
                         responseKnown = true;
                         engaged = true;
@@ -430,6 +452,13 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     forwardResponse = Median(Math.Abs(f1), Math.Abs(f2), Math.Abs(f3)) / legLogical;
                 } else {
                     forwardResponse = (Math.Abs(f1) + Math.Abs(f2)) / 2.0 / legLogical;
+                }
+                // The clean legs measure the same quantity as the probe did, on a longer
+                // baseline and with the drive train already engaged, so they supersede it.
+                // Signed per wire unit, the same expression the success path closes with.
+                var forwardSignSoFar = Math.Sign(f1 + f2);
+                if (forwardResponse > 0 && forwardSignSoFar != 0) {
+                    bestResponse = forwardSignSoFar * forwardResponse / dirSign;
                 }
 
                 // How much sky the legs actually covered, against how much they aim for. The
@@ -552,7 +581,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
                 return new CalibrationPass(result, factorProvisional);
             } catch (Exception) when (needsRestore) {
-                await BestEffortRestore(axis, isAzimuth, baseline, movedArcmin, axisLabel).ConfigureAwait(false);
+                await BestEffortRestore(axis, isAzimuth, baseline, movedArcmin, axisLabel, bestResponse).ConfigureAwait(false);
                 throw;
             }
         }
@@ -651,18 +680,87 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// drives it back, iterating so a restore reversal that loses its backlash still
         /// completes. Only when the solve itself is unavailable - often the reason the
         /// sequence failed - does it fall back to the commanded-sum restore.
+        ///
+        /// The residual is measured in sky arcminutes and the axis takes commands in units,
+        /// so the restore has to convert between them, and the conversion is exactly what a
+        /// failed pass may not have finished measuring. Commanding the residual itself
+        /// assumes one arcminute of sky per unit: on an axis ten times livelier than that,
+        /// a 190' residual becomes a 1350' throw in the opposite direction, and the move
+        /// meant to protect the travel is the one that spends it - six times the budget the
+        /// abort had just enforced. So the residual is divided by the best response the pass
+        /// measured, and every restore move re-measures it: the sky says what the last
+        /// command delivered, and a delivery that disagrees corrects the next one.
         /// </summary>
-        private async Task BestEffortRestore(Axis axis, bool isAzimuth, CalibrationSolveSample baseline, float movedArcmin, string axisLabel) {
+        private async Task BestEffortRestore(Axis axis, bool isAzimuth, CalibrationSolveSample baseline,
+                                             float movedArcmin, string axisLabel, double measuredResponse) {
             var cap = SingleCommandCapArcmin;
+            // With no response measured, the pass failed before it learned anything about
+            // this axis, and the restore is in the position the sequence itself starts from.
+            // It answers the same way: assume one for one, but spend no more than the
+            // identification probe on an assumption, and let the result correct it.
+            var response = measuredResponse != 0 ? measuredResponse : 1.0;
+            var trusted = measuredResponse != 0;
+            CalibrationSolveSample previous = default;
+            var lastCommand = 0f;
+            var lastResidual = 0.0;
             try {
                 for (var i = 0; i < MaxClosingIterations; i++) {
                     var current = await solver.CaptureAndSolve(CancellationToken.None).ConfigureAwait(false);
+
+                    // What the previous restore command actually delivered, straight off the
+                    // sky, at no extra cost: the solve this iteration needs anyway is also the
+                    // one that closes the measurement of the last move.
+                    //
+                    // Its magnitude is read as a lower bound, never as the response itself.
+                    // Play removes travel and never adds it, and the first restore move
+                    // reverses direction by construction - it is undoing the pass - so it pays
+                    // the backlash out of its own travel and reads low. Raising the estimate on
+                    // that evidence is sound and shrinks the next command; lowering it would
+                    // turn a single backlash payment into a permanently under-read response,
+                    // and an under-read response is what makes the axis overshoot.
+                    //
+                    // Its sign, on the other hand, is believed outright once the delivery
+                    // clears the tolerance, because a sign is not something backlash can
+                    // distort: the axis went one way or the other. A restore that has the sign
+                    // wrong does not merely fail to come home, it accelerates away - each
+                    // iteration measures a larger residual and commands a larger move - so one
+                    // move's worth of evidence is enough to abandon the assumption.
+                    if (Math.Abs(lastCommand) > 0) {
+                        var delivered = OapaCalibrationGeometry.SignedAxisDisplacementArcmin(isAzimuth, previous, current);
+                        if (Math.Abs(delivered) > RestoreToleranceArcmin) {
+                            var observed = delivered / lastCommand;
+                            if (Math.Sign(observed) != Math.Sign(response)) {
+                                response = observed;
+                                trusted = true;
+                                Logger.Warning($"OAPA cal {axisLabel}: the restore was driving the wrong way; the axis answers {observed:F3}'/unit, correcting");
+                            } else if (Math.Abs(observed) > Math.Abs(response)) {
+                                response = observed;
+                                trusted = true;
+                            }
+                        }
+                    }
+
                     var residual = OapaCalibrationGeometry.SignedAxisDisplacementArcmin(isAzimuth, baseline, current);
                     if (Math.Abs(residual) < RestoreToleranceArcmin) { return; }
-                    var restore = (float)Math.Clamp(-residual, -cap, cap);
-                    Logger.Info($"OAPA cal {axisLabel}: failure with {movedArcmin:F1}' commanded outstanding; measured {residual:F1}' from baseline, driving back");
+                    lastResidual = residual;
+                    var limit = trusted ? cap : Math.Min(cap, InitialProbeArcmin);
+                    var restore = (float)Math.Clamp(-residual / response, -limit, limit);
+                    Logger.Info($"OAPA cal {axisLabel}: failure with {movedArcmin:F1}' commanded outstanding; measured {residual:F1}' from baseline, driving back {restore:F1}' at {response:F3}'/unit");
                     await MoveAndSettle(axis, restore, CancellationToken.None).ConfigureAwait(false);
+                    previous = current;
+                    lastCommand = restore;
                 }
+
+                // Out of iterations with the axis still out. Saying so costs nothing and is the
+                // difference between a user who knows where their mount is and one who does
+                // not: an axis that answers a command far better in one direction than the
+                // other cannot be walked home inside the sequence's own command cap, and the
+                // abort message above talks about the calibration rather than the platform.
+                // One field rig reaches this - 0.033 arcminutes of sky per unit forward against
+                // 0.938 in reverse - where each of the three restore moves recovers 4.5' of a
+                // 232' departure.
+                Logger.Warning($"OAPA cal {axisLabel}: the restore ran out of moves with the axis still {lastResidual:F0}' from its starting position; " +
+                    "it could not be driven back within the single-command cap. Check the axis before the next run.");
             } catch (Exception measureEx) {
                 Logger.Warning($"OAPA cal {axisLabel}: measured restore unavailable ({measureEx.Message}); driving back the commanded sum");
                 try {

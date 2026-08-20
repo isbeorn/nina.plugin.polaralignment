@@ -42,12 +42,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
             private int reversals;
             private int moves;
             private double physicalPositionArcmin;
+            private double peakSkyExcursionArcmin;
+            private double largestDeliveredStepArcmin;
             private int lastSign;
 
             public int SolveCount { get; private set; }
             /// <summary>One per calibration pass, so a test can tell a single pass from an auto-flip retry.</summary>
             public int PassCount { get; private set; }
             public readonly List<float> CommandedMoves = new();
+            /// <summary>Where the axis stood on the sky after each command, for reading a run back.</summary>
+            public readonly List<double> SkyTrace = new();
 
             public void BeginCalibration() => PassCount++;
 
@@ -103,6 +107,14 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 }
                 lastSign = sign;
                 physicalPositionArcmin += physicalSign * sign * effective;
+                // Peak excursion measured the way the service bounds it: on the sky, not on
+                // the commanded sum. A wrong factor makes commanded arcminutes meaningless,
+                // and the budget check runs after each move - so the peak that matters is the
+                // one right here, before the next solve can see it.
+                var projection = Math.Cos(fieldAzimuthDegrees * Math.PI / 180.0);
+                SkyTrace.Add(physicalPositionArcmin * projection);
+                peakSkyExcursionArcmin = Math.Max(peakSkyExcursionArcmin, Math.Abs(physicalPositionArcmin * projection));
+                largestDeliveredStepArcmin = Math.Max(largestDeliveredStepArcmin, Math.Abs(effective * projection));
                 return Task.CompletedTask;
             }
 
@@ -121,6 +133,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             }
 
             public double PhysicalPositionArcmin => physicalPositionArcmin;
+            public double PeakSkyExcursionArcmin => peakSkyExcursionArcmin;
+            public double LargestDeliveredStepArcmin => largestDeliveredStepArcmin;
             public float LargestCommand => CommandedMoves.Count == 0 ? 0f : CommandedMoves.Max(Math.Abs);
         }
 
@@ -131,6 +145,9 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         /// <summary>The single-command cap the sequence applies to its own legs: three calibration steps.</summary>
         private const float SingleCommandCapArcmin = 3f * 45f;
+
+        /// <summary>How close to its baseline a pass must get before it may call itself restored.</summary>
+        private const double RestoreToleranceArcmin = 0.5;
 
         [Test]
         public async Task AnAxisWithBreakAwayFriction_IsNotMisdiagnosedAsDead() {
@@ -598,6 +615,242 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var act = () => new OapaCalibrationService(axis, axis, step);
 
             act.Should().Throw<ArgumentOutOfRangeException>();
+        }
+
+        [Test]
+        public async Task OnAReversedAxis_AFailedPassIsNotFollowedByARunaway() {
+            // The second half of the same fault, and the dangerous half. The restore drives
+            // -residual through a response, and on an axis that answers a positive command
+            // with a negative displacement - reversed wiring, which is exactly the rig the
+            // auto-flip retry exists for - an unsigned response points that move the wrong
+            // way. It is not a restore that merely fails to arrive: each iteration then
+            // measures a LARGER residual and commands a LARGER move, so the axis accelerates
+            // away. Found by holding the failure path to the same physical promises as the
+            // successful one, on rig 73 of the randomised sweep: the pass aborted correctly at
+            // 185', and the three restore moves that followed - 16', 31', 61' - carried the
+            // axis out to 1355'.
+            // Rig 112 of that sweep, reproduced exactly rather than approximated: reversed
+            // wiring, ten arcminutes of sky per unit forward and half that in reverse.
+            var axis = new StressFakeAxis(forwardScale: 10.0, reverseScale: 5.212036683322879,
+                                          backlashSequence: new[] { 6.0 }, noiseAmplitudeArcmin: 0.05,
+                                          physicalSign: -1);
+
+            var act = async () => await Calibrate(axis);
+
+            await act.Should().ThrowAsync<InvalidOperationException>();
+            AssertPhysicalPromises(axis, "reversed axis, scale 10, play 6");
+        }
+
+        [Test]
+        public async Task WhenTheBudgetAbortsAPass_TheRestoreDoesNotSpendTheBudgetItJustEnforced() {
+            // The regression this guards, found by measuring the excursion on the sky instead
+            // of on the commanded sum. The residual is measured in sky arcminutes and the axis
+            // takes commands in units; the restore used to command the residual itself, which
+            // assumes one arcminute of sky per unit - the assumption the whole sequence exists
+            // to replace. On this rig, ten arcminutes of sky per unit with 45' of play, the
+            // pass aborts 190' from its baseline, and that restore then commanded 135' back,
+            // delivered 1350', and left the platform 1115' out on the far side: six times the
+            // budget the abort had just enforced, spent by the move meant to protect it.
+            var axis = new StressFakeAxis(forwardScale: 10.0, backlashSequence: new[] { 45.0 },
+                                          noiseAmplitudeArcmin: 0.05);
+
+            var act = async () => await Calibrate(axis);
+
+            await act.Should().ThrowAsync<Exception>("this rig cannot be measured inside the travel budget");
+            axis.PeakSkyExcursionArcmin.Should().BeLessThan(TravelBudgetArcmin + axis.LargestDeliveredStepArcmin,
+                "the budget is checked after each move, so the excursion may exceed it by the "
+                + "one move that revealed the overshoot - and by nothing that happens after");
+            Math.Abs(axis.PhysicalPositionArcmin).Should().BeLessThan(TravelBudgetArcmin,
+                "an abort that leaves the axis outside the budget has protected nothing");
+        }
+
+        [Test]
+        public async Task KnownWeakness_ASwallowedCommandInOneDirection_IsNotFlagged() {
+            // Found by the randomised sweep below, one rig in 240, and left standing on
+            // purpose: the constant that would fix it lives in the verdict derivation, which
+            // is already upstream. Recorded here so the behaviour is visible, has a number,
+            // and has somewhere to be fixed once the series is merged.
+            //
+            // A clutch that lets go for a single command - the 04/08 rig did exactly this -
+            // can land that command inside one of the two reverse measuring legs. That
+            // direction then measures half the motion it should, and the factor comes out
+            // 23% wrong. Nothing says so, because the guard fires when the two directions
+            // disagree by more than a factor of two and this disagreement is 1.60.
+            //
+            // Every healthy mechanism in the field archive sits far below that: 1.10 on the
+            // 08/08 rig, 1.03 on the 18/08 rig, 1.02 on the 04/08 one. A floor of 1.5 would
+            // catch this with 40% of margin over the worst real rig measured so far.
+            var axis = new StressFakeAxis(
+                forwardScale: 0.5, reverseScale: 0.626,
+                backlashSequence: new[] { 45.0 },
+                noiseAmplitudeArcmin: 0.02,
+                deadCommands: new[] { 9 });
+
+            var outcome = await Calibrate(axis);
+
+            // The truth is between the two directions: 100/0.626 = 160 and 100/0.5 = 200.
+            outcome.Ratio.Should().BeApproximately(245.7f, 1f, "this is what it reports today");
+            outcome.ResponseSuspect.Should().BeFalse("1.60 does not reach the factor-of-two floor");
+            outcome.Consistent.Should().BeTrue("the directions agree on sign, which is all this checks");
+        }
+
+        // ===== Hundreds of synthetic mechanisms, not five chosen ones =====
+        //
+        // Every other test in this file proves a case somebody thought of. These two prove the
+        // absence of a regime nobody thought of, which is a different question and the one that
+        // has twice caught something in this project that hand-written scenarios had missed.
+        //
+        // The split is the point. On a mechanism that behaves predictably the sequence is held
+        // to ACCURACY: the factor it reports must be the truth. On a mechanism that does not -
+        // stick-slip, a clutch that lets go, break-away friction, a drifting field, reversed
+        // wiring - accuracy is not always attainable, so it is held to HONESTY instead: bounded
+        // commands, bounded travel, no arithmetic that is not a number, and never a claim of
+        // having come home that is not true.
+
+        private static IEnumerable<(double scale, double backlash, double noise)> PredictableRigs() {
+            foreach (var scale in new[] { 0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 10.0 })
+            foreach (var backlash in new[] { 0.0, 0.5, 2.0, 6.0, 20.0, 45.0 })
+            foreach (var noise in new[] { 0.0, 0.02, 0.05 }) {
+                yield return (scale, backlash, noise);
+            }
+        }
+
+        /// <summary>
+        /// Travel budget, in the only currency the sequence controls. A stored factor that is
+        /// ten times too small makes the platform travel ten times further than any command
+        /// intends, and no bound expressed in sky arcminutes can prevent that - discovering the
+        /// factor is what the first probe is for. So the promise is about commanded travel.
+        /// </summary>
+        private const float TravelBudgetArcmin = 4f * 45f;
+
+        [Test]
+        public async Task OnMechanicallyPredictableRigs_TheFactorItReportsIsTheTruth() {
+            var worstError = 0.0;
+            var failures = 0;
+
+            foreach (var (scale, backlash, noise) in PredictableRigs()) {
+                var axis = new StressFakeAxis(forwardScale: scale,
+                    backlashSequence: new[] { backlash }, noiseAmplitudeArcmin: noise);
+                AxisCalibrationOutcome outcome;
+                try {
+                    outcome = await Calibrate(axis);
+                } catch (InvalidOperationException) {
+                    // Giving up on the measurement is allowed; giving up on the platform is not.
+                    AssertPhysicalPromises(axis, $"scale {scale}, play {backlash}, noise {noise} (pass failed)");
+                    failures++;
+                    continue;
+                }
+
+                var truth = 100.0 / scale;
+                worstError = Math.Max(worstError, Math.Abs(outcome.Ratio - truth) / truth);
+
+                // A mechanism that behaves keeps the sequence inside its own travel budget:
+                // the worst of these 126 leaves the axis 98' from where it started.
+                AssertKeptItsPromises(axis, outcome, scale, backlash, noise, skyIsStill: true);
+            }
+
+            TestContext.WriteLine($"worst factor error {worstError * 100:F2}%, {failures} honest failures");
+            worstError.Should().BeLessThan(0.01,
+                "on a mechanism that behaves the same in both directions the measurement is the answer, not an estimate");
+            failures.Should().BeLessThan(5, "a predictable rig should rarely defeat the sequence");
+        }
+
+        [Test]
+        public async Task OnUnpredictableRigs_ItIsEitherRightOrHonest() {
+            var rng = new Random(20260819);
+            var failures = 0;
+
+            for (var i = 0; i < 240; i++) {
+                var scale = new[] { 0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 10.0 }[rng.Next(7)];
+                var asym = 1.0 + (rng.NextDouble() - 0.5);
+                var play = new[] { 0.0, 0.5, 2.0, 6.0, 20.0, 45.0 }[rng.Next(6)];
+                var slip = rng.NextDouble() < 0.4
+                    ? new[] { play, play * rng.NextDouble() * 2, play * 0.2 }
+                    : new[] { play };
+                var noise = new[] { 0.0, 0.02, 0.05, 0.12 }[rng.Next(4)];
+                var stiction = rng.NextDouble() < 0.3 ? rng.NextDouble() * 4 : 0;
+                var firstLoss = rng.NextDouble() < 0.2 ? rng.NextDouble() * 6 : 0;
+                var drift = rng.NextDouble() < 0.25 ? (rng.NextDouble() - 0.5) * 0.4 : 0;
+                var sign = rng.NextDouble() < 0.15 ? -1 : 1;
+                var az = rng.NextDouble() < 0.3 ? rng.NextDouble() * 50 : 0;
+                var dead = rng.NextDouble() < 0.2 ? new[] { rng.Next(2, 10) } : Array.Empty<int>();
+
+                var axis = new StressFakeAxis(scale, scale * asym, slip, stiction, firstLoss,
+                    noise, drift, seed: 1000 + i, physicalSign: sign, fieldAzimuthDegrees: az,
+                    deadCommands: dead);
+
+                AxisCalibrationOutcome outcome;
+                try {
+                    outcome = await Calibrate(axis);
+                } catch (InvalidOperationException) {
+                    // Giving up on the measurement is allowed; giving up on the platform is not.
+                    AssertPhysicalPromises(axis, $"rig {i}, scale {scale}, play {play} (pass failed)");
+                    failures++;
+                    continue;
+                }
+
+                AssertKeptItsPromises(axis, outcome, scale, play, noise,
+                    skyIsStill: drift == 0, azimuth: az);
+            }
+
+            TestContext.WriteLine($"{failures} of 240 refused to report a factor");
+            failures.Should().BeGreaterThan(0, "some of these mechanics genuinely cannot be measured");
+            failures.Should().BeLessThan(60, "refusing most of them would make the sequence useless");
+        }
+
+        /// <summary>
+        /// The promises about the platform itself, which hold whether the pass reports a
+        /// factor or gives up. They are stated separately because a pass that fails is where
+        /// the axis is most at risk, and holding only the successful passes to them leaves
+        /// that path unwatched: the restore that used to fling the axis 1115' - six times the
+        /// budget - ran exclusively there, and every sweep stayed green through it.
+        /// </summary>
+        private static void AssertPhysicalPromises(StressFakeAxis axis, string rig) {
+            axis.LargestCommand.Should().BeLessThanOrEqualTo(SingleCommandCapArcmin, rig);
+
+            // Measured on the sky, which is where the budget is enforced and where the user's
+            // mount actually is. The commanded sum is not the same quantity and cannot stand
+            // in for it: on an axis whose factor is wrong the two differ by that factor, so a
+            // bound on commanded arcminutes says nothing about how far the platform travelled.
+            // The budget is checked after each move, so the excursion may exceed it by the one
+            // move that revealed the overshoot - and by nothing that happens afterwards.
+            axis.PeakSkyExcursionArcmin.Should().BeLessThanOrEqualTo(
+                TravelBudgetArcmin + axis.LargestDeliveredStepArcmin, rig);
+
+            Math.Abs(axis.PhysicalPositionArcmin).Should().BeLessThanOrEqualTo(TravelBudgetArcmin,
+                $"a sequence that ends leaving the axis outside its travel budget has protected nothing ({rig})");
+        }
+
+        /// <summary>The promises that hold whatever the mechanism looks like.</summary>
+        private static void AssertKeptItsPromises(StressFakeAxis axis, AxisCalibrationOutcome outcome,
+                double scale, double backlash, double noise, bool skyIsStill, double azimuth = 0) {
+            var rig = $"scale {scale}, play {backlash}, noise {noise}";
+
+            AssertPhysicalPromises(axis, rig);
+
+            float.IsNaN(outcome.Ratio).Should().BeFalse(rig);
+            float.IsNaN(outcome.BacklashArcmin).Should().BeFalse(rig);
+            float.IsNaN(outcome.BacklashEnteringPositiveArcmin).Should().BeFalse(rig);
+            float.IsNaN(outcome.BacklashEnteringNegativeArcmin).Should().BeFalse(rig);
+            outcome.Ratio.Should().BePositive(rig);
+
+            if (outcome.RestoredToBaseline && skyIsStill) {
+                // Only meaningful against a still sky: when the field itself drifts between
+                // solves, the sequence closes against a baseline that has moved, and the claim
+                // is true of everything it can see. What it cannot see is not a lie.
+                var visibleResidual = Math.Abs(axis.PhysicalPositionArcmin * Math.Cos(azimuth * Math.PI / 180.0));
+
+                // One tolerance per pass, because each pass closes against the baseline it
+                // measured for itself, and an auto-flip retry starts from wherever the first
+                // pass left the axis rather than from where the user did. Two honest closes of
+                // 0.34' each leave the platform 0.62' from its starting point, and the claim
+                // is still true of every baseline it was ever measured against. Bounding this
+                // by a single tolerance asks the sequence for something it never promised -
+                // the earlier version of this assertion did, and only fresh rig populations
+                // ever showed it.
+                visibleResidual.Should().BeLessThan(RestoreToleranceArcmin * axis.PassCount + noise + 0.01,
+                    $"claiming restoration means the axis really is back at the baseline of each pass ({rig}, {axis.PassCount} passes)");
+            }
         }
 
         [TestCase(0.25, 20.0, TestName = "StressMatrix_QuarterResponse_LargePlay")]
