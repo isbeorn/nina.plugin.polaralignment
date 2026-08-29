@@ -33,6 +33,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             public Task MoveRelative(Axis axis, float arcmin, CancellationToken token) {
                 CommandedMoves.Add(arcmin);
+                commandedArcmin += arcmin;
                 var sign = Math.Sign(arcmin);
                 double effective = Math.Abs(arcmin) * responseScale;
                 if (sign != 0 && lastSign != 0 && sign != lastSign) {
@@ -42,6 +43,24 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 physicalPositionArcmin += sign * directionSign * effective;
                 return Task.CompletedTask;
             }
+
+            /// <summary>
+            /// The controller's own count of where the axis is: the sum of what it has been
+            /// asked to do. Deliberately not <see cref="PhysicalPositionArcmin"/> - the two
+            /// differ by whatever the play is holding and by the response scale, and a fake
+            /// that conflated them would let an absolute move teleport the mechanism.
+            /// </summary>
+            private double commandedArcmin;
+
+            public Task<float?> ReadPosition(Axis axis, CancellationToken token)
+                => Task.FromResult<float?>((float)commandedArcmin);
+
+            /// <summary>
+            /// An absolute move is a relative one to the difference, through the same
+            /// mechanism: same scale, same play, same engaged direction.
+            /// </summary>
+            public Task MoveAbsolute(Axis axis, float position, CancellationToken token)
+                => MoveRelative(axis, (float)(position - commandedArcmin), token);
 
             public Task<CalibrationSolveSample> CaptureAndSolve(CancellationToken token) {
                 return Task.FromResult(new CalibrationSolveSample(
@@ -271,16 +290,28 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task MidSequenceFailure_SolverUnavailable_FallsBackToCommandSumRestore() {
+        public async Task MidSequenceFailure_SolverUnavailable_ReturnsToTheRecordedStartPosition() {
+            // Solve B and everything after it fail, so the measured restore cannot run at all:
+            // there is no sky left to steer by from the moment the failure path opens.
+            //
+            // What is left to steer by is the position the controller reported before the pass
+            // began. It is read once at the start and driven back to on the way out, and it is
+            // the only quantity that survives this: it does not depend on how much has been
+            // commanded since, on how much of it the play swallowed, or on how far the restore
+            // had already walked before the sky went dark.
+            //
+            // This test used to assert that the sum of the pass's commands was driven back
+            // instead, which is the defect reported in review - on a mechanism with play that
+            // sum walks the platform out the far side. This mechanism has no play, which is
+            // precisely why the old assertion passed and the defect went unseen here.
             var axis = new FakeAxis(responseScale: 1.0, physicalBacklashArcmin: 0.0);
-            // Solve B and everything after it fail, so the measured restore is impossible
-            // and the commanded-sum fallback must still bring the axis home.
             var service = new OapaCalibrationService(axis, new FailingSolver(axis, failFrom: 3));
 
             var act = () => service.CalibrateAxisWithAutoReverse(Axis.YAxis, 100f, false, "Y", null, CancellationToken.None);
             await act.Should().ThrowAsync<InvalidOperationException>();
 
-            axis.PhysicalPositionArcmin.Should().BeApproximately(0.0, 0.6, "the fallback restore must return the axis to its start");
+            axis.PhysicalPositionArcmin.Should().BeApproximately(0.0, 0.6,
+                "the failure path drives the axis back to the position recorded before the pass");
         }
 
         [Test]

@@ -301,6 +301,13 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 return d;
             }
 
+            // Where the axis stands before anything moves it. Read once, from the controller
+            // rather than from the sky, because this is the one description of "home" that
+            // survives the sky becoming unavailable - which is the failure the restore exists
+            // for. A driver that cannot report a position answers null, and then nothing is
+            // ever driven blind.
+            var home = await ReadHome(axis, axisLabel).ConfigureAwait(false);
+
             // S0: solve noise with the axis at rest; everything below detects motion
             // against a threshold derived from it (fail fast on an unsolvable field too).
             reportStatus?.Invoke($"{axisLabel}: measuring solve noise...");
@@ -581,7 +588,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
                 return new CalibrationPass(result, factorProvisional);
             } catch (Exception) when (needsRestore) {
-                await BestEffortRestore(axis, isAzimuth, baseline, movedArcmin, axisLabel, bestResponse).ConfigureAwait(false);
+                await BestEffortRestore(axis, isAzimuth, baseline, movedArcmin, axisLabel, bestResponse, home).ConfigureAwait(false);
                 throw;
             }
         }
@@ -692,7 +699,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// command delivered, and a delivery that disagrees corrects the next one.
         /// </summary>
         private async Task BestEffortRestore(Axis axis, bool isAzimuth, CalibrationSolveSample baseline,
-                                             float movedArcmin, string axisLabel, double measuredResponse) {
+                                             float movedArcmin, string axisLabel, double measuredResponse,
+                                             float? home) {
             var cap = SingleCommandCapArcmin;
             // With no response measured, the pass failed before it learned anything about
             // this axis, and the restore is in the position the sequence itself starts from.
@@ -762,26 +770,52 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Logger.Warning($"OAPA cal {axisLabel}: the restore ran out of moves with the axis still {lastResidual:F0}' from its starting position; " +
                     "it could not be driven back within the single-command cap. Check the axis before the next run.");
             } catch (Exception measureEx) {
-                Logger.Warning($"OAPA cal {axisLabel}: measured restore unavailable ({measureEx.Message}); driving back the commanded sum");
-                try {
-                    // Driven back in cap-sized moves rather than as one command. The commanded sum
-                    // can be several times any leg the sequence allows itself - escalated backlash
-                    // legs add up - and this is the path taken when solving is unavailable, so
-                    // nothing is watching the sky while it runs. The cap that bounds every measured
-                    // move has to bound the blind one most of all.
-                    var remaining = -movedArcmin;
-                    for (var i = 0; i < MaxClosingIterations && Math.Abs(remaining) > RestoreToleranceArcmin; i++) {
-                        var chunk = (float)Math.Clamp(remaining, -cap, cap);
-                        await MoveAndSettle(axis, chunk, CancellationToken.None).ConfigureAwait(false);
-                        remaining -= chunk;
+                // The measured restore was interrupted - a solve died, the geometry threw. It
+                // may already have moved the axis part or all of the way home before that
+                // happened, so the commanded sum from the pass is no longer a description of
+                // where the axis is: driving it a second time carries the platform the same
+                // distance out the other side. Measured on the harness: an axis 8.0' out, one
+                // restore move taking it to 3.2', then the sum driven again leaves it at -9.6',
+                // further from home than the restore found it, blind, with nothing watching.
+                //
+                // The recorded position is immune to that. It says where the axis stood before
+                // the pass began, in the controller's own units, and it does not care how much
+                // has been commanded since or how much of it the play swallowed.
+                if (home.HasValue) {
+                    Logger.Warning($"OAPA cal {axisLabel}: measured restore unavailable ({measureEx.Message}); " +
+                        $"driving the axis back to its recorded start position ({home.Value:F2}')");
+                    try {
+                        await motion.MoveAbsolute(axis, home.Value, CancellationToken.None).ConfigureAwait(false);
+                    } catch (Exception restoreEx) {
+                        Logger.Error($"OAPA cal {axisLabel}: failed to restore start position", restoreEx);
                     }
-                    if (Math.Abs(remaining) > RestoreToleranceArcmin) {
-                        Logger.Warning($"OAPA cal {axisLabel}: {remaining:F0}' of the commanded sum remains undriven " +
-                            $"after {MaxClosingIterations} capped moves; the axis is not back at its start");
-                    }
-                } catch (Exception restoreEx) {
-                    Logger.Error($"OAPA cal {axisLabel}: failed to restore start position", restoreEx);
+                } else {
+                    // Nothing to steer by: the controller could not say where the axis was when
+                    // the pass began, and the sky has just stopped answering. Standing still is
+                    // the only honest move - the axis is left where the measured restore got it
+                    // to, which is closer to home than where the failure found it.
+                    Logger.Warning($"OAPA cal {axisLabel}: measured restore unavailable ({measureEx.Message}) and no start " +
+                        "position was recorded; the axis is left where it stands. Check it before the next run.");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Reads the axis position the pass will be restored to, or null when the motion
+        /// source cannot report one. A driver that throws here is not a reason to abandon the
+        /// calibration: it only means the failure path will have to stop rather than steer.
+        /// </summary>
+        private async Task<float?> ReadHome(Axis axis, string axisLabel) {
+            try {
+                var home = await motion.ReadPosition(axis, CancellationToken.None).ConfigureAwait(false);
+                if (home.HasValue) { return home; }
+                Logger.Info($"OAPA cal {axisLabel}: the controller does not report an axis position; " +
+                    "a failed pass will stop rather than drive the axis back blind");
+                return null;
+            } catch (Exception ex) {
+                Logger.Warning($"OAPA cal {axisLabel}: could not read the start position ({ex.Message}); " +
+                    "a failed pass will stop rather than drive the axis back blind");
+                return null;
             }
         }
 
