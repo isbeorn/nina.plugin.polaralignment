@@ -721,11 +721,24 @@ namespace NINA.Plugins.PolarAlignment.Test {
         // commands, bounded travel, no arithmetic that is not a number, and never a claim of
         // having come home that is not true.
 
-        private static IEnumerable<(double scale, double backlash, double noise)> PredictableRigs() {
+        /// <summary>
+        /// The mechanisms this sweep holds to accuracy. Asymmetry is one of the dimensions, and
+        /// it was not: every rig here used to answer the same in both directions, so a whole
+        /// family of mechanism was declared covered by 126 cases that could not contain it.
+        /// A reviewer found the consequence before this sweep did.
+        ///
+        /// An axis that answers differently each way is not an unpredictable one. It is
+        /// perfectly repeatable - it simply has two responses instead of one - so it belongs
+        /// here, where the answer has to be right, and not with the stick-slip and the clutches
+        /// that let go. 0.4 and 2.5 bracket what the field archive holds: one rig measured 0.033
+        /// forward against 0.938 in reverse.
+        /// </summary>
+        private static IEnumerable<(double scale, double asymmetry, double backlash, double noise)> PredictableRigs() {
             foreach (var scale in new[] { 0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 10.0 })
+            foreach (var asymmetry in new[] { 1.0, 0.4, 2.5 })
             foreach (var backlash in new[] { 0.0, 0.5, 2.0, 6.0, 20.0, 45.0 })
             foreach (var noise in new[] { 0.0, 0.02, 0.05 }) {
-                yield return (scale, backlash, noise);
+                yield return (scale, asymmetry, backlash, noise);
             }
         }
 
@@ -742,21 +755,38 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var worstError = 0.0;
             var failures = 0;
 
-            foreach (var (scale, backlash, noise) in PredictableRigs()) {
-                var axis = new StressFakeAxis(forwardScale: scale,
+            foreach (var (scale, asymmetry, backlash, noise) in PredictableRigs()) {
+                var reverseScale = scale * asymmetry;
+                var axis = new StressFakeAxis(forwardScale: scale, reverseScale: reverseScale,
                     backlashSequence: new[] { backlash }, noiseAmplitudeArcmin: noise);
+                var rig = $"scale {scale}/{reverseScale}, play {backlash}, noise {noise}";
                 AxisCalibrationOutcome outcome;
                 try {
                     outcome = await Calibrate(axis);
-                } catch (InvalidOperationException) {
+                } catch (InvalidOperationException ex) {
                     // Giving up on the measurement is allowed; giving up on the platform is not.
-                    AssertPhysicalPromises(axis, $"scale {scale}, play {backlash}, noise {noise} (pass failed)");
+                    AssertPhysicalPromises(axis, rig + " (pass failed)");
                     failures++;
+
+                    // Which rigs are allowed to defeat the sequence, and for which reason. A
+                    // count alone would let a new kind of failure hide inside an allowance
+                    // raised to accommodate a known one.
+                    ex.Message.Should().Contain("travel budget", $"{rig}: the only way a mechanically " +
+                        "predictable rig may defeat this sequence is by not fitting in the travel it has");
+                    Math.Max(scale, reverseScale).Should().BeGreaterThan(2.0, $"{rig}: every response in the " +
+                        "field archive lies between 0.033 and 2.046, so a rig inside that range must be measurable");
                     continue;
                 }
 
-                var truth = 100.0 / scale;
-                worstError = Math.Max(worstError, Math.Abs(outcome.Ratio - truth) / truth);
+                // With two responses the truth is an interval rather than a number, and any
+                // single factor the sequence reports has to lie inside it. On a symmetric rig
+                // the interval collapses to a point and this is the claim it always made.
+                var closest = 100.0 / Math.Max(scale, reverseScale);
+                var furthest = 100.0 / Math.Min(scale, reverseScale);
+                var error = outcome.Ratio < closest ? (closest - outcome.Ratio) / closest
+                          : outcome.Ratio > furthest ? (outcome.Ratio - furthest) / furthest
+                          : 0.0;
+                worstError = Math.Max(worstError, error);
 
                 // A mechanism that behaves keeps the sequence inside its own travel budget:
                 // the worst of these 126 leaves the axis 98' from where it started.
@@ -765,8 +795,14 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             TestContext.WriteLine($"worst factor error {worstError * 100:F2}%, {failures} honest failures");
             worstError.Should().BeLessThan(0.01,
-                "on a mechanism that behaves the same in both directions the measurement is the answer, not an estimate");
-            failures.Should().BeLessThan(5, "a predictable rig should rarely defeat the sequence");
+                "on a mechanism that behaves predictably the measurement is the answer, not an estimate");
+
+            // The count is a summary of the two claims made per failure above, not a claim of
+            // its own: each one had to be a travel-budget abort on a rig coarser than anything
+            // the field has produced. It is kept so that a sweep quietly failing everything
+            // cannot pass by failing honestly.
+            failures.Should().BeLessThan(PredictableRigs().Count() / 5,
+                "most of these mechanisms are ordinary and must be measurable");
         }
 
         [Test]
@@ -949,6 +985,54 @@ namespace NINA.Plugins.PolarAlignment.Test {
             outcome.Flipped.Should().BeFalse("nothing here is wired backwards");
             axis.PassCount.Should().Be(1, "a missing command is not a reason to calibrate the axis twice");
             outcome.Consistent.Should().BeTrue();
+        }
+
+        [Test]
+        public async Task AnAxisThatAnswersLessInReverse_IsNotEscalatedAsThoughItHadPlay() {
+            // The reversal leg exists to measure the play, and it decides it has found some by
+            // asking how far short of its expected travel the leg came. The expectation was
+            // computed from the forward response while the leg itself went backwards, so an
+            // axis that simply answers less in reverse looked exactly like an axis with play.
+            //
+            // This mechanism has no play at all. It answers 1.0 forward and 0.4 in reverse, so
+            // an eight-arcminute reversal correctly travels 3.2'. Expecting 8' of it reads the
+            // missing 4.8' as play, escalates a leg that had nothing wrong with it, and repeats
+            // - each escalation driving the platform forward again to re-engage, at 17.6' and
+            // then 38.7' against a travel budget of 180'.
+            //
+            // The reported play was never wrong: the verdict layer recomputes it with the
+            // reverse response once that has been measured. What was wrong is everything the
+            // sequence did before getting there.
+            //
+            // The control is the same rig answering the same in both directions, which needs no
+            // escalation at all. Measured on this harness: the control peaks 21' from its
+            // baseline, the asymmetric one used to reach 84' - a mechanism with nothing wrong
+            // with it driven four times as far as its own twin, and 47% of the travel budget
+            // spent on a play that is not there.
+            //
+            // One escalation survives, and the assertion admits it. When the first leg is
+            // judged, nothing in the pass has measured how the axis answers backwards, and
+            // inventing a figure would be worse than spending a leg to find out. The second
+            // escalation is the one that must not happen: by then two legs have been measured
+            // and the response is knowable, so a sequence that escalates again is ignoring
+            // evidence it already holds. That is the line the factor of two draws.
+            var asymmetric = new StressFakeAxis(forwardScale: 1.0, reverseScale: 0.4,
+                                                noiseAmplitudeArcmin: 0.0);
+            var symmetric = new StressFakeAxis(forwardScale: 1.0, reverseScale: 1.0,
+                                               noiseAmplitudeArcmin: 0.0);
+
+            var outcome = await Calibrate(asymmetric);
+            await Calibrate(symmetric);
+
+            asymmetric.PeakSkyExcursionArcmin.Should().BeLessThan(2 * symmetric.PeakSkyExcursionArcmin,
+                "one escalation is the price of not knowing the reverse response yet; a second one "
+                + "ignores the two legs that have since measured it");
+
+            // Never the failing half of this finding, and stated so it stays that way: the play
+            // reported to the user was always right, because the verdict layer recomputes it
+            // with the reverse response once S4 has measured that. What was wrong was every
+            // move the sequence made before getting there.
+            Math.Abs(outcome.BacklashArcmin).Should().BeLessThan(0.5f, "there is no play to find");
         }
     }
 }

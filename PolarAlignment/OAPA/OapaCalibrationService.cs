@@ -535,11 +535,54 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 // larger than the initial leg).
                 var backlashLeg = legLogical;
                 double reversalTravel = 0;
+                // The previous escalation's leg and what it travelled. Two such pairs are what
+                // make the reverse response knowable inside this loop, which is the only place
+                // it is needed and the one place the pass has not measured it yet.
+                var previousLeg = 0.0;
+                var previousTravel = double.NaN;
                 for (var i = 0; ; i++) {
                     reportStatus?.Invoke($"{axisLabel}: reversal leg -{backlashLeg:F0}'...");
                     var d = await MoveAndMeasure(backlashLeg, -1f).ConfigureAwait(false);
                     reversalTravel = Math.Abs(d);
-                    var expected = backlashLeg * forwardResponse;
+
+                    // How far this leg should have travelled, in the direction it actually
+                    // went. It used to be sized by the forward response, which is a different
+                    // quantity: an axis that simply answers less in reverse then looks exactly
+                    // like an axis with play. On a mechanism answering 1.0 forward and 0.4 in
+                    // reverse with no play at all, an 8' reversal correctly travels 3.2', the
+                    // missing 4.8' reads as backlash, and the leg escalates - twice, driving
+                    // the platform forward again at 17.6' and then 38.7' to re-engage, against
+                    // a travel budget of 180', on a mechanism with nothing wrong with it.
+                    //
+                    // The reverse response cannot simply be looked up: it is measured in S4,
+                    // after this loop, and it cannot be measured before because obtaining a
+                    // clean reverse leg means first crossing the play - which is what this loop
+                    // is doing. But the loop measures it as it goes. Each escalation is a leg
+                    // and a travel, and travel is affine in leg with the reverse response as
+                    // its slope and the play as its intercept, so two of them give the slope
+                    // directly, with the play falling out of the subtraction.
+                    //
+                    // Both travels have to be real motion for that to hold. A leg entirely
+                    // swallowed by the play reads zero, which is a clamp rather than a
+                    // measurement, and a slope drawn through it is arithmetic on a floor. That
+                    // case escalates regardless of which response sized the expectation, so it
+                    // keeps the forward one and loses nothing.
+                    //
+                    // The first leg has no predecessor and no other measurement to draw on, so
+                    // it still uses the forward response. That escalation can still be
+                    // unnecessary. Inventing a reverse response before anything has measured
+                    // one would be worse than spending one leg to find out.
+                    var reversalResponse = forwardResponse;
+                    if (previousTravel > threshold && reversalTravel > threshold && backlashLeg > previousLeg) {
+                        var slope = (reversalTravel - previousTravel) / (backlashLeg - previousLeg);
+                        if (double.IsFinite(slope) && slope > 0) {
+                            reversalResponse = slope;
+                            Logger.Info($"OAPA cal {axisLabel}: the reversal legs answer {slope:F4}'/unit backwards " +
+                                $"against {forwardResponse:F4} forward; sizing the escalation on the reverse figure");
+                        }
+                    }
+
+                    var expected = backlashLeg * reversalResponse;
                     var shortfall = Math.Max(0, expected - reversalTravel);
                     if (shortfall <= BacklashLegFraction * expected) {
                         break;
@@ -554,14 +597,24 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     // measurement can be contaminated. A response read ten times low turns
                     // "90' of sky" into 900' of it, so the escalated leg respects the same
                     // absolute cap as the clean legs.
-                    var nextLeg = (float)(backlashLeg + 2.0 * shortfall / forwardResponse);
-                    nextLeg = (float)Math.Min(nextLeg, Math.Min(MaxLegPhysicalArcmin / forwardResponse, SingleCommandCapArcmin));
+                    //
+                    // The shortfall is sky the reversal did not cover, so converting it into a
+                    // larger command is the reverse direction's arithmetic. The physical bound
+                    // is the other way round: this leg is driven backwards once and forwards
+                    // once - the re-engage below - so it is only bounded if the larger of the
+                    // two responses sizes it. Whichever direction moves the platform further
+                    // is the one that has to fit.
+                    var nextLeg = (float)(backlashLeg + 2.0 * shortfall / reversalResponse);
+                    var boundingResponse = Math.Max(forwardResponse, reversalResponse);
+                    nextLeg = (float)Math.Min(nextLeg, Math.Min(MaxLegPhysicalArcmin / boundingResponse, SingleCommandCapArcmin));
                     if (nextLeg <= backlashLeg) {
                         Logger.Warning($"OAPA cal {axisLabel}: the backlash leg cannot grow past the single-command cap ({SingleCommandCapArcmin:F0}'); accepting the measure, which may be underestimated");
                         break;
                     }
                     Logger.Info($"OAPA cal {axisLabel}: reversal lost {shortfall:F1}' of {expected:F1}'; escalating the backlash leg to {nextLeg:F0}'");
                     reportStatus?.Invoke($"{axisLabel}: backlash exceeds the leg, re-measuring at {nextLeg:F0}'...");
+                    previousLeg = backlashLeg;
+                    previousTravel = reversalTravel;
                     await MoveAndMeasure(nextLeg, +1f).ConfigureAwait(false); // re-engage forward; not a clean sample
                     backlashLeg = nextLeg;
                 }
