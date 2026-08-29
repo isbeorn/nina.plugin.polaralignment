@@ -665,21 +665,24 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task KnownWeakness_ASwallowedCommandInOneDirection_IsNotFlagged() {
-            // Found by the randomised sweep below, one rig in 240, and left standing on
-            // purpose: the constant that would fix it lives in the verdict derivation, which
-            // is already upstream. Recorded here so the behaviour is visible, has a number,
-            // and has somewhere to be fixed once the series is merged.
+        public async Task ASwallowedCommandInOneDirection_DoesNotHalveThatDirectionsResponse() {
+            // Found by the randomised sweep below, one rig in 240. A clutch that lets go for a
+            // single command - the 04/08 rig did exactly this - can land that command inside
+            // one of the two reverse measuring legs. A mean of a full leg and a swallowed one
+            // reads half the truth.
             //
-            // A clutch that lets go for a single command - the 04/08 rig did exactly this -
-            // can land that command inside one of the two reverse measuring legs. That
-            // direction then measures half the motion it should, and the factor comes out
-            // 23% wrong. Nothing says so, because the guard fires when the two directions
-            // disagree by more than a factor of two and this disagreement is 1.60.
+            // This test used to assert the wrong answer as expected behaviour, on the grounds
+            // that the remedy was a constant in the verdict derivation that had already been
+            // merged. That reasoning was wrong: it assumed the only cure was to widen the
+            // alarm. The measurement itself was the thing at fault, and it is measured here.
+            // The reverse legs now get the same disagreement check and third-leg median the
+            // forward legs have always had, from the same function.
             //
-            // Every healthy mechanism in the field archive sits far below that: 1.10 on the
-            // 08/08 rig, 1.03 on the 18/08 rig, 1.02 on the 04/08 one. A floor of 1.5 would
-            // catch this with 40% of margin over the worst real rig measured so far.
+            // Nothing had said anything, either. The two directions end up disagreeing by
+            // about 1.6, the suspect flag needs a factor of two, and the pass reported a
+            // confident number a quarter wrong - which then scaled every correction of the
+            // night. Widening the alarm would have printed a warning beside a factor that was
+            // still wrong; this returns the right factor instead.
             var axis = new StressFakeAxis(
                 forwardScale: 0.5, reverseScale: 0.626,
                 backlashSequence: new[] { 45.0 },
@@ -688,10 +691,21 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             var outcome = await Calibrate(axis);
 
-            // The truth is between the two directions: 100/0.626 = 160 and 100/0.5 = 200.
-            outcome.Ratio.Should().BeApproximately(245.7f, 1f, "this is what it reports today");
-            outcome.ResponseSuspect.Should().BeFalse("1.60 does not reach the factor-of-two floor");
-            outcome.Consistent.Should().BeTrue("the directions agree on sign, which is all this checks");
+            // The claim is not a number this run happened to produce, it is an interval the
+            // mechanism defines: the two directional truths are 100/0.626 = 160 and
+            // 100/0.5 = 200, so any honest single factor lies between them. The swallowed leg
+            // used to put it at 245.7 - outside the interval, on the far side of the slower
+            // direction, which is the signature of a measurement halved rather than a mechanism
+            // misjudged.
+            outcome.Ratio.Should().BeInRange(160f, 200f,
+                "a factor outside the two directional truths cannot have come from measuring this mechanism");
+
+            // And the flags stay quiet honestly rather than by luck. With the reverse response
+            // measured properly the two directions really do differ by only 1.25, which is
+            // ordinary - 1.10 on the 08/08 rig, 1.03 on the 18/08 one, 1.02 on the 04/08 one.
+            outcome.ResponseSuspect.Should().BeFalse(
+                "the directions now differ by 1.25, which is what this mechanism actually does");
+            outcome.Consistent.Should().BeTrue("the directions agree on sign");
         }
 
         // ===== Hundreds of synthetic mechanisms, not five chosen ones =====

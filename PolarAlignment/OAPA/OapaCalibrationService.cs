@@ -434,6 +434,36 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                         "if the two disagree the sequence cannot add one to break the tie");
                 }
 
+                // The response in one direction, from two clean legs plus a third when they
+                // disagree - and the same function for both directions, not the same idea
+                // written twice.
+                //
+                // It used to be the forward legs only; the reverse pair took a plain mean. A
+                // clutch that lets go for a single command - the 04/08 rig did exactly this -
+                // can land that command inside one of the two reverse legs, and a mean of a
+                // full leg and a swallowed one reads half the truth. Nothing downstream
+                // notices: the two directions then disagree by about 1.6, the suspect flag
+                // needs a factor of two, and the pass reports a confident factor a quarter
+                // wrong. Every correction of the night is scaled by that number.
+                //
+                // Sharing the code rather than copying it is the point. A copy is what let the
+                // two directions drift apart in the first place, and a copy is what would let
+                // them drift again the next time this is touched.
+                async Task<double> ResponseFromCleanLegs(double a, double b, float direction, string legLabel) {
+                    // Two legs that both read zero are not a disagreement to resolve with a
+                    // third leg: they are a dead axis, and 0/0 would carry a NaN into every
+                    // comparison downstream (NaN fails every test silently, so the third leg
+                    // would be skipped for the wrong reason). Let the verdict layer name it.
+                    var largest = Math.Max(Math.Abs(a), Math.Abs(b));
+                    var spread = largest > 0 ? Math.Abs(Math.Abs(a) - Math.Abs(b)) / largest : 0.0;
+                    if (spread <= CleanLegSpreadThreshold) {
+                        return (Math.Abs(a) + Math.Abs(b)) / 2.0 / legLogical;
+                    }
+                    Logger.Info($"OAPA cal {axisLabel}: {legLabel} legs spread {spread:P0}, adding a third leg");
+                    var c = await MoveAndMeasure(legLogical, direction).ConfigureAwait(false);
+                    return Median(Math.Abs(a), Math.Abs(b), Math.Abs(c)) / legLogical;
+                }
+
                 reportStatus?.Invoke($"{axisLabel}: forward legs ({legLogical:F0}')...");
                 var beforeLeg = last;
                 var f1 = await MoveAndMeasure(legLogical, +1f).ConfigureAwait(false);
@@ -446,20 +476,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 var directionConsistent = Math.Abs(f1) < threshold
                     || OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuth, beforeLeg, last, legLogical);
                 var f2 = await MoveAndMeasure(legLogical, +1f).ConfigureAwait(false);
-                double forwardResponse;
-                // Two legs that both read zero are not a disagreement to resolve with a
-                // third leg: they are a dead axis, and 0/0 would carry a NaN into every
-                // comparison below (NaN fails every test silently, so the third leg would
-                // be skipped for the wrong reason). Let the verdict layer name the failure.
-                var largestLeg = Math.Max(Math.Abs(f1), Math.Abs(f2));
-                var spread = largestLeg > 0 ? Math.Abs(Math.Abs(f1) - Math.Abs(f2)) / largestLeg : 0.0;
-                if (spread > CleanLegSpreadThreshold) {
-                    Logger.Info($"OAPA cal {axisLabel}: forward legs spread {spread:P0}, adding a third leg");
-                    var f3 = await MoveAndMeasure(legLogical, +1f).ConfigureAwait(false);
-                    forwardResponse = Median(Math.Abs(f1), Math.Abs(f2), Math.Abs(f3)) / legLogical;
-                } else {
-                    forwardResponse = (Math.Abs(f1) + Math.Abs(f2)) / 2.0 / legLogical;
-                }
+                var forwardResponse = await ResponseFromCleanLegs(f1, f2, +1f, "forward").ConfigureAwait(false);
                 // The clean legs measure the same quantity as the probe did, on a longer
                 // baseline and with the drive train already engaged, so they supersede it.
                 // Signed per wire unit, the same expression the success path closes with.
@@ -525,7 +542,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 reportStatus?.Invoke($"{axisLabel}: reverse legs ({legLogical:F0}')...");
                 var r1 = await MoveAndMeasure(legLogical, -1f).ConfigureAwait(false);
                 var r2 = await MoveAndMeasure(legLogical, -1f).ConfigureAwait(false);
-                var reverseResponse = (Math.Abs(r1) + Math.Abs(r2)) / 2.0 / legLogical;
+                var reverseResponse = await ResponseFromCleanLegs(r1, r2, -1f, "reverse").ConfigureAwait(false);
 
                 // S5: opposite transition, the second backlash quantity.
                 reportStatus?.Invoke($"{axisLabel}: measuring the opposite transition...");
