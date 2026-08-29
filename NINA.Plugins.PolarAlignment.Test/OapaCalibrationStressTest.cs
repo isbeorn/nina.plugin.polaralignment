@@ -894,5 +894,61 @@ namespace NINA.Plugins.PolarAlignment.Test {
                     "claiming restoration means the axis really is back at its baseline");
             }
         }
+
+        [Test]
+        public async Task OnAnInvertedAxis_ASwallowedFirstLeg_DoesNotHideTheInversion() {
+            // An axis wired backwards is found by watching which way it goes when it is told to
+            // go forward, and the first clean leg is what does the watching. A leg that
+            // delivered nothing is not evidence of inversion - the axis went nowhere, and
+            // nowhere has no direction - so a swallowed first leg has always been allowed to
+            // stand down rather than order a whole second pass with the direction flipped.
+            //
+            // Standing down was written as "consistent", which is a different claim. It says
+            // the axis was watched and behaved, and it stopped the later legs from being
+            // consulted at all. So an inverted axis whose first leg happens to be swallowed
+            // walks out of the sequence declared correctly wired, on the strength of a leg that
+            // measured nothing, while the two legs after it went the other way in plain sight.
+            //
+            // Nothing catches it downstream. The response is perfectly usable - the median of
+            // the later legs is the right number - so no flag fires, and every correction of
+            // the night is then applied in the wrong direction on an axis the panel says is
+            // fine.
+            //
+            // This mechanism is inverted, and its first clean leg is the one command the clutch
+            // swallows. The two legs after it move, and they move the wrong way.
+            var axis = new StressFakeAxis(forwardScale: 1.0, physicalSign: -1,
+                                          backlashSequence: new[] { 2.0 },
+                                          noiseAmplitudeArcmin: 0.0,
+                                          deadCommands: new[] { 1 });
+
+            var outcome = await Calibrate(axis);
+
+            outcome.Flipped.Should().BeTrue(
+                "two legs went the wrong way in full view, and a leg that measured nothing does not outvote them");
+            axis.PassCount.Should().Be(2, "finding the inversion means running the pass again with the flag flipped");
+            outcome.Consistent.Should().BeTrue("the second pass, with the direction flipped, agrees with its commands");
+        }
+
+        [Test]
+        public async Task OnACorrectlyWiredAxis_ASwallowedFirstLeg_DoesNotOrderASecondPass() {
+            // The other half of the rule above, and the reason it was written as it was. The
+            // remedy for an inverted axis is a whole second pass with the direction flipped,
+            // which doubles the calibration and moves the platform twice as far. Ordering that
+            // because one command went missing on a perfectly ordinary axis would be a cure
+            // considerably worse than the disease.
+            //
+            // Same mechanism as above, same swallowed command, wired the right way round. The
+            // legs that moved say so, and they are the ones asked.
+            var axis = new StressFakeAxis(forwardScale: 1.0,
+                                          backlashSequence: new[] { 2.0 },
+                                          noiseAmplitudeArcmin: 0.0,
+                                          deadCommands: new[] { 1 });
+
+            var outcome = await Calibrate(axis);
+
+            outcome.Flipped.Should().BeFalse("nothing here is wired backwards");
+            axis.PassCount.Should().Be(1, "a missing command is not a reason to calibrate the axis twice");
+            outcome.Consistent.Should().BeTrue();
+        }
     }
 }

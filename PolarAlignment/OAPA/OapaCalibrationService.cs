@@ -449,7 +449,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 // Sharing the code rather than copying it is the point. A copy is what let the
                 // two directions drift apart in the first place, and a copy is what would let
                 // them drift again the next time this is touched.
-                async Task<double> ResponseFromCleanLegs(double a, double b, float direction, string legLabel) {
+                async Task<(double Response, double ExtraLeg)> ResponseFromCleanLegs(double a, double b, float direction, string legLabel) {
                     // Two legs that both read zero are not a disagreement to resolve with a
                     // third leg: they are a dead axis, and 0/0 would carry a NaN into every
                     // comparison downstream (NaN fails every test silently, so the third leg
@@ -457,26 +457,54 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     var largest = Math.Max(Math.Abs(a), Math.Abs(b));
                     var spread = largest > 0 ? Math.Abs(Math.Abs(a) - Math.Abs(b)) / largest : 0.0;
                     if (spread <= CleanLegSpreadThreshold) {
-                        return (Math.Abs(a) + Math.Abs(b)) / 2.0 / legLogical;
+                        // No third leg was taken, and the caller must be able to tell that from
+                        // a third leg that measured zero - one is an absence of evidence, the
+                        // other is evidence of an axis that did not move.
+                        return ((Math.Abs(a) + Math.Abs(b)) / 2.0 / legLogical, double.NaN);
                     }
                     Logger.Info($"OAPA cal {axisLabel}: {legLabel} legs spread {spread:P0}, adding a third leg");
                     var c = await MoveAndMeasure(legLogical, direction).ConfigureAwait(false);
-                    return Median(Math.Abs(a), Math.Abs(b), Math.Abs(c)) / legLogical;
+                    return (Median(Math.Abs(a), Math.Abs(b), Math.Abs(c)) / legLogical, c);
                 }
 
                 reportStatus?.Invoke($"{axisLabel}: forward legs ({legLogical:F0}')...");
-                var beforeLeg = last;
                 var f1 = await MoveAndMeasure(legLogical, +1f).ConfigureAwait(false);
+                var f2 = await MoveAndMeasure(legLogical, +1f).ConfigureAwait(false);
+                var (forwardResponse, f3) = await ResponseFromCleanLegs(f1, f2, +1f, "forward").ConfigureAwait(false);
+
+                // Which way the axis went when it was told to go forward, decided by the first
+                // leg that actually went somewhere.
+                //
                 // A sign is only evidence when there is motion to take the sign of. Math.Sign(0)
                 // is zero, which matches no commanded sign, so a leg that delivered nothing used
-                // to read as "wired backwards" - and the remedy for that verdict is a whole second
-                // pass with the direction flipped, which is the wrong remedy at double the cost.
-                // Absence of motion is not evidence of inversion: it is reachable on an axis whose
-                // clutch grabs intermittently, and the response verdicts already name that axis.
-                var directionConsistent = Math.Abs(f1) < threshold
-                    || OapaCalibrationGeometry.SignedDisplacementMatchesCommand(isAzimuth, beforeLeg, last, legLogical);
-                var f2 = await MoveAndMeasure(legLogical, +1f).ConfigureAwait(false);
-                var forwardResponse = await ResponseFromCleanLegs(f1, f2, +1f, "forward").ConfigureAwait(false);
+                // to read as "wired backwards" - and the remedy for that verdict is a whole
+                // second pass with the direction flipped, which is the wrong remedy at double
+                // the cost. Absence of motion is not evidence of inversion: it is reachable on
+                // an axis whose clutch grabs intermittently.
+                //
+                // But it is not evidence of correctness either, and that is what this used to
+                // record. A swallowed first leg made the verdict "consistent" and stopped the
+                // later legs from ever being consulted, so an inverted axis whose first leg was
+                // swallowed left the sequence declared correctly wired while the two legs after
+                // it went the other way in plain sight. Nothing downstream catches that: the
+                // response is still perfectly usable, so no flag fires, and the night's
+                // corrections are then applied backwards on an axis the panel calls fine.
+                //
+                // So a silent leg abstains rather than votes, and the question passes to the
+                // next leg that moved. Only when none of them moved is there nothing to judge,
+                // and that axis is named by the response verdicts instead.
+                //
+                // The sign of the measured displacement is the same test SignedDisplacementMatchesCommand
+                // performs - it compares the sign of exactly this quantity against the command -
+                // asked of a leg whose displacement is already in hand.
+                bool DirectionAgreesWithCommand(params double[] legs) {
+                    foreach (var leg in legs) {
+                        if (double.IsNaN(leg) || Math.Abs(leg) < threshold) { continue; }
+                        return Math.Sign(leg) == Math.Sign(legLogical);
+                    }
+                    return true;
+                }
+                var directionConsistent = DirectionAgreesWithCommand(f1, f2, f3);
                 // The clean legs measure the same quantity as the probe did, on a longer
                 // baseline and with the drive train already engaged, so they supersede it.
                 // Signed per wire unit, the same expression the success path closes with.
@@ -542,7 +570,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 reportStatus?.Invoke($"{axisLabel}: reverse legs ({legLogical:F0}')...");
                 var r1 = await MoveAndMeasure(legLogical, -1f).ConfigureAwait(false);
                 var r2 = await MoveAndMeasure(legLogical, -1f).ConfigureAwait(false);
-                var reverseResponse = await ResponseFromCleanLegs(r1, r2, -1f, "reverse").ConfigureAwait(false);
+                var (reverseResponse, _) = await ResponseFromCleanLegs(r1, r2, -1f, "reverse").ConfigureAwait(false);
 
                 // S5: opposite transition, the second backlash quantity.
                 reportStatus?.Invoke($"{axisLabel}: measuring the opposite transition...");
