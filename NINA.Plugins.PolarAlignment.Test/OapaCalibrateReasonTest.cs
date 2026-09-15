@@ -37,9 +37,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         private static UniversalPolarAlignmentOAPAVM Vm() {
-            var vm = new UniversalPolarAlignmentOAPAVM(null, null, null, null, null);
-            vm.upa = new FakeSystem();
-            return vm;
+            return new OapaTestVm { Hardware = new FakeSystem() };
         }
 
         [Test]

@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 2.2.7.0
+- OAPA: controllers running firmware 1.2.2 are found again. The status frame's version field is accepted, the run-current and hold-current settings are sent in the command format the firmware parses, and moves finish at the whole step the controller reaches instead of timing out.
+- OAPA: connecting waits for boards that restart when the port is opened, repeats the status probe, and tries the last port that worked first.
+- OAPA: a serial link that drops during a session is reopened, up to three times, before the move fails.
+- OAPA: the side of its backlash each axis rests on is remembered across alignment runs instead of being assumed positive at the start of every run.
+- OAPA: Self-Calibration in the OAPA panel measures the calibration factor and backlash of both axes by plate solving and shows the result next to the values in use. Nothing is changed until Apply, and values entered by hand are named and need a second Apply.
+- OAPA: Set Home and Go Home for the current connection session.
+
 ## Version 2.2.6.7
 - Fixed UPAS azimuth backlash compensation.
 

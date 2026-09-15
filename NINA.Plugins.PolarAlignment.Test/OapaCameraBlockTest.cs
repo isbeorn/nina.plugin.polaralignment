@@ -28,10 +28,21 @@ namespace NINA.Plugins.PolarAlignment.Test {
             public int RegisterCount => Events.FindAll(e => e == "register").Count;
             public int ReleaseCount => Events.FindAll(e => e == "release").Count;
 
+            /// <summary>The real mediator throws when another consumer already holds the block.</summary>
+            public bool RegisterThrows;
+
+            /// <summary>What the panel registered to hear from the camera, if anything.</summary>
+            public ICameraConsumer Consumer;
+
             public bool IsFreeToCapture(ICameraConsumer cameraConsumer) => Free;
             public bool IsFreeToCapture(object cameraConsumer) => Free;
-            public void RegisterCaptureBlock(ICameraConsumer cameraConsumer) => Events.Add("register");
-            public void RegisterCaptureBlock(object cameraConsumer) => Events.Add("register");
+            public void RegisterCaptureBlock(ICameraConsumer cameraConsumer) => Register();
+            public void RegisterCaptureBlock(object cameraConsumer) => Register();
+
+            private void Register() {
+                if (RegisterThrows) { throw new InvalidOperationException("the camera is blocked by another consumer"); }
+                Events.Add("register");
+            }
             public void ReleaseCaptureBlock(ICameraConsumer cameraConsumer) => Events.Add("release");
             public void ReleaseCaptureBlock(object cameraConsumer) => Events.Add("release");
 
@@ -50,8 +61,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             public Task<bool> CoolCamera(double temperature, TimeSpan duration, IProgress<ApplicationStatus> progress, CancellationToken ct) => throw new NotImplementedException();
             public Task<bool> WarmCamera(TimeSpan duration, IProgress<ApplicationStatus> progress, CancellationToken ct) => throw new NotImplementedException();
             public void SetUSBLimit(int usbLimit) => throw new NotImplementedException();
-            public void RegisterConsumer(ICameraConsumer consumer) => throw new NotImplementedException();
-            public void RemoveConsumer(ICameraConsumer consumer) => throw new NotImplementedException();
+            public void RegisterConsumer(ICameraConsumer consumer) => Consumer = consumer;
+            public void RemoveConsumer(ICameraConsumer consumer) { if (Consumer == consumer) { Consumer = null; } }
             public Task<IList<string>> Rescan() => throw new NotImplementedException();
             public Task<bool> Connect() => throw new NotImplementedException();
             public Task Disconnect() => throw new NotImplementedException();
@@ -101,9 +112,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         private static (UniversalPolarAlignmentOAPAVM vm, FakeSystem system, FakeCameraMediator camera) Vm() {
             var camera = new FakeCameraMediator();
-            var vm = new UniversalPolarAlignmentOAPAVM(null, null, null, null, camera);
             var system = new FakeSystem();
-            vm.upa = system;
+            var vm = new OapaTestVm(camera) { Hardware = system };
             return (vm, system, camera);
         }
 
@@ -161,6 +171,44 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             camera.Free = true;
             vm.CanCalibrate().Should().BeTrue();
+        }
+
+        [Test]
+        public void WhenTheCameraComesFree_TheCalibrateButtonIsReevaluated() {
+            // The reason line tells the user to stop the alignment. Stopping it frees the camera,
+            // but nothing on this panel changes when that happens: without hearing from the
+            // camera, the button stays grey until a connection or movement change happens to
+            // re-evaluate it.
+            var (vm, _, camera) = Vm();
+            vm.Connected = true;
+            camera.Free = false;
+            var reevaluated = 0;
+            vm.CalibrateGearRatiosCommand.CanExecuteChanged += (_, _) => reevaluated++;
+            var reasonRefreshed = false;
+            vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(vm.CalibrateUnavailableReason)) { reasonRefreshed = true; } };
+
+            camera.Free = true;
+            camera.Consumer.Should().NotBeNull("the panel has to hear from the camera to notice it came free");
+            camera.Consumer.UpdateDeviceInfo(null);
+
+            reevaluated.Should().BeGreaterThan(0);
+            reasonRefreshed.Should().BeTrue();
+        }
+
+        [Test]
+        public async Task ACaptureBlockLostToAnotherConsumer_EndsThePass_AndLeavesThePanelUsable() {
+            // Checking the camera and blocking it are two calls, and another consumer can take
+            // the camera in between; the mediator then throws. That has to end the pass like
+            // any other failure, not leave the panel claiming a calibration is running.
+            var (vm, system, camera) = Vm();
+            camera.RegisterThrows = true;
+
+            await vm.CalibrateGearRatios(CancellationToken.None);
+
+            vm.CalibrationRunning.Should().BeFalse();
+            vm.IsNotMoving.Should().BeTrue();
+            system.RelativeMoves.Should().BeEmpty();
+            camera.ReleaseCount.Should().Be(0, "a block that was never taken must not be released");
         }
     }
 }

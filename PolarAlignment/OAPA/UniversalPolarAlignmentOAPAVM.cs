@@ -15,10 +15,10 @@ using System.Windows;
 
 namespace NINA.Plugins.PolarAlignment.OAPA {
     public partial class UniversalPolarAlignmentOAPAVM : UniversalPolarAlignmentBaseVM {
-        // Internal so tests can substitute the solver boundary; production assigns it once in the ctor.
-        internal IOapaCalibrationSolver calibrationSolver;
+        /// <summary>The plate-solve boundary the calibration measures through.</summary>
+        protected IOapaCalibrationSolver calibrationSolver;
         private readonly ICameraMediator cameraMediator;
-        private readonly CameraBlockToken cameraBlockToken = new();
+        private readonly CameraBlockToken cameraBlockToken;
 
         public UniversalPolarAlignmentOAPAVM(
             IProfileService profileService,
@@ -32,38 +32,53 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             calibrationSolver = new OapaPlateSolveSampler(profileService, imagingMediator, telescopeMediator, plateSolverFactory);
             this.cameraMediator = cameraMediator;
 
+            // The camera reports to its consumers on every update. That is the only notice this
+            // panel gets that another consumer - a halted alignment being stopped - has released
+            // it, so the Calibrate button and its reason are re-evaluated on each one.
+            cameraBlockToken = new CameraBlockToken(RefreshDerivedCommands);
+            cameraMediator?.RegisterConsumer(cameraBlockToken);
+
             // Connected and IsNotMoving live on the base VM. Their generated
             // [NotifyCanExecuteChangedFor] attributes can't reference commands declared on
             // this derived class, so re-evaluate the derived commands manually when either
-            // property changes. Connected is flipped from a background Task in the base VM,
-            // so marshal NotifyCanExecuteChanged onto the UI thread. The stored home is only
-            // meaningful for the current controller session (the position counter restarts at
-            // 0 on power-up), so it is invalidated on every connection change.
+            // property changes. The stored home is only meaningful for the current controller
+            // session (the position counter restarts at 0 on power-up), so it is invalidated on
+            // every connection change.
             PropertyChanged += (_, e) => {
                 if (e.PropertyName == nameof(Connected) || e.PropertyName == nameof(IsNotMoving)) {
                     if (e.PropertyName == nameof(Connected)) {
                         HasHome = false;
                     }
-                    var dispatcher = Application.Current?.Dispatcher;
-                    if (dispatcher == null || dispatcher.CheckAccess()) {
-                        NotifyDerivedCommands();
-                    } else {
-                        dispatcher.BeginInvoke(new Action(NotifyDerivedCommands));
-                    }
+                    RefreshDerivedCommands();
                 }
             };
+        }
+
+        /// <summary>
+        /// Re-evaluates the derived commands on the UI thread. Connected is flipped from a
+        /// background task in the base VM and camera updates arrive from the camera's own
+        /// thread, so both are marshalled.
+        /// </summary>
+        private void RefreshDerivedCommands() {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess()) {
+                NotifyDerivedCommands();
+            } else {
+                dispatcher.BeginInvoke(new Action(NotifyDerivedCommands));
+            }
         }
 
         private void NotifyDerivedCommands() {
             RaisePropertyChanged(nameof(CalibrateUnavailableReason));
             CalibrateGearRatiosCommand.NotifyCanExecuteChanged();
+            ApplyCalibrationCommand.NotifyCanExecuteChanged();
             SetHomeCommand.NotifyCanExecuteChanged();
             GoHomeCommand.NotifyCanExecuteChanged();
         }
 
         /// <summary>
-        /// Applies a UI-bound state change on the dispatcher when there is one. A test or a
-        /// headless host has no application, and the calibration and home commands still have
+        /// Applies a UI-bound state change on the dispatcher when there is one. A headless
+        /// host has no application, and the calibration and home commands still have
         /// to clear their running state on the way out rather than throw there.
         /// </summary>
         private static async Task RunOnUi(Action action) {
@@ -73,15 +88,6 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             } else {
                 action();
             }
-        }
-
-        /// <summary>
-        /// Test seam over the base field, which is protected. The calibration, home and
-        /// provenance tests drive this VM against a fake controller.
-        /// </summary>
-        internal new IPolarAlignmentSystem upa {
-            get => base.upa;
-            set => base.upa = value;
         }
 
         protected override string SystemName => "OAPA System";
@@ -120,9 +126,24 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             ApplyConfirmationPending = false;
         }
 
+        /// <summary>
+        /// Whether a value entered in the panel can be taken now. Not while an axis is moving:
+        /// Go Home and the calibration work from the values in force when they start, and a
+        /// value changed underneath them is executed with the new one. A refused edit is
+        /// announced back so the field shows the value still in force.
+        /// </summary>
+        private bool AcceptsEditNow(string property) {
+            if (IsNotMoving) { return true; }
+            RaisePropertyChanged(property);
+            return false;
+        }
+
         public override float XGearRatio {
             get => Properties.Settings.Default.OAPAXGearRatio;
-            set => SetXGearRatio(value, MarkEdit(value, XGearRatio, XGearRatioSource));
+            set {
+                if (!AcceptsEditNow(nameof(XGearRatio))) { return; }
+                SetXGearRatio(value, MarkEdit(value, XGearRatio, XGearRatioSource));
+            }
         }
 
         private void SetXGearRatio(float value, OapaParameterSource source) {
@@ -150,7 +171,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
         public override float YGearRatio {
             get => Properties.Settings.Default.OAPAYGearRatio;
-            set => SetYGearRatio(value, MarkEdit(value, YGearRatio, YGearRatioSource));
+            set {
+                if (!AcceptsEditNow(nameof(YGearRatio))) { return; }
+                SetYGearRatio(value, MarkEdit(value, YGearRatio, YGearRatioSource));
+            }
         }
 
         private void SetYGearRatio(float value, OapaParameterSource source) {
@@ -176,27 +200,49 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
+        // The Reverse flags carry provenance like the values below: a flag set by hand is a
+        // deliberate decision, and Apply asks before flipping it.
+
         public override bool ReverseAzimuth {
             get => Properties.Settings.Default.OAPAReverseAzimuth;
             set {
-                Properties.Settings.Default.OAPAReverseAzimuth = value;
-                CoreUtil.SaveSettings(Properties.Settings.Default);
-                RaisePropertyChanged();
+                if (!AcceptsEditNow(nameof(ReverseAzimuth))) { return; }
+                SetReverseAzimuth(value, value != ReverseAzimuth ? OapaParameterSource.Manual : ReverseAzimuthSource);
             }
+        }
+
+        private void SetReverseAzimuth(bool value, OapaParameterSource source) {
+            OnManualEdit(source);
+            Properties.Settings.Default.OAPAReverseAzimuth = value;
+            Properties.Settings.Default.OAPAReverseAzimuthSource = source.ToString();
+            CoreUtil.SaveSettings(Properties.Settings.Default);
+            RaisePropertyChanged(nameof(ReverseAzimuth));
+            RaisePropertyChanged(nameof(ReverseAzimuthSource));
         }
 
         public override bool ReverseAltitude {
             get => Properties.Settings.Default.OAPAReverseAltitude;
             set {
-                Properties.Settings.Default.OAPAReverseAltitude = value;
-                CoreUtil.SaveSettings(Properties.Settings.Default);
-                RaisePropertyChanged();
+                if (!AcceptsEditNow(nameof(ReverseAltitude))) { return; }
+                SetReverseAltitude(value, value != ReverseAltitude ? OapaParameterSource.Manual : ReverseAltitudeSource);
             }
+        }
+
+        private void SetReverseAltitude(bool value, OapaParameterSource source) {
+            OnManualEdit(source);
+            Properties.Settings.Default.OAPAReverseAltitude = value;
+            Properties.Settings.Default.OAPAReverseAltitudeSource = source.ToString();
+            CoreUtil.SaveSettings(Properties.Settings.Default);
+            RaisePropertyChanged(nameof(ReverseAltitude));
+            RaisePropertyChanged(nameof(ReverseAltitudeSource));
         }
 
         public override float XBacklashCompensation {
             get => Properties.Settings.Default.OAPAXBacklashCompensation;
-            set => SetXBacklash(value, MarkEdit(value, XBacklashCompensation, XBacklashSource));
+            set {
+                if (!AcceptsEditNow(nameof(XBacklashCompensation))) { return; }
+                SetXBacklash(value, MarkEdit(value, XBacklashCompensation, XBacklashSource));
+            }
         }
 
         private void SetXBacklash(float value, OapaParameterSource source) {
@@ -214,7 +260,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         // Deliberately not part of the shared VM contract - other systems do not model it.
         public float YBacklashCompensation {
             get => Properties.Settings.Default.OAPAYBacklashCompensation;
-            set => SetYBacklash(value, MarkEdit(value, YBacklashCompensation, YBacklashSource));
+            set {
+                if (!AcceptsEditNow(nameof(YBacklashCompensation))) { return; }
+                SetYBacklash(value, MarkEdit(value, YBacklashCompensation, YBacklashSource));
+            }
         }
 
         private void SetYBacklash(float value, OapaParameterSource source) {
@@ -240,7 +289,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 var stored = Properties.Settings.Default.OAPAXBacklashCompensationNegative;
                 return stored < 0f ? XBacklashCompensation : stored;
             }
-            set => SetXBacklashNegative(value, MarkEdit(value, XBacklashCompensationNegative, XBacklashSource));
+            set {
+                if (!AcceptsEditNow(nameof(XBacklashCompensationNegative))) { return; }
+                SetXBacklashNegative(value, MarkEdit(value, XBacklashCompensationNegative, XBacklashSource));
+            }
         }
 
         private void SetXBacklashNegative(float value, OapaParameterSource source) {
@@ -258,7 +310,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 var stored = Properties.Settings.Default.OAPAYBacklashCompensationNegative;
                 return stored < 0f ? YBacklashCompensation : stored;
             }
-            set => SetYBacklashNegative(value, MarkEdit(value, YBacklashCompensationNegative, YBacklashSource));
+            set {
+                if (!AcceptsEditNow(nameof(YBacklashCompensationNegative))) { return; }
+                SetYBacklashNegative(value, MarkEdit(value, YBacklashCompensationNegative, YBacklashSource));
+            }
         }
 
         private void SetYBacklashNegative(float value, OapaParameterSource source) {
@@ -288,6 +343,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         public OapaParameterSource YGearRatioSource => ParseSource(Properties.Settings.Default.OAPAYGearRatioSource);
         public OapaParameterSource XBacklashSource => ParseSource(Properties.Settings.Default.OAPAXBacklashSource);
         public OapaParameterSource YBacklashSource => ParseSource(Properties.Settings.Default.OAPAYBacklashSource);
+        public OapaParameterSource ReverseAzimuthSource => ParseSource(Properties.Settings.Default.OAPAReverseAzimuthSource);
+        public OapaParameterSource ReverseAltitudeSource => ParseSource(Properties.Settings.Default.OAPAReverseAltitudeSource);
 
         // Small provenance hints next to the fields; empty for factory defaults.
         public string XGearRatioSourceLabel => SourceLabel(XGearRatioSource);
@@ -392,12 +449,20 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         }
 
         [RelayCommand(CanExecute = nameof(CanSetHome))]
-        public void SetHome() {
-            homeXController = PositionX * XGearRatio;
-            homeYController = PositionY * YGearRatio;
-            HomeX = PositionX;
-            HomeY = PositionY;
-            HasHome = true;
+        public async Task SetHome(CancellationToken token) {
+            // Read from the controller at the moment of the press: the panel's position comes
+            // from a background poll and can still show where the axis was before a move that
+            // has just finished.
+            await upa.RefreshStatus(token).ConfigureAwait(false);
+            var x = upa.XPosition1;
+            var y = upa.YPosition1;
+            await RunOnUi(() => {
+                homeXController = x * XGearRatio;
+                homeYController = y * YGearRatio;
+                HomeX = x;
+                HomeY = y;
+                HasHome = true;
+            });
             Logger.Info($"OAPA home position set to X={HomeX:F2}, Y={HomeY:F2} (controller {homeXController:F0}/{homeYController:F0}, valid for this connection session)");
             Notification.ShowInformation($"Home position saved for this session (X={HomeX:F2}, Y={HomeY:F2})");
         }
@@ -508,7 +573,12 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// </summary>
         public string ApplyButtonText => ApplyConfirmationPending ? "Apply again to confirm" : "Apply";
 
-        public bool CanApplyCalibration() => HasCalibrationResult;
+        /// <summary>
+        /// Apply writes the factors straight through to the controller, so it waits for the axes
+        /// to stop: a factor changed between the two moves of Go Home, or under a calibration
+        /// pass, turns a target computed with one value into a move executed with another.
+        /// </summary>
+        public bool CanApplyCalibration() => HasCalibrationResult && IsNotMoving;
 
         public bool CanCalibrate() => Connected && IsNotMoving && !CalibrationRunning && CameraIsFree();
 
@@ -542,12 +612,18 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             CalibrationBlockedBy(Connected, !IsNotMoving, CalibrationRunning, !CameraIsFree());
 
         // The capture block owner is identified by reference; a dedicated token keeps the
-        // camera-consumer plumbing off the public VM surface. A null mediator (tests,
-        // headless hosts) means "always free" with no-op acquisition.
+        // camera-consumer plumbing off the public VM surface. A null mediator (headless
+        // hosts) means "always free" with no-op acquisition.
         private bool CameraIsFree() => cameraMediator == null || cameraMediator.IsFreeToCapture(cameraBlockToken);
 
         private sealed class CameraBlockToken : ICameraConsumer {
-            public void UpdateDeviceInfo(CameraInfo deviceInfo) { }
+            private readonly Action onCameraUpdate;
+
+            public CameraBlockToken(Action onCameraUpdate) {
+                this.onCameraUpdate = onCameraUpdate;
+            }
+
+            public void UpdateDeviceInfo(CameraInfo deviceInfo) => onCameraUpdate();
             public void Dispose() { }
         }
 
@@ -619,8 +695,13 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     });
                     return;
                 }
-                cameraMediator?.RegisterCaptureBlock(cameraBlockToken);
+                var captureBlocked = false;
                 try {
+                    // Inside the try: checking the camera and blocking it are two calls, and the
+                    // mediator throws when another consumer took the camera in between. That lost
+                    // race has to end the pass like any other failure.
+                    cameraMediator?.RegisterCaptureBlock(cameraBlockToken);
+                    captureBlocked = true;
                     await RunOnUi(() => {
                         // CalibrationRunning and IsNotMoving are already claimed above.
                         HasCalibrationResult = false;
@@ -723,7 +804,11 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     Notification.ShowError($"Calibration failed: {ex.Message}");
                     await RunOnUi(() => CalibrationStatus = $"Failed: {ex.Message}");
                 } finally {
-                    cameraMediator?.ReleaseCaptureBlock(cameraBlockToken);
+                    // Only a block this pass took is released; one it lost to another consumer
+                    // belongs to that consumer.
+                    if (captureBlocked) {
+                        cameraMediator?.ReleaseCaptureBlock(cameraBlockToken);
+                    }
                     await RunOnUi(() => {
                         CalibrationRunning = false;
                         IsNotMoving = true;
@@ -762,6 +847,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
         [RelayCommand(CanExecute = nameof(CanApplyCalibration))]
         public void ApplyCalibration() {
+            // The command is disabled while an axis moves, but the method is public: the guard
+            // has to hold on every path that reaches it.
+            if (!CanApplyCalibration()) { return; }
             // What has actually been written, so a failure partway can say so instead of
             // reporting a clean "failed" over settings that already changed.
             var committed = new List<string>();
@@ -769,6 +857,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 // Manual values are deliberate user decisions: name them and require a
                 // second Apply instead of overwriting silently.
                 var manual = new List<string>();
+                if (ReverseAzimuth != DiscoveredReverseAzimuth && ReverseAzimuthSource == OapaParameterSource.Manual) { manual.Add($"Reverse Az {ReverseAzimuth} -> {DiscoveredReverseAzimuth}"); }
+                if (ReverseAltitude != DiscoveredReverseAltitude && ReverseAltitudeSource == OapaParameterSource.Manual) { manual.Add($"Reverse Alt {ReverseAltitude} -> {DiscoveredReverseAltitude}"); }
                 if (XGearRatioSource == OapaParameterSource.Manual) { manual.Add($"X factor {XGearRatio:F1} -> {DiscoveredXRatio:F1}"); }
                 if (YGearRatioSource == OapaParameterSource.Manual) { manual.Add($"Y factor {YGearRatio:F1} -> {DiscoveredYRatio:F1}"); }
                 if (XBacklashSource == OapaParameterSource.Manual) { manual.Add($"X backlash {Pair(XBacklashCompensation, XBacklashCompensationNegative)} -> {Pair(DiscoveredXBacklash, DiscoveredXBacklashNegative)}"); }
@@ -789,6 +879,11 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 // on one rig, two consecutive nights, same axis: 1.45'/1.96' and then
                 // 2.19'/0.68' - a stable sum with the larger side flipped, which is the
                 // signature of slippage rather than of mechanics.
+                // Reset All Settings returns the migration schema to zero while this panel stays
+                // open. The pair written below has to be stored under the current schema, or the
+                // next start would take it for a legacy pair and erase it.
+                OapaSettingsMigration.EnsureCurrent();
+
                 var (xPositive, xNegative) = ConfirmedPair(Axis.XAxis, DiscoveredXBacklash, DiscoveredXBacklashNegative);
                 var (yPositive, yNegative) = ConfirmedPair(Axis.YAxis, DiscoveredYBacklash, DiscoveredYBacklashNegative);
 
@@ -801,21 +896,25 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 // the survivable one. A direction applied without its factor corrects the right
                 // way by the wrong amount; a factor applied without its direction corrects the
                 // wrong way by the right amount, and an axis correcting the wrong way does not
-                // converge slowly - it accelerates away. So the direction goes first, and what
-                // got as far as being written is named in the failure below.
+                // converge slowly - it accelerates away. So the direction goes first, and each
+                // value is named as soon as it is written, so a failure names exactly those.
                 var azimuthFlips = ReverseAzimuth != DiscoveredReverseAzimuth;
                 var altitudeFlips = ReverseAltitude != DiscoveredReverseAltitude;
-                if (azimuthFlips) { ReverseAzimuth = DiscoveredReverseAzimuth; committed.Add("Reverse Az"); }
-                if (altitudeFlips) { ReverseAltitude = DiscoveredReverseAltitude; committed.Add("Reverse Alt"); }
+                if (azimuthFlips) { SetReverseAzimuth(DiscoveredReverseAzimuth, OapaParameterSource.Calibrated); committed.Add("Reverse Az"); }
+                if (altitudeFlips) { SetReverseAltitude(DiscoveredReverseAltitude, OapaParameterSource.Calibrated); committed.Add("Reverse Alt"); }
 
                 SetXGearRatio(DiscoveredXRatio, OapaParameterSource.Calibrated);
+                committed.Add("X factor");
                 SetYGearRatio(DiscoveredYRatio, OapaParameterSource.Calibrated);
-                committed.Add("factors");
+                committed.Add("Y factor");
                 SetXBacklash(xPositive, OapaParameterSource.Calibrated);
+                committed.Add("X backlash");
                 SetYBacklash(yPositive, OapaParameterSource.Calibrated);
+                committed.Add("Y backlash");
                 SetXBacklashNegative(xNegative, OapaParameterSource.Calibrated);
+                committed.Add("X negative-direction backlash");
                 SetYBacklashNegative(yNegative, OapaParameterSource.Calibrated);
-                committed.Add("backlash");
+                committed.Add("Y negative-direction backlash");
                 HasCalibrationResult = false;
                 // Both messages report the pair that was *applied*, which is not always the pair
                 // that was measured: an unconfirmed direction split is applied as its mean. A log

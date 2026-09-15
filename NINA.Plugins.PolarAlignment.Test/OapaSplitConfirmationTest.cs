@@ -36,8 +36,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             var vm = existing;
             if (vm == null) {
-                vm = new UniversalPolarAlignmentOAPAVM(null, null, null, null, null);
-                vm.upa = new FakeSystem();
+                vm = new OapaTestVm { Hardware = new FakeSystem() };
                 Properties.Settings.Default.OAPAXBacklashSource = "Default";
                 Properties.Settings.Default.OAPAYBacklashSource = "Default";
                 Properties.Settings.Default.OAPAXGearRatioSource = "Default";

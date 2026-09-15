@@ -31,7 +31,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             public void Dispose() { }
         }
 
-        private static UniversalPolarAlignmentOAPAVM Vm() {
+        private static OapaTestVm Vm() {
             // The settings are static, and a value is only marked Manual when it actually
             // changes - so a test inheriting the previous test's numbers would silently
             // stop arming the confirmation. Reset the values as well as their provenance.
@@ -43,9 +43,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             Properties.Settings.Default.OAPAYGearRatioSource = "Default";
             Properties.Settings.Default.OAPAXBacklashSource = "Default";
             Properties.Settings.Default.OAPAYBacklashSource = "Default";
-            var vm = new UniversalPolarAlignmentOAPAVM(null, null, null, null, null);
-            vm.upa = new FakeSystem();
-            return vm;
+            return new OapaTestVm { Hardware = new FakeSystem() };
         }
 
         [Test]
@@ -223,6 +221,80 @@ namespace NINA.Plugins.PolarAlignment.Test {
             vm.YBacklashCompensationNegative = -3f;
             vm.YBacklashCompensationNegative.Should().Be(0f, "a negative play is clamped to none, not stored as the 'never set' sentinel");
             vm.YBacklashSource.Should().Be(OapaParameterSource.Manual);
+        }
+
+        /// <summary>A controller that accepts the X factor and rejects the Y one.</summary>
+        private sealed class YFactorRejectingSystem : IPolarAlignmentSystem {
+            public bool Connected => true;
+            public string Status => "Idle";
+            public float XPosition1 => 0;
+            public float YPosition1 => 0;
+            public float ZPosition1 => 0;
+            public float XGearRatio { get; set; } = 1;
+            public float YGearRatio { get => 1; set => throw new System.InvalidOperationException("the controller rejected the Y factor"); }
+            public float ZGearRatio { get; set; } = 1;
+            public LastDirection XLastDirection => LastDirection.Positive;
+            public LastDirection YLastDirection => LastDirection.Positive;
+            public LastDirection ZLastDirection => LastDirection.Positive;
+            public Task MoveRelative(Axis axis, int speed, float position, CancellationToken token) => Task.CompletedTask;
+            public Task MoveAbsolute(Axis axis, int speed, float position, CancellationToken token) => Task.CompletedTask;
+            public Task RefreshStatus(CancellationToken token) => Task.CompletedTask;
+            public void Dispose() { }
+        }
+
+        [Test]
+        public void AnApplyThatFailsPartway_NamesEveryValueItAlreadyWrote() {
+            // Apply writes one value at a time. When the Y factor fails, the X factor has
+            // already been written, and the message has to say so rather than report a clean
+            // failure over a configuration that did change.
+            var vm = Vm();
+            PrepareResult(vm);
+            vm.Hardware = new YFactorRejectingSystem();
+
+            vm.ApplyCalibration();
+
+            vm.CalibrationStatus.Should().StartWith("Apply failed");
+            vm.CalibrationStatus.Should().Contain("X factor", "it was written before the Y factor failed");
+            vm.CalibrationStatus.Should().NotContain("backlash", "nothing after the failure was written");
+        }
+
+        [Test]
+        public void ApplyOverAHandSetReverseFlag_AsksBeforeFlippingIt() {
+            // A Reverse flag set by hand is as deliberate as a typed factor, and it is the one
+            // setting here that decides which way an axis moves.
+            var vm = Vm();
+            Properties.Settings.Default.OAPAReverseAzimuth = false;
+            Properties.Settings.Default.OAPAReverseAzimuthSource = "Default";
+            vm.ReverseAzimuth = true;
+            vm.ReverseAzimuthSource.Should().Be(OapaParameterSource.Manual);
+            PrepareResult(vm);
+            vm.DiscoveredReverseAzimuth = false;
+            vm.DiscoveredReverseAltitude = vm.ReverseAltitude;
+
+            vm.ApplyCalibration();
+
+            vm.ApplyConfirmationPending.Should().BeTrue();
+            vm.ReverseAzimuth.Should().BeTrue("nothing may be overwritten before the confirmation");
+            vm.CalibrationStatus.Should().Contain("Reverse Az");
+
+            vm.ApplyCalibration();
+
+            vm.ReverseAzimuth.Should().BeFalse();
+            vm.ReverseAzimuthSource.Should().Be(OapaParameterSource.Calibrated);
+        }
+
+        [Test]
+        public void ApplyingACalibration_LeavesTheSchemaCurrent_SoTheNextLaunchKeepsThePair() {
+            // Reset All Settings returns the migration schema to zero while the panel stays
+            // open. A pair applied after that and stored under schema zero would be erased as a
+            // legacy pair the next time the plugin starts.
+            var vm = Vm();
+            Properties.Settings.Default.OAPABacklashPairSchema = 0;
+            PrepareResult(vm);
+
+            vm.ApplyCalibration();
+
+            Properties.Settings.Default.OAPABacklashPairSchema.Should().Be(2);
         }
 
         private static void PrepareResult(UniversalPolarAlignmentOAPAVM vm) {

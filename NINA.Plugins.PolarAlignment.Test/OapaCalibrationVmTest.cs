@@ -108,9 +108,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         private static UniversalPolarAlignmentOAPAVM Vm(FakeRig rig) {
-            var vm = new UniversalPolarAlignmentOAPAVM(null, null, null, null, null);
-            vm.upa = rig;
-            vm.calibrationSolver = rig;
+            var vm = new OapaTestVm { Hardware = rig, Solver = rig };
             vm.ReverseAzimuth = false;
             vm.ReverseAltitude = false;
             vm.XGearRatio = 100;
@@ -191,7 +189,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             // equally well, and they are not the same thing to somebody standing at the mount.
             var rig = new FakeRig { AbsoluteMoveFailsOn = Axis.YAxis };
             var vm = Vm(rig);
-            vm.SetHome();
+            await vm.SetHome(CancellationToken.None);
 
             await vm.GoHome(CancellationToken.None);
 
