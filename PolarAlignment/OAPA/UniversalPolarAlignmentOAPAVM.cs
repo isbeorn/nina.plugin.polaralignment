@@ -94,6 +94,121 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
         protected override IPolarAlignmentSystem CreateSystem() => new UniversalPolarAlignmentOAPA();
 
+        /// <summary>
+        /// Per-axis backlash handling mode; sole owner of the persisted setting. An
+        /// unrecognised stored value falls back to Full, the single-move compensation.
+        /// </summary>
+        public OapaBacklashMode XBacklashMode {
+            get => ParseMode(Properties.Settings.Default.OAPAXBacklashMode);
+            set {
+                Properties.Settings.Default.OAPAXBacklashMode = value.ToString();
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+                RaisePropertyChanged(nameof(XBacklashModeName));
+            }
+        }
+
+        public OapaBacklashMode YBacklashMode {
+            get => ParseMode(Properties.Settings.Default.OAPAYBacklashMode);
+            set {
+                Properties.Settings.Default.OAPAYBacklashMode = value.ToString();
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                RaisePropertyChanged();
+                RaisePropertyChanged(nameof(YBacklashModeName));
+            }
+        }
+
+        private static OapaBacklashMode ParseMode(string stored) =>
+            Enum.TryParse<OapaBacklashMode>(stored, out var mode) ? mode : OapaBacklashMode.Full;
+
+        private OapaBacklashMode BacklashModeOf(Axis axis) => axis == Axis.XAxis ? XBacklashMode : YBacklashMode;
+
+        // String adapters for the XAML ComboBoxes.
+        public string[] BacklashModeNames => Enum.GetNames(typeof(OapaBacklashMode));
+
+        public string XBacklashModeName {
+            get => XBacklashMode.ToString();
+            set { if (Enum.TryParse<OapaBacklashMode>(value, out var mode)) { XBacklashMode = mode; } }
+        }
+
+        public string YBacklashModeName {
+            get => YBacklashMode.ToString();
+            set { if (Enum.TryParse<OapaBacklashMode>(value, out var mode)) { YBacklashMode = mode; } }
+        }
+
+        /// <summary>
+        /// Route the shared clearing to the OAPA per-axis compensation, and honour the mode
+        /// while doing it. Off has to mean off on every path that moves the axis: the
+        /// absolute moves go through the shared clearing, which only asks for a value, so an
+        /// axis set to Off would otherwise still pay two extra moves after every "move to".
+        /// </summary>
+        protected override float GetBacklashCompensation(Axis axis) {
+            if (BacklashModeOf(axis) == OapaBacklashMode.Off) { return 0f; }
+            return axis == Axis.YAxis ? YBacklashCompensation : base.GetBacklashCompensation(axis);
+        }
+
+        private float GetBacklashCompensationNegative(Axis axis) {
+            if (BacklashModeOf(axis) == OapaBacklashMode.Off) { return 0f; }
+            return axis == Axis.YAxis ? YBacklashCompensationNegative : XBacklashCompensationNegative;
+        }
+
+        /// <summary>
+        /// OAPA relative moves replace the clear-after-move excursion with the per-axis
+        /// backlash-mode plan: the compensation is folded into the move itself (Full/Soft) or
+        /// the target is approached from the engaged direction only (Unidirectional). Serves
+        /// both the manual and the automated fine-approach path.
+        /// </summary>
+        protected override async Task ExecuteRelativeMove(Axis axis, int speed, float position, CancellationToken token) {
+            var mode = BacklashModeOf(axis);
+            var plan = BacklashModePlanner.PlanMoves(mode, position,
+                GetBacklashCompensation(axis),
+                GetBacklashCompensationNegative(axis),
+                LastDirectionOf(axis),
+                MinimumHonourableReversal(axis));
+            if (plan.Length == 0) {
+                // The request is finer than this axis can be positioned: its own backlash
+                // compensation would inject a larger error than the move is trying to remove.
+                // Reported rather than silently skipped - the correction loop will read the
+                // same error again, and the log has to explain why nothing moved.
+                Logger.Info($"OAPA backlash mode {mode} on {axis}: {position:F2}' not commanded - a reversal below " +
+                    $"{MinimumHonourableReversal(axis):F2}' is finer than this axis's compensation was measured to; " +
+                    "moving would add more error than it removes");
+                return;
+            }
+            if (plan.Length > 1 || System.Math.Abs(plan[0] - position) > float.Epsilon) {
+                // The net is what the axis travels if it loses no play at all, so it is the
+                // floor of what a two-leg plan can achieve. When it drifts away from the
+                // requested move - or flips sign - the configured pair is asking the
+                // mechanism for play it does not have, which is invisible from the legs alone.
+                var net = 0f;
+                foreach (var m in plan) { net += m; }
+                Logger.Info($"OAPA backlash mode {mode} on {axis}: move {position:F2}' planned as [{string.Join(", ", plan)}] (net {net:F2}')");
+            }
+            foreach (var move in plan) {
+                await upa.MoveRelative(axis, speed, move, token).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Smallest reversal this axis is asked to make. A compensated reversal lands where it
+        /// was sent only in so far as the configured play matches the real play, and that is
+        /// only known to the precision the calibration measured it with: the same detection
+        /// threshold the sequence used to decide what counted as motion at all. Asking for
+        /// less means the compensation's own error exceeds the correction being attempted.
+        ///
+        /// Zero until a calibration has run, and zero for an axis with no compensation - those
+        /// pay no play, so they stay as fine as the solver allows.
+        /// </summary>
+        private float MinimumHonourableReversal(Axis axis) {
+            if (BacklashModeOf(axis) == OapaBacklashMode.Off) { return 0f; }
+            var noise = axis == Axis.XAxis
+                ? Properties.Settings.Default.OAPAXCalibrationNoise
+                : Properties.Settings.Default.OAPAYCalibrationNoise;
+            return noise > 0f
+                ? (float)System.Math.Max(OapaCalibrationService.NoiseSigmaFactor * noise, OapaCalibrationService.DetectionFloorArcmin)
+                : 0f;
+        }
+
         public override bool DoAutomatedAdjustments {
             get => Properties.Settings.Default.DoAutomatedAdjustments;
             set {
@@ -551,6 +666,14 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         [ObservableProperty]
         private float discoveredYBacklashNegative;
 
+        // The solve noise each pass measured. It sets how finely that axis can be asked to
+        // reverse, so it outlives the session that measured it and is persisted by Apply.
+        [ObservableProperty]
+        private float discoveredXNoise;
+
+        [ObservableProperty]
+        private float discoveredYNoise;
+
         [ObservableProperty]
         private string calibrationConsistencyMessage = string.Empty;
 
@@ -772,6 +895,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                         DiscoveredYBacklash = y.BacklashEnteringPositiveArcmin;
                         DiscoveredXBacklashNegative = x.BacklashEnteringNegativeArcmin;
                         DiscoveredYBacklashNegative = y.BacklashEnteringNegativeArcmin;
+                        DiscoveredXNoise = x.NoiseSigmaArcmin;
+                        DiscoveredYNoise = y.NoiseSigmaArcmin;
                         CalibrationDirectionalBacklash = directional;
                         CalibrationConsistencyMessage = consistencyMsg;
                         CalibrationStatus = $"Done. X={x.Ratio:F2}, Y={y.Ratio:F2}, backlash X={Pair(x)}, Y={Pair(y)}" +
@@ -915,6 +1040,16 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 committed.Add("X negative-direction backlash");
                 SetYBacklashNegative(yNegative, OapaParameterSource.Calibrated);
                 committed.Add("Y negative-direction backlash");
+                // The solve noise the pass measured: it sets how finely this axis can be asked
+                // to reverse, so it outlives the session that measured it.
+                Properties.Settings.Default.OAPAXCalibrationNoise = DiscoveredXNoise;
+                Properties.Settings.Default.OAPAYCalibrationNoise = DiscoveredYNoise;
+                CoreUtil.SaveSettings(Properties.Settings.Default);
+                // Applying the calibration includes picking the backlash strategy the
+                // measurements call for; the change is stated explicitly, never silent.
+                XBacklashMode = BacklashModePlanner.Recommend(DiscoveredXBacklash, DiscoveredXBacklashNegative, DiscoveredXNoise);
+                YBacklashMode = BacklashModePlanner.Recommend(DiscoveredYBacklash, DiscoveredYBacklashNegative, DiscoveredYNoise);
+                committed.Add("backlash modes");
                 HasCalibrationResult = false;
                 // Both messages report the pair that was *applied*, which is not always the pair
                 // that was measured: an unconfirmed direction split is applied as its mean. A log
@@ -929,9 +1064,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 if (altitudeFlips) { flips.Add($"Reverse Alt -> {DiscoveredReverseAltitude}"); }
                 var flipNote = flips.Count == 0 ? string.Empty : $", {string.Join(", ", flips)}";
 
-                CalibrationStatus = $"Applied (backlash X {Pair(xPositive, xNegative)}, Y {Pair(yPositive, yNegative)}{flipNote})";
-                Logger.Info($"OAPA calibration applied: X={DiscoveredXRatio:F2}, Y={DiscoveredYRatio:F2}, backlash X={Pair(xPositive, xNegative)}, Y={Pair(yPositive, yNegative)}{flipNote}");
-                Notification.ShowInformation($"Calibration applied. X factor: {DiscoveredXRatio:F2}, Y factor: {DiscoveredYRatio:F2}", TimeSpan.FromSeconds(30));
+                CalibrationStatus = $"Applied. Backlash mode set to X: {XBacklashMode}, Y: {YBacklashMode} " +
+                    $"(backlash X {Pair(xPositive, xNegative)}, Y {Pair(yPositive, yNegative)}{flipNote})";
+                Logger.Info($"OAPA calibration applied: X={DiscoveredXRatio:F2}, Y={DiscoveredYRatio:F2}, backlash X={Pair(xPositive, xNegative)}, Y={Pair(yPositive, yNegative)}, modes X={XBacklashMode}, Y={YBacklashMode}{flipNote}");
+                Notification.ShowInformation($"Calibration applied. X factor: {DiscoveredXRatio:F2}, Y factor: {DiscoveredYRatio:F2}. Backlash mode X: {XBacklashMode}, Y: {YBacklashMode}", TimeSpan.FromSeconds(30));
             } catch (Exception ex) {
                 Logger.Error(ex);
                 // "Failed" on its own is only true if nothing was written. These settings are
@@ -996,6 +1132,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             DiscoveredYBacklash = 0;
             DiscoveredXBacklashNegative = 0;
             DiscoveredYBacklashNegative = 0;
+            DiscoveredXNoise = 0;
+            DiscoveredYNoise = 0;
             // Back to what the axes are actually configured with, not to false: discarding a
             // result must leave nothing behind that a later Apply could pick up, and these two
             // are the only discovered values whose "empty" is a legitimate setting.

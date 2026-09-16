@@ -413,6 +413,70 @@ namespace NINA.Plugins.PolarAlignment.Test {
         // planner against the same mechanism live in the beta suite and join this file
         // with the backlash-modes PR of the series.
 
+        /// <summary>
+        /// Drives a plan through a mechanism that loses the given play on each reversal and
+        /// returns where the axis ends up. What matters is the physical landing point, not the
+        /// legs the planner chose to get there.
+        /// </summary>
+        private static float Arrive(float[] plan, float lostEnteringPositive, float lostEnteringNegative) {
+            var position = 0f;
+            var lastSign = 1;
+            foreach (var move in plan) {
+                var sign = Math.Sign(move);
+                if (sign == 0) { continue; }
+                var lost = sign != lastSign ? (sign > 0 ? lostEnteringPositive : lostEnteringNegative) : 0f;
+                position += move - sign * Math.Min(Math.Abs(move), lost);
+                lastSign = sign;
+            }
+            return position;
+        }
+
+        [Test]
+        public async Task WhatTheCalibrationReports_CorrectsArbitrarilySmallErrors_OnASymmetricAxis() {
+            // The capstone: the two halves joined. A genuinely symmetric mechanism with 50'
+            // of play, measured through noisy solves so the two transitions come back
+            // *different* - which is the exact input that used to produce a permanent floor.
+            // Feed whatever the calibration reports straight into the planner and drive the
+            // same mechanism with it: every request must land, including requests two orders
+            // of magnitude smaller than the play.
+            var axis = new RobustFakeAxis(forwardScale: 1.0, backlashSequence: new[] { 50.0 }, noiseAmplitudeArcmin: 0.3);
+
+            var outcome = await Calibrate(axis);
+
+            outcome.BacklashEnteringPositiveArcmin.Should().Be(outcome.BacklashEnteringNegativeArcmin,
+                "solve noise must not survive as a difference between the directions");
+
+            foreach (var request in new[] { -20f, -5f, -1f, -0.3f }) {
+                var plan = BacklashModePlanner.PlanMoves(OapaBacklashMode.Unidirectional, request,
+                    outcome.BacklashEnteringPositiveArcmin, outcome.BacklashEnteringNegativeArcmin,
+                    LastDirection.Positive);
+
+                Arrive(plan, 50f, 50f).Should().BeApproximately(request, 0.01f, $"request={request}");
+            }
+        }
+
+        [Test]
+        public async Task AnAsymmetryTooSmallToEstablish_CostsItsOwnSize_AndNoMore() {
+            // The other side of the same coin, stated rather than implied. A real 6%
+            // asymmetry (50'/47') is below the verdict's threshold, so it is averaged and
+            // leaves a residual - but the residual is the *real* 3' gap, which physics
+            // bounds. That is the trade: averaging can only ever be wrong by the asymmetry
+            // the axis actually has, while splitting an unestablished pair is wrong by the
+            // measurement error, which nothing bounds and which reached 9.3' in the field.
+            var axis = new RobustFakeAxis(forwardScale: 1.0, backlashSequence: new[] { 50.0, 47.0 });
+
+            var outcome = await Calibrate(axis);
+
+            outcome.DirectionalBacklash.Should().BeFalse("3' on 50' is 6%, below the 20% the verdict needs");
+
+            var plan = BacklashModePlanner.PlanMoves(OapaBacklashMode.Unidirectional, -20f,
+                outcome.BacklashEnteringPositiveArcmin, outcome.BacklashEnteringNegativeArcmin,
+                LastDirection.Positive);
+
+            Arrive(plan, lostEnteringPositive: 47f, lostEnteringNegative: 50f)
+                .Should().BeApproximately(-20f + 3f, 0.5f, "the residual is the real asymmetry, not the measurement error");
+        }
+
         [Test]
         public async Task SolveBudget_IsRespected_NominalAndGilas() {
             var nominal = new RobustFakeAxis(forwardScale: 0.5, backlashSequence: new[] { 5.0 });

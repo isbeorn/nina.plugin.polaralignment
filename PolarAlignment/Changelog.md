@@ -7,6 +7,8 @@
 - OAPA: the side of its backlash each axis rests on is remembered across alignment runs instead of being assumed positive at the start of every run.
 - OAPA: Self-Calibration in the OAPA panel measures the calibration factor and backlash of both axes by plate solving and shows the result next to the values in use. Nothing is changed until Apply, and values entered by hand are named and need a second Apply.
 - OAPA: Set Home and Go Home for the current connection session.
+- OAPA: each axis handles its own play according to a backlash mode - the compensation folded into the move, folded in gradually, approached from the engaged side only, or left alone. Self-Calibration recommends the mode for each axis when its result is applied, and the mode is honoured on every path that moves the axis.
+- OAPA: the play measured in each direction is used as measured, and a reversal finer than the calibration could measure is reported instead of being commanded, because compensating it would add more error than it removes.
 
 ## Version 2.2.6.7
 - Fixed UPAS azimuth backlash compensation.

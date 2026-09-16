@@ -92,6 +92,25 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 settings.OAPAXMicrosteps, settings.OAPAYMicrosteps)) {
                 SendDriverCommand(command, "apply stored driver configuration");
             }
+
+            // The motion parameters are not driver commands, so nothing else records them.
+            // Logging them here makes a support log self-sufficient: the $J= step counts
+            // that follow can be read back as arcminutes without guessing the ratio.
+            Logger.Info(OapaParameterSummary.ForAxis("X (Azimuth)",
+                settings.OAPAXGearRatio, settings.OAPAXBacklashCompensation,
+                settings.OAPAXBacklashMode, settings.OAPAXSpeed,
+                NegativeOrSame(settings.OAPAXBacklashCompensationNegative, settings.OAPAXBacklashCompensation),
+                settings.OAPAXMicrosteps));
+            Logger.Info(OapaParameterSummary.ForAxis("Y (Altitude)",
+                settings.OAPAYGearRatio, settings.OAPAYBacklashCompensation,
+                settings.OAPAYBacklashMode, settings.OAPAYSpeed,
+                NegativeOrSame(settings.OAPAYBacklashCompensationNegative, settings.OAPAYBacklashCompensation),
+                settings.OAPAYMicrosteps));
+        }
+
+        /// <summary>A stored value below zero means "never set": the axis is symmetric.</summary>
+        private static float NegativeOrSame(float stored, float positive) {
+            return stored < 0f ? positive : stored;
         }
 
         private void SendDriverCommand(string command, string what) {

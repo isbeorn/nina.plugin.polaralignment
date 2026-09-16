@@ -697,6 +697,54 @@ namespace NINA.Plugins.PolarAlignment.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Full")]
+        public string OAPAXBacklashMode {
+            get {
+                return ((string)(this["OAPAXBacklashMode"]));
+            }
+            set {
+                this["OAPAXBacklashMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Full")]
+        public string OAPAYBacklashMode {
+            get {
+                return ((string)(this["OAPAYBacklashMode"]));
+            }
+            set {
+                this["OAPAYBacklashMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAXCalibrationNoise {
+            get {
+                return ((float)(this["OAPAXCalibrationNoise"]));
+            }
+            set {
+                this["OAPAXCalibrationNoise"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAYCalibrationNoise {
+            get {
+                return ((float)(this["OAPAYCalibrationNoise"]));
+            }
+            set {
+                this["OAPAYCalibrationNoise"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("0")]
         public int OAPABacklashPairSchema {
             get {

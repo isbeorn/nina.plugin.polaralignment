@@ -13,6 +13,21 @@ namespace NINA.Plugins.PolarAlignment {
     public abstract partial class UniversalPolarAlignmentBaseVM : BaseVM, IPolarAlignmentSystemVM {
         protected IPolarAlignmentSystem upa;
 
+        /// <summary>
+        /// Applies a UI-bound state change on the dispatcher when there is one. Inside NINA
+        /// there always is, so this is the same marshalling as before; a host without a WPF
+        /// application (a test, a headless run) invokes directly instead of dereferencing
+        /// <c>Application.Current</c> and failing.
+        /// </summary>
+        protected static async Task RunOnUi(Action action) {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null) {
+                await dispatcher.BeginInvoke(action);
+            } else {
+                action();
+            }
+        }
+
         protected abstract IPolarAlignmentSystem CreateSystem();
         protected abstract string SystemName { get; }
 
@@ -59,7 +74,7 @@ namespace NINA.Plugins.PolarAlignment {
             if (upa?.Connected == true) { return Task.CompletedTask; }
             return Task.Run(async () => {
                 try {
-                    await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                    await RunOnUi(() => IsNotMoving = true);
 
                     upa = CreateSystem();
                     _ = StartPoll();
@@ -93,12 +108,10 @@ namespace NINA.Plugins.PolarAlignment {
         public async Task<bool> TryNudgeX(float position, CancellationToken token) {
             try {
                 if (ReverseAzimuth) { position = position * -1; }
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
 
                 Logger.Info($"Nudging {SystemName} along X axis by {position}");
-                await upa.MoveRelative(Axis.XAxis, XSpeed, position, token).ConfigureAwait(false);
-                var currentDirection = upa.XLastDirection;
-                await ClearBacklash(currentDirection, token);
+                await ExecuteRelativeMove(Axis.XAxis, XSpeed, position, token).ConfigureAwait(false);
                 return true;
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -107,7 +120,7 @@ namespace NINA.Plugins.PolarAlignment {
                 }
                 return false;
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
 
@@ -119,10 +132,10 @@ namespace NINA.Plugins.PolarAlignment {
         public async Task<bool> TryNudgeY(float position, CancellationToken token) {
             try {
                 if (ReverseAltitude) { position = position * -1; }
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
 
                 Logger.Info($"Nudging {SystemName} along Y axis by {position}");
-                await upa.MoveRelative(Axis.YAxis, YSpeed, position, token).ConfigureAwait(false);
+                await ExecuteRelativeMove(Axis.YAxis, YSpeed, position, token).ConfigureAwait(false);
                 return true;
             } catch (Exception ex) {
                 Logger.Error(ex);
@@ -131,9 +144,18 @@ namespace NINA.Plugins.PolarAlignment {
                 }
                 return false;
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
+
+        /// <summary>
+        /// Automated fine-approach nudges default to the exact manual behaviour. A system
+        /// with its own backlash strategy (the OAPA modes) overrides
+        /// <see cref="ExecuteRelativeMove"/>, which serves both paths.
+        /// </summary>
+        public virtual Task<bool> TryFineNudgeX(float position, CancellationToken token) => TryNudgeX(position, token);
+
+        public virtual Task<bool> TryFineNudgeY(float position, CancellationToken token) => TryNudgeY(position, token);
 
         public new void RaiseAllPropertiesChanged() {
             base.RaiseAllPropertiesChanged();
@@ -142,7 +164,7 @@ namespace NINA.Plugins.PolarAlignment {
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
         public async Task MoveX(CancellationToken token) {
             try {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
 
                 var target = TargetPositionX;
                 if (ReverseAzimuth) { target = target * -1; }
@@ -157,36 +179,75 @@ namespace NINA.Plugins.PolarAlignment {
                     Notification.ShowError($"Movement timeout: {ex.Message}");
                 }
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
 
+        /// <summary>
+        /// Backlash compensation for the given axis. The base policy compensates azimuth
+        /// only, which is what this plugin has always done: the Avalon UPAS altitude axis
+        /// carries no configured backlash. A system that measures its altitude play (OAPA)
+        /// overrides this to supply it.
+        /// </summary>
+        protected virtual float GetBacklashCompensation(Axis axis) {
+            return axis == Axis.XAxis ? XBacklashCompensation : 0f;
+        }
+
+        protected LastDirection LastDirectionOf(Axis axis) {
+            return axis switch {
+                Axis.XAxis => upa.XLastDirection,
+                Axis.YAxis => upa.YLastDirection,
+                _ => upa.ZLastDirection,
+            };
+        }
+
+        /// <summary>
+        /// Executes a relative move together with its backlash handling. The base behaviour
+        /// is the one this plugin has always had: the axis is left under a positive
+        /// mechanical preload, so a negative move is followed by an overtravel-and-return
+        /// pair and a positive move needs no compensation. OAPA overrides this with its
+        /// per-axis backlash-mode planning; every other system keeps what it had.
+        /// </summary>
+        protected virtual async Task ExecuteRelativeMove(Axis axis, int speed, float position, CancellationToken token) {
+            await upa.MoveRelative(axis, speed, position, token).ConfigureAwait(false);
+            await ClearBacklash(axis, speed, LastDirectionOf(axis), token);
+        }
+
         private async Task ClearBacklash(LastDirection currentDirection, CancellationToken token) {
-            var sequence = BacklashCompensationPlanner.CreateSequence(XBacklashCompensation, currentDirection);
+            await ClearBacklash(Axis.XAxis, XSpeed, currentDirection, token);
+        }
+
+        private async Task ClearBacklash(Axis axis, int speed, LastDirection currentDirection, CancellationToken token) {
+            var sequence = BacklashCompensationPlanner.CreateSequence(GetBacklashCompensation(axis), currentDirection);
             if (sequence.FirstMove == 0) { return; }
 
             Logger.Info("Clearing backlash and restoring positive preload");
-            await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.FirstMove, token).ConfigureAwait(false);
-            await upa.MoveRelative(Axis.XAxis, XSpeed, sequence.SecondMove, token).ConfigureAwait(false);
+            await upa.MoveRelative(axis, speed, sequence.FirstMove, token).ConfigureAwait(false);
+            await upa.MoveRelative(axis, speed, sequence.SecondMove, token).ConfigureAwait(false);
         }
 
         [RelayCommand(CanExecute = (nameof(IsNotMoving)))]
         public async Task MoveY(CancellationToken token) {
             try {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = false);
+                await RunOnUi(() => IsNotMoving = false);
 
                 var target = TargetPositionY;
                 if (ReverseAltitude) { target = target * -1; }
 
                 Logger.Info($"Moving {SystemName} along Y axis to {target}");
                 await upa.MoveAbsolute(Axis.YAxis, YSpeed, target, token).ConfigureAwait(false);
+                // Same treatment the azimuth axis has always had. For a system whose altitude
+                // carries no configured backlash - the Avalon UPAS, and any system that does
+                // not override GetBacklashCompensation - the planner returns no moves and this
+                // is a no-op; a system that measures its altitude play (OAPA) gets it cleared.
+                await ClearBacklash(Axis.YAxis, YSpeed, LastDirectionOf(Axis.YAxis), token);
             } catch (Exception ex) {
                 Logger.Error(ex);
                 if (ex is TimeoutException) {
                     Notification.ShowError($"Movement timeout: {ex.Message}");
                 }
             } finally {
-                await Application.Current.Dispatcher.BeginInvoke(() => IsNotMoving = true);
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
 

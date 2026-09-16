@@ -969,9 +969,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// <summary>Probe attempts before declaring the axis immobile (5', 15', 45', 135').</summary>
         private const int MaxEngageAttempts = 4;
         /// <summary>Motion detection threshold is this many times the measured solve noise.</summary>
-        private const double NoiseSigmaFactor = 5.0;
+        internal const double NoiseSigmaFactor = 5.0;
         /// <summary>Detection floor when the two noise solves happen to agree, in arcminutes.</summary>
-        private const double DetectionFloorArcmin = 0.25;
+        internal const double DetectionFloorArcmin = 0.25;
         /// <summary>Physical size the clean measuring legs aim for, in axis arcminutes.</summary>
         private const double TargetCleanLegPhysicalArcmin = 8.0;
         /// <summary>Clean-leg disagreement above which a third leg and the median are used.</summary>

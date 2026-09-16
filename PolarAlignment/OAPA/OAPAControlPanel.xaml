@@ -14,6 +14,8 @@
         <s:String x:Key="OAPARunCurrentToolTip">Run-current value, in milliamps, sent to the OAPA controller for this axis.</s:String>
         <s:String x:Key="OAPAHoldPercentToolTip">Hold-current percentage sent to the OAPA controller for this axis.</s:String>
         <s:String x:Key="OAPAXBacklashToolTip">Azimuth-axis mechanical backlash in arcminutes, measured automatically by the Self-Calibration. Same value as "Azimuth backlash compensation" in the plugin options.</s:String>
+        <s:String x:Key="OAPABacklashModeToolTip">How this axis handles its own play. Full compensates the whole measured backlash on every reversal; Soft compensates it gradually; Unidirectional always approaches from the engaged side; Off leaves the play alone. Self-Calibration recommends the mode when its result is applied.</s:String>
+        <s:String x:Key="OAPABacklashNegativeToolTip">Backlash entering the negative direction, in arcminutes. Measured by the Self-Calibration; on an axis loaded by gravity the two directions rarely cost the same. Left equal to the positive value until a calibration establishes a difference.</s:String>
         <s:String x:Key="OAPAYBacklashToolTip">Altitude-axis mechanical backlash in arcminutes, measured automatically by the Self-Calibration. Specific to OAPA platforms.</s:String>
     </UserControl.Resources>
 
@@ -29,6 +31,7 @@
             <GroupBox Header="Azimuth Motor Settings">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -68,11 +71,16 @@
                     <TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAHoldPercentToolTip}">Hold %</TextBlock>
                     <TextBox Grid.Row="1" Grid.Column="3" VerticalAlignment="Center" Margin="5" Text="{Binding XHoldPercent}" ToolTip="{StaticResource OAPAHoldPercentToolTip}" />
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAXBacklashToolTip}">Backlash (')</TextBlock>
+                    <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAXBacklashToolTip}">Backlash + (')</TextBlock>
                     <DockPanel Grid.Row="2" Grid.Column="1">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="2,0,5,0" Opacity="0.6" FontSize="10" Text="{Binding XBacklashSourceLabel}" />
                         <TextBox VerticalAlignment="Center" Margin="5" Text="{Binding XBacklashCompensation}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAXBacklashToolTip}" />
                     </DockPanel>
+                    <TextBlock Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPABacklashModeToolTip}">Backlash mode</TextBlock>
+                    <ComboBox Grid.Row="2" Grid.Column="3" VerticalAlignment="Center" Margin="5" ItemsSource="{Binding BacklashModeNames}" SelectedItem="{Binding XBacklashModeName}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPABacklashModeToolTip}" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPABacklashNegativeToolTip}">Backlash - (')</TextBlock>
+                    <TextBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Margin="5" Text="{Binding XBacklashCompensationNegative}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPABacklashNegativeToolTip}" />
                 </Grid>
             </GroupBox>
 
@@ -80,6 +88,7 @@
             <GroupBox Grid.Column="1" Header="Altitude Motor Settings">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -119,11 +128,16 @@
                     <TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAHoldPercentToolTip}">Hold %</TextBlock>
                     <TextBox Grid.Row="1" Grid.Column="3" VerticalAlignment="Center" Margin="5" Text="{Binding YHoldPercent}" ToolTip="{StaticResource OAPAHoldPercentToolTip}" />
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAYBacklashToolTip}">Backlash (')</TextBlock>
+                    <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAYBacklashToolTip}">Backlash + (')</TextBlock>
                     <DockPanel Grid.Row="2" Grid.Column="1">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="2,0,5,0" Opacity="0.6" FontSize="10" Text="{Binding YBacklashSourceLabel}" />
                         <TextBox VerticalAlignment="Center" Margin="5" Text="{Binding YBacklashCompensation}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAYBacklashToolTip}" />
                     </DockPanel>
+                    <TextBlock Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPABacklashModeToolTip}">Backlash mode</TextBlock>
+                    <ComboBox Grid.Row="2" Grid.Column="3" VerticalAlignment="Center" Margin="5" ItemsSource="{Binding BacklashModeNames}" SelectedItem="{Binding YBacklashModeName}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPABacklashModeToolTip}" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPABacklashNegativeToolTip}">Backlash - (')</TextBlock>
+                    <TextBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Margin="5" Text="{Binding YBacklashCompensationNegative}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPABacklashNegativeToolTip}" />
                 </Grid>
             </GroupBox>
         </Grid>
