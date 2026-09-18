@@ -9,6 +9,8 @@
 - OAPA: Set Home and Go Home for the current connection session.
 - OAPA: each axis handles its own play according to a backlash mode - the compensation folded into the move, folded in gradually, approached from the engaged side only, or left alone. Self-Calibration recommends the mode for each axis when its result is applied, and the mode is honoured on every path that moves the axis.
 - OAPA: the play measured in each direction is used as measured, and a reversal finer than the calibration could measure is reported instead of being commanded, because compensating it would add more error than it removes.
+- OAPA: a STOP button in the panel halts both axes wherever they are, and says so when the halt did not reach the controller instead of looking like a success.
+- OAPA: microstepping is selectable per axis and rescales the calibration factor with it, the speed dropdown offers the whole range the firmware accepts, and the panel shows what the selected step rate is in arcminutes per second once a calibration makes it computable.
 
 ## Version 2.2.6.7
 - Fixed UPAS azimuth backlash compensation.

@@ -128,12 +128,27 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         // loop then sees Idle short of target and exits gracefully.
         public override bool SupportsStop => true;
 
-        public override void RequestStop() {
+        public override void RequestStop() => TryRequestStop();
+
+        /// <summary>
+        /// Sends the halt and says whether it got through, which the shared signature cannot.
+        ///
+        /// A stop that does not reach the controller used to leave a log line and nothing else:
+        /// the button was pressed, the platform kept moving, and the panel said the same thing
+        /// it says on success, which is nothing. Of every control here this is the one whose
+        /// whole purpose is to be trusted in a hurry.
+        ///
+        /// Reporting it belongs to the caller, not here: a transport that raises its own UI
+        /// notifications is the shared-base complaint one layer down.
+        /// </summary>
+        public bool TryRequestStop() {
             try {
                 var response = ExecuteWireCommand("!");
                 Logger.Info($"Stop requested (response: {response?.Trim()})");
+                return true;
             } catch (Exception ex) {
                 Logger.Error($"Failed to request stop: {ex.Message}");
+                return false;
             }
         }
 

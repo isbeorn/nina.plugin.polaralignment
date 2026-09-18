@@ -115,6 +115,38 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void AStopThatReachesTheController_ReportsSuccess() {
+            var link = Link();
+            var oapa = Connect(link);
+
+            oapa.TryRequestStop().Should().BeTrue();
+            link.Writes.Should().Contain("!", "the halt is a single character on the wire");
+        }
+
+        [Test]
+        public void AStopThatCannotReachTheController_SaysSoInsteadOfReturningQuietly() {
+            // The halt used to swallow its own failure: the wire threw, a line went to the log,
+            // and the caller got the same nothing it gets on success. On screen those two are
+            // identical, except that in one of them the axis is still moving - and the person
+            // who pressed Stop is watching the platform go somewhere they do not want it to go.
+            //
+            // The report belongs to the caller, not here: a transport that raises its own UI
+            // notifications is the shared-base complaint one layer down, so this only has to
+            // answer truthfully.
+            //
+            // The link fails on the halt alone. A link that is dead from the start takes the
+            // status poll down with it and never reaches this path, which proves something
+            // else - what matters here is the connection that was fine until the one command
+            // that had to get through.
+            var link = Link();
+            var oapa = Connect(link);
+            link.OnCommand = c => { if (c == "!") { throw new System.IO.IOException("the port is gone"); } };
+
+            oapa.TryRequestStop().Should().BeFalse("the command never reached the controller");
+            link.Writes.Should().Contain("!", "it was attempted, it just did not land");
+        }
+
+        [Test]
         public async Task MoveRelative_WritesAnInvariantCultureJog_AndCompletesWhenThePositionArrives() {
             var link = Link();
             var oapa = Connect(link);

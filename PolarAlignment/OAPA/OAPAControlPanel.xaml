@@ -13,6 +13,7 @@
         <s:String x:Key="OAPAGearRatioToolTip">Scale factor used when converting between OAPA motor units and the axis units shown by TPPA.</s:String>
         <s:String x:Key="OAPARunCurrentToolTip">Run-current value, in milliamps, sent to the OAPA controller for this axis.</s:String>
         <s:String x:Key="OAPAHoldPercentToolTip">Hold-current percentage sent to the OAPA controller for this axis.</s:String>
+        <s:String x:Key="OAPAMicrostepsToolTip">Driver microstepping for this axis. Lower values move faster and give more torque at the cost of resolution, and polar alignment has resolution to spare - a platform at 1000 steps per arcminute is far past what a plate solve can measure. Steps per arcminute scale exactly with this setting, so the calibration factor is rescaled with it.</s:String>
         <s:String x:Key="OAPAXBacklashToolTip">Azimuth-axis mechanical backlash in arcminutes, measured automatically by the Self-Calibration. Same value as "Azimuth backlash compensation" in the plugin options.</s:String>
         <s:String x:Key="OAPABacklashModeToolTip">How this axis handles its own play. Full compensates the whole measured backlash on every reversal; Soft compensates it gradually; Unidirectional always approaches from the engaged side; Off leaves the play alone. Self-Calibration recommends the mode when its result is applied.</s:String>
         <s:String x:Key="OAPABacklashNegativeToolTip">Backlash entering the negative direction, in arcminutes. Measured by the Self-Calibration; on an axis loaded by gravity the two directions rarely cost the same. Left equal to the positive value until a calibration establishes a difference.</s:String>
@@ -43,8 +44,10 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPASpeedToolTip}">Speed</TextBlock>
-                    <ComboBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Margin="5" SelectedValue="{Binding XSpeed}" ToolTip="{StaticResource OAPASpeedToolTip}">
+                    <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPASpeedToolTip}">Speed (steps/s)</TextBlock>
+                    <DockPanel Grid.Row="0" Grid.Column="1">
+                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="2,0,5,0" Opacity="0.6" FontSize="10" Text="{Binding XSpeedPhysical}" ToolTip="{StaticResource OAPASpeedToolTip}" />
+                    <ComboBox VerticalAlignment="Center" Margin="5" SelectedValue="{Binding XSpeed}" ToolTip="{StaticResource OAPASpeedToolTip}">
                         <ComboBox.ItemsSource>
                             <x:Array Type="{x:Type s:Int32}">
                                 <s:Int32>100</s:Int32>
@@ -57,9 +60,16 @@
                                 <s:Int32>800</s:Int32>
                                 <s:Int32>900</s:Int32>
                                 <s:Int32>1000</s:Int32>
+                                <s:Int32>1250</s:Int32>
+                                <s:Int32>1500</s:Int32>
+                                <s:Int32>1750</s:Int32>
+                                <s:Int32>2000</s:Int32>
+                                <s:Int32>2500</s:Int32>
+                                <s:Int32>3000</s:Int32>
                             </x:Array>
                         </ComboBox.ItemsSource>
                     </ComboBox>
+                    </DockPanel>
                     <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAGearRatioToolTip}">Calibration Factor</TextBlock>
                     <DockPanel Grid.Row="0" Grid.Column="3">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="2,0,5,0" Opacity="0.6" FontSize="10" Text="{Binding XGearRatioSourceLabel}" />
@@ -81,6 +91,8 @@
 
                     <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPABacklashNegativeToolTip}">Backlash - (')</TextBlock>
                     <TextBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Margin="5" Text="{Binding XBacklashCompensationNegative}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPABacklashNegativeToolTip}" />
+                    <TextBlock Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMicrostepsToolTip}">Microsteps</TextBlock>
+                    <ComboBox Grid.Row="3" Grid.Column="3" VerticalAlignment="Center" Margin="5" ItemsSource="{Binding MicrostepOptions}" SelectedValue="{Binding XMicrosteps}" ToolTip="{StaticResource OAPAMicrostepsToolTip}" />
                 </Grid>
             </GroupBox>
 
@@ -100,8 +112,10 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPASpeedToolTip}">Speed</TextBlock>
-                    <ComboBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Margin="5" SelectedValue="{Binding YSpeed}" ToolTip="{StaticResource OAPASpeedToolTip}">
+                    <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPASpeedToolTip}">Speed (steps/s)</TextBlock>
+                    <DockPanel Grid.Row="0" Grid.Column="1">
+                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="2,0,5,0" Opacity="0.6" FontSize="10" Text="{Binding YSpeedPhysical}" ToolTip="{StaticResource OAPASpeedToolTip}" />
+                    <ComboBox VerticalAlignment="Center" Margin="5" SelectedValue="{Binding YSpeed}" ToolTip="{StaticResource OAPASpeedToolTip}">
                         <ComboBox.ItemsSource>
                             <x:Array Type="{x:Type s:Int32}">
                                 <s:Int32>100</s:Int32>
@@ -114,9 +128,16 @@
                                 <s:Int32>800</s:Int32>
                                 <s:Int32>900</s:Int32>
                                 <s:Int32>1000</s:Int32>
+                                <s:Int32>1250</s:Int32>
+                                <s:Int32>1500</s:Int32>
+                                <s:Int32>1750</s:Int32>
+                                <s:Int32>2000</s:Int32>
+                                <s:Int32>2500</s:Int32>
+                                <s:Int32>3000</s:Int32>
                             </x:Array>
                         </ComboBox.ItemsSource>
                     </ComboBox>
+                    </DockPanel>
                     <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAGearRatioToolTip}">Calibration Factor</TextBlock>
                     <DockPanel Grid.Row="0" Grid.Column="3">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="2,0,5,0" Opacity="0.6" FontSize="10" Text="{Binding YGearRatioSourceLabel}" />
@@ -138,6 +159,8 @@
 
                     <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPABacklashNegativeToolTip}">Backlash - (')</TextBlock>
                     <TextBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Margin="5" Text="{Binding YBacklashCompensationNegative}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPABacklashNegativeToolTip}" />
+                    <TextBlock Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMicrostepsToolTip}">Microsteps</TextBlock>
+                    <ComboBox Grid.Row="3" Grid.Column="3" VerticalAlignment="Center" Margin="5" ItemsSource="{Binding MicrostepOptions}" SelectedValue="{Binding YMicrosteps}" ToolTip="{StaticResource OAPAMicrostepsToolTip}" />
                 </Grid>
             </GroupBox>
         </Grid>
@@ -244,6 +267,16 @@
                 </Grid>
             </GroupBox>
         </Grid>
+
+        <!-- Halts both axes wherever they are. Deliberately outside every other gate: it has
+             to be usable while automated adjustments, a calibration, or a wrong manual target
+             are driving the motors. Visible whenever connected. -->
+        <Button Height="30" Margin="0,5,0,0" FontWeight="Bold"
+                Command="{Binding StopMotionCommand}"
+                Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}"
+                ToolTip="Immediately decelerate both axes to a stop (requires firmware 1.2.1 or newer)">
+            ■ STOP
+        </Button>
 
         <!-- Home Position - Only Visible When Connected -->
         <GroupBox Header="Home Position"
