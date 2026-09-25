@@ -67,7 +67,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     hub.DetachSession(session);
                     session.Dispose();
                     Logger.Warning("[ExternalCorrection] No controller became ready in time. Falling back to the internal correction loop.");
-                    Notification.ShowWarning($"{hub.ControllerDisplayCapitalized} is not ready. Three point polar alignment continues with its normal correction loop.");
+                    Notification.ShowWarning($"{hub.ControllerDisplayCapitalized} assigned but not ready. Three point polar alignment continues with its normal correction loop.");
                     return null;
                 }
 
