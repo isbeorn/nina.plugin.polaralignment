@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 2.2.9.0
+### Changed — external correction renamed to the bridge vocabulary: the folder, the classes, the payloads and the helper methods now read `BridgeHub`, `BridgeSession`, `BridgeContract` and `BridgePayloads`, which keeps their names unique against the merged MLAstroRPA+TPPA plugin. Every wire string - topics, kinds, reasons and payload property names - is unchanged.
+
 ## Version 2.2.8.0
 ### Fixed — external correction. Cancel and stop coming from the alignment controller now close the session that is actually running, so a stop request really reaches the controller and the axes are stopped once instead of twice. A pause or a stop no longer lets a planned move start, and the cancel reason (stop pressed, firmware link lost, broker switched off) is written to the log and shown in a toast.
 

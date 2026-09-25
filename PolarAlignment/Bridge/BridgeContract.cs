@@ -1,18 +1,18 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NINA.Core.Model;
 using NINA.Plugin.Interfaces;
 using System;
 using System.Collections.Generic;
 
-namespace NINA.Plugins.PolarAlignment.External {
+namespace NINA.Plugins.PolarAlignment.Bridge {
 
     /// <summary>
     /// Names and default values shared by TPPA and an external alignment controller (MLAstroRPA).
     /// Both sides keep their own copy of these names: the plugins do not share an assembly.
     /// Changes here are a contract change and must be mirrored on the controller side.
     /// </summary>
-    public static class ExternalCorrectionContract {
+    public static class BridgeContract {
 
         /// <summary>Interface version carried by every message. Bump on an incompatible change.</summary>
         public const int InterfaceVersion = 1;
@@ -36,7 +36,7 @@ namespace NINA.Plugins.PolarAlignment.External {
     /// <see cref="SessionEnded"/> and <see cref="StopRequested"/>; the controller publishes the
     /// remaining kinds.
     /// </summary>
-    public static class ExternalCorrectionKind {
+    public static class BridgeKind {
         public const string Capabilities = "Capabilities";
         public const string ControllerReady = "ControllerReady";
         public const string Measurement = "Measurement";
@@ -61,7 +61,7 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Reasons attached to <c>SessionState</c>, <c>StopRequested</c>, <c>Cancel</c> and <c>SessionEnded</c>.</summary>
-    public static class ExternalCorrectionReason {
+    public static class BridgeReason {
         public const string UserStop = "UserStop";
         public const string SequenceCancel = "SequenceCancel";
         public const string WindowClosed = "WindowClosed";
@@ -98,7 +98,7 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Session states reported through <c>SessionState</c>.</summary>
-    public static class ExternalCorrectionState {
+    public static class BridgeState {
         public const string Preparing = "Preparing";
         public const string Measuring = "Measuring";
         public const string WaitingForRequest = "WaitingForRequest";
@@ -108,21 +108,21 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Status of a published <c>Measurement</c>.</summary>
-    public static class ExternalMeasurementStatus {
+    public static class BridgeMeasurementStatus {
         public const string Valid = "Valid";
         public const string Unstable = "Unstable";
         public const string CaptureFailed = "CaptureFailed";
     }
 
     /// <summary>Hardware stop outcome reported back with <c>Stopped</c> / <c>Fault</c>.</summary>
-    public static class ExternalHardwareStopStatus {
+    public static class BridgeHardwareStopStatus {
         public const string Ok = "ok";
         public const string Unknown = "unknown";
         public const string Fault = "fault";
     }
 
     /// <summary>Kind of the next controller-side event a waiting TPPA loop has to act on.</summary>
-    public enum ExternalControllerRequestKind {
+    public enum BridgeRequestKind {
         ControllerReady,
         AdjustWindow,
         RequestMeasurement,
@@ -138,8 +138,8 @@ namespace NINA.Plugins.PolarAlignment.External {
     /// Wire envelope. The JSON of this object is the <see cref="IMessage.Content"/> of every message
     /// on both external topics, so the two plugins never have to share a CLR type.
     /// </summary>
-    public sealed class ExternalCorrectionEnvelope {
-        public int Version { get; set; } = ExternalCorrectionContract.InterfaceVersion;
+    public sealed class BridgeEnvelope {
+        public int Version { get; set; } = BridgeContract.InterfaceVersion;
         public string SessionId { get; set; }
         public string CommandId { get; set; }
         public string ReplyTo { get; set; }
@@ -150,10 +150,10 @@ namespace NINA.Plugins.PolarAlignment.External {
 
         public string ToJson() => JsonConvert.SerializeObject(this, Formatting.None);
 
-        public static ExternalCorrectionEnvelope FromJson(string json) {
+        public static BridgeEnvelope FromJson(string json) {
             if (string.IsNullOrWhiteSpace(json)) { return null; }
             try {
-                return JsonConvert.DeserializeObject<ExternalCorrectionEnvelope>(json);
+                return JsonConvert.DeserializeObject<BridgeEnvelope>(json);
             } catch (JsonException) {
                 return null;
             }
@@ -163,14 +163,14 @@ namespace NINA.Plugins.PolarAlignment.External {
             return Payload?.ToObject<T>();
         }
 
-        public static ExternalCorrectionEnvelope Create(string kind,
+        public static BridgeEnvelope Create(string kind,
                                                        string sessionId,
                                                        string commandId,
                                                        string replyTo,
                                                        long sequenceNumber,
                                                        string recipient,
                                                        object payload) {
-            return new ExternalCorrectionEnvelope {
+            return new BridgeEnvelope {
                 Kind = kind,
                 SessionId = sessionId,
                 CommandId = commandId,
@@ -183,10 +183,10 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Broker message published on the TPPA -&gt; controller topic.</summary>
-    public sealed class ExternalCorrectionEventMessage : IMessage {
+    public sealed class BridgeEventMessage : IMessage {
         private readonly string json;
 
-        public ExternalCorrectionEventMessage(ExternalCorrectionEnvelope envelope) {
+        public BridgeEventMessage(BridgeEnvelope envelope) {
             json = envelope.ToJson();
         }
 
@@ -196,9 +196,9 @@ namespace NINA.Plugins.PolarAlignment.External {
         public Guid MessageId => Guid.NewGuid();
         public DateTimeOffset? Expiration => null;
         public Guid? CorrelationId => null;
-        public int Version => ExternalCorrectionContract.InterfaceVersion;
+        public int Version => BridgeContract.InterfaceVersion;
         public IDictionary<string, object> CustomHeaders => new Dictionary<string, object>();
-        public string Topic => ExternalCorrectionContract.EventTopic;
+        public string Topic => BridgeContract.EventTopic;
         public object Content => json;
 
         internal static Guid ResolvePluginId() {
@@ -207,22 +207,22 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Broker message published on the controller -&gt; TPPA topic.</summary>
-    public sealed class ExternalCorrectionCommandMessage : IMessage {
+    public sealed class BridgeCommandMessage : IMessage {
         private readonly string json;
 
-        public ExternalCorrectionCommandMessage(ExternalCorrectionEnvelope envelope) {
+        public BridgeCommandMessage(BridgeEnvelope envelope) {
             json = envelope.ToJson();
         }
 
-        public Guid SenderId => ExternalCorrectionEventMessage.ResolvePluginId();
+        public Guid SenderId => BridgeEventMessage.ResolvePluginId();
         public string Sender => nameof(PolarAlignmentPlugin);
         public DateTimeOffset SentAt => DateTime.UtcNow;
         public Guid MessageId => Guid.NewGuid();
         public DateTimeOffset? Expiration => null;
         public Guid? CorrelationId => null;
-        public int Version => ExternalCorrectionContract.InterfaceVersion;
+        public int Version => BridgeContract.InterfaceVersion;
         public IDictionary<string, object> CustomHeaders => new Dictionary<string, object>();
-        public string Topic => ExternalCorrectionContract.CommandTopic;
+        public string Topic => BridgeContract.CommandTopic;
         public object Content => json;
     }
 }

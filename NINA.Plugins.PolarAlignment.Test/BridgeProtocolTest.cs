@@ -1,7 +1,7 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NINA.Core.Model;
 using NINA.Plugin.Interfaces;
-using NINA.Plugins.PolarAlignment.External;
+using NINA.Plugins.PolarAlignment.Bridge;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -17,17 +17,17 @@ namespace NINA.Plugins.PolarAlignment.Test {
     /// loop lives in the sequence item, so it is not exercised here.
     /// </summary>
     [TestFixture]
-    public class ExternalCorrectionProtocolTest {
+    public class BridgeProtocolTest {
 
         private sealed class FakeMessageBroker : IMessageBroker {
             private readonly object gate = new object();
-            private readonly List<ExternalCorrectionEnvelope> published = new List<ExternalCorrectionEnvelope>();
+            private readonly List<BridgeEnvelope> published = new List<BridgeEnvelope>();
 
-            public IReadOnlyList<ExternalCorrectionEnvelope> Published {
+            public IReadOnlyList<BridgeEnvelope> Published {
                 get { lock (gate) { return published.ToList(); } }
             }
 
-            public ExternalCorrectionEnvelope Last(string kind) {
+            public BridgeEnvelope Last(string kind) {
                 lock (gate) {
                     return published.LastOrDefault(e => e.Kind == kind);
                 }
@@ -44,7 +44,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             }
 
             public Task Publish(IMessage message) {
-                var envelope = ExternalCorrectionEnvelope.FromJson(message.Content as string);
+                var envelope = BridgeEnvelope.FromJson(message.Content as string);
                 lock (gate) { published.Add(envelope); }
                 return Task.CompletedTask;
             }
@@ -54,8 +54,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             public void Unsubscribe(string topic, ISubscriber subscriber) { }
         }
 
-        private static ExternalCorrectionOptions FastOptions(int? silenceTimeoutMs = null, int? graceMs = null, int sessionTimeoutSec = 3600) {
-            return new ExternalCorrectionOptions {
+        private static BridgeOptions FastOptions(int? silenceTimeoutMs = null, int? graceMs = null, int sessionTimeoutSec = 3600) {
+            return new BridgeOptions {
                 HeartbeatMs = 100000,
                 SilenceTimeoutMs = silenceTimeoutMs ?? 400,
                 ReadyTimeoutMs = 500,
@@ -66,29 +66,29 @@ namespace NINA.Plugins.PolarAlignment.Test {
             };
         }
 
-        private static ExternalCorrectionSession NewSession(FakeMessageBroker broker, ExternalCorrectionOptions options = null) {
-            var session = new ExternalCorrectionSession(broker, "session-1");
+        private static BridgeSession NewSession(FakeMessageBroker broker, BridgeOptions options = null) {
+            var session = new BridgeSession(broker, "session-1");
             session.ApplyOptions(options ?? FastOptions());
             return session;
         }
 
-        private static ExternalCorrectionEnvelope Command(string kind,
+        private static BridgeEnvelope Command(string kind,
                                                           string sessionId = "session-1",
                                                           object payload = null,
                                                           string commandId = null) {
-            return ExternalCorrectionEnvelope.Create(kind,
+            return BridgeEnvelope.Create(kind,
                                                      sessionId,
                                                      commandId ?? Guid.NewGuid().ToString("N"),
                                                      null,
                                                      1,
-                                                     ExternalCorrectionContract.TppaRecipient,
+                                                     BridgeContract.TppaRecipient,
                                                      payload);
         }
 
-        private static ExternalMeasurementPayload Measurement() {
-            return new ExternalMeasurementPayload {
+        private static BridgeMeasurementPayload Measurement() {
+            return new BridgeMeasurementPayload {
                 MeasurementId = Guid.NewGuid().ToString("N"),
-                Status = ExternalMeasurementStatus.Valid,
+                Status = BridgeMeasurementStatus.Valid,
                 AzimuthErrorArcMin = 5,
                 AltitudeErrorArcMin = 3,
                 TotalErrorArcMin = 5.83,
@@ -106,8 +106,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            broker.Last(ExternalCorrectionKind.SessionState).PayloadAs<ExternalSessionStatePayload>().State
-                .Should().Be(ExternalCorrectionState.Preparing);
+            broker.Last(BridgeKind.SessionState).PayloadAs<BridgeSessionStatePayload>().State
+                .Should().Be(BridgeState.Preparing);
         }
 
         [Test]
@@ -116,7 +116,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.ControllerReady));
+            session.HandleEnvelope(Command(BridgeKind.ControllerReady));
 
             (await session.WaitForControllerReadyAsync(CancellationToken.None)).Should().BeTrue();
         }
@@ -136,16 +136,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.BeginAdjustment,
-                                           payload: new ExternalAdjustmentRequestPayload { MeasurementId = "m1" }));
+            session.HandleEnvelope(Command(BridgeKind.BeginAdjustment,
+                                           payload: new BridgeAdjustmentRequestPayload { MeasurementId = "m1" }));
             var request = await session.WaitForControllerRequestAsync(CancellationToken.None);
 
-            request.Kind.Should().Be(ExternalControllerRequestKind.AdjustWindow);
+            request.Kind.Should().Be(BridgeRequestKind.AdjustWindow);
             var windowId = await session.GrantWindowAsync(request, CancellationToken.None);
 
             windowId.Should().NotBeNullOrEmpty();
             session.IsWindowOpen.Should().BeTrue();
-            broker.Last(ExternalCorrectionKind.AdjustmentGranted).PayloadAs<ExternalAdjustmentGrantPayload>()
+            broker.Last(BridgeKind.AdjustmentGranted).PayloadAs<BridgeAdjustmentGrantPayload>()
                 .WindowId.Should().Be(windowId);
         }
 
@@ -155,8 +155,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            var begin = Command(ExternalCorrectionKind.BeginAdjustment,
-                                payload: new ExternalAdjustmentRequestPayload { MeasurementId = "m1" });
+            var begin = Command(BridgeKind.BeginAdjustment,
+                                payload: new BridgeAdjustmentRequestPayload { MeasurementId = "m1" });
             session.HandleEnvelope(begin);
             var firstRequest = await session.WaitForControllerRequestAsync(CancellationToken.None);
             var firstWindowId = await session.GrantWindowAsync(firstRequest, CancellationToken.None);
@@ -165,8 +165,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             session.HandleEnvelope(begin);
             await Task.Delay(50);
 
-            broker.Count(ExternalCorrectionKind.AdjustmentGranted).Should().Be(2);
-            broker.Last(ExternalCorrectionKind.AdjustmentGranted).PayloadAs<ExternalAdjustmentGrantPayload>()
+            broker.Count(BridgeKind.AdjustmentGranted).Should().Be(2);
+            broker.Last(BridgeKind.AdjustmentGranted).PayloadAs<BridgeAdjustmentGrantPayload>()
                 .WindowId.Should().Be(firstWindowId);
             session.CurrentWindowId.Should().Be(firstWindowId);
         }
@@ -177,10 +177,10 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            var payload = new ExternalMeasurementRequestPayload { StationaryAndSettled = true };
+            var payload = new BridgeMeasurementRequestPayload { StationaryAndSettled = true };
             var commandId = Guid.NewGuid().ToString("N");
-            session.HandleEnvelope(Command(ExternalCorrectionKind.RequestMeasurement, payload: payload, commandId: commandId));
-            session.HandleEnvelope(Command(ExternalCorrectionKind.RequestMeasurement, payload: payload, commandId: commandId));
+            session.HandleEnvelope(Command(BridgeKind.RequestMeasurement, payload: payload, commandId: commandId));
+            session.HandleEnvelope(Command(BridgeKind.RequestMeasurement, payload: payload, commandId: commandId));
 
             var first = await session.WaitForControllerRequestAsync(CancellationToken.None);
             var second = await session.WaitForControllerRequestAsync(CancellationToken.None);
@@ -195,15 +195,15 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.BeginAdjustment,
-                                           payload: new ExternalAdjustmentRequestPayload { MeasurementId = "m1" }));
+            session.HandleEnvelope(Command(BridgeKind.BeginAdjustment,
+                                           payload: new BridgeAdjustmentRequestPayload { MeasurementId = "m1" }));
             await session.GrantWindowAsync(await session.WaitForControllerRequestAsync(CancellationToken.None), CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.RequestMeasurement,
-                                           payload: new ExternalMeasurementRequestPayload { StationaryAndSettled = true }));
+            session.HandleEnvelope(Command(BridgeKind.RequestMeasurement,
+                                           payload: new BridgeMeasurementRequestPayload { StationaryAndSettled = true }));
             var request = await session.WaitForControllerRequestAsync(CancellationToken.None);
 
-            request.Kind.Should().Be(ExternalControllerRequestKind.RequestMeasurement);
+            request.Kind.Should().Be(BridgeRequestKind.RequestMeasurement);
             session.IsWindowOpen.Should().BeFalse();
         }
 
@@ -213,17 +213,17 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker, FastOptions(silenceTimeoutMs: 150));
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.BeginAdjustment,
-                                           payload: new ExternalAdjustmentRequestPayload { MeasurementId = "m1" }));
+            session.HandleEnvelope(Command(BridgeKind.BeginAdjustment,
+                                           payload: new BridgeAdjustmentRequestPayload { MeasurementId = "m1" }));
             await session.GrantWindowAsync(await session.WaitForControllerRequestAsync(CancellationToken.None), CancellationToken.None);
 
             var expired = await session.WaitForControllerRequestAsync(CancellationToken.None);
 
-            expired.Kind.Should().Be(ExternalControllerRequestKind.WindowExpired);
+            expired.Kind.Should().Be(BridgeRequestKind.WindowExpired);
             session.IsWindowOpen.Should().BeFalse();
             session.IsActive.Should().BeTrue();
-            broker.Last(ExternalCorrectionKind.SessionState).PayloadAs<ExternalSessionStatePayload>().Reason
-                .Should().Be(ExternalCorrectionReason.SilenceTimeout);
+            broker.Last(BridgeKind.SessionState).PayloadAs<BridgeSessionStatePayload>().Reason
+                .Should().Be(BridgeReason.SilenceTimeout);
         }
 
         [Test]
@@ -232,14 +232,14 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker, FastOptions(silenceTimeoutMs: 100, graceMs: 100));
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.BeginAdjustment,
-                                           payload: new ExternalAdjustmentRequestPayload { MeasurementId = "m1" }));
+            session.HandleEnvelope(Command(BridgeKind.BeginAdjustment,
+                                           payload: new BridgeAdjustmentRequestPayload { MeasurementId = "m1" }));
             await session.GrantWindowAsync(await session.WaitForControllerRequestAsync(CancellationToken.None), CancellationToken.None);
 
             (await session.WaitForControllerRequestAsync(CancellationToken.None)).Kind
-                .Should().Be(ExternalControllerRequestKind.WindowExpired);
+                .Should().Be(BridgeRequestKind.WindowExpired);
             (await session.WaitForControllerRequestAsync(CancellationToken.None)).Kind
-                .Should().Be(ExternalControllerRequestKind.ExternalLost);
+                .Should().Be(BridgeRequestKind.ExternalLost);
         }
 
         [Test]
@@ -248,8 +248,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker, FastOptions(silenceTimeoutMs: 150));
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.BeginAdjustment,
-                                           payload: new ExternalAdjustmentRequestPayload { MeasurementId = "m1" }));
+            session.HandleEnvelope(Command(BridgeKind.BeginAdjustment,
+                                           payload: new BridgeAdjustmentRequestPayload { MeasurementId = "m1" }));
             var grantedWindowId = await session.GrantWindowAsync(await session.WaitForControllerRequestAsync(CancellationToken.None), CancellationToken.None);
 
             // The controller keeps the window alive for longer than three silence timeouts, which is
@@ -257,17 +257,17 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var keepAliveJob = Task.Run(async () => {
                 for (var i = 0; i < 10; i++) {
                     await Task.Delay(40);
-                    session.HandleEnvelope(Command(ExternalCorrectionKind.KeepAlive,
-                                                   payload: new ExternalKeepAlivePayload { WindowId = grantedWindowId }));
+                    session.HandleEnvelope(Command(BridgeKind.KeepAlive,
+                                                   payload: new BridgeKeepAlivePayload { WindowId = grantedWindowId }));
                 }
             });
 
             await keepAliveJob;
-            session.HandleEnvelope(Command(ExternalCorrectionKind.RequestMeasurement,
-                                           payload: new ExternalMeasurementRequestPayload { WindowId = grantedWindowId, StationaryAndSettled = true }));
+            session.HandleEnvelope(Command(BridgeKind.RequestMeasurement,
+                                           payload: new BridgeMeasurementRequestPayload { WindowId = grantedWindowId, StationaryAndSettled = true }));
             var request = await session.WaitForControllerRequestAsync(CancellationToken.None);
 
-            request.Kind.Should().Be(ExternalControllerRequestKind.RequestMeasurement);
+            request.Kind.Should().Be(BridgeRequestKind.RequestMeasurement);
             request.WindowId.Should().Be(grantedWindowId);
         }
 
@@ -277,15 +277,15 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.BeginAdjustment,
-                                           payload: new ExternalAdjustmentRequestPayload { MeasurementId = "m1" }));
+            session.HandleEnvelope(Command(BridgeKind.BeginAdjustment,
+                                           payload: new BridgeAdjustmentRequestPayload { MeasurementId = "m1" }));
             await session.GrantWindowAsync(await session.WaitForControllerRequestAsync(CancellationToken.None), CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.RequestCompletion,
-                                           payload: new ExternalCompletionRequestPayload { WindowId = session.CurrentWindowId }));
+            session.HandleEnvelope(Command(BridgeKind.RequestCompletion,
+                                           payload: new BridgeCompletionRequestPayload { WindowId = session.CurrentWindowId }));
             var request = await session.WaitForControllerRequestAsync(CancellationToken.None);
 
-            request.Kind.Should().Be(ExternalControllerRequestKind.RequestCompletion);
+            request.Kind.Should().Be(BridgeRequestKind.RequestCompletion);
         }
 
         [Test]
@@ -294,12 +294,12 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.Cancel,
-                                           payload: new ExternalCancelPayload { Reason = ExternalCorrectionReason.ControllerCancel }));
+            session.HandleEnvelope(Command(BridgeKind.Cancel,
+                                           payload: new BridgeCancelPayload { Reason = BridgeReason.ControllerCancel }));
             var request = await session.WaitForControllerRequestAsync(CancellationToken.None);
 
-            request.Kind.Should().Be(ExternalControllerRequestKind.Cancel);
-            request.Cancel.Reason.Should().Be(ExternalCorrectionReason.ControllerCancel);
+            request.Kind.Should().Be(BridgeRequestKind.Cancel);
+            request.Cancel.Reason.Should().Be(BridgeReason.ControllerCancel);
         }
 
         [Test]
@@ -308,16 +308,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.Fault,
-                                           payload: new ExternalFaultPayload {
-                                               Reason = ExternalCorrectionReason.ControllerFault,
+            session.HandleEnvelope(Command(BridgeKind.Fault,
+                                           payload: new BridgeFaultPayload {
+                                               Reason = BridgeReason.ControllerFault,
                                                Detail = "serial link lost",
-                                               HardwareStopStatus = ExternalHardwareStopStatus.Unknown
+                                               HardwareStopStatus = BridgeHardwareStopStatus.Unknown
                                            }));
             var request = await session.WaitForControllerRequestAsync(CancellationToken.None);
 
-            request.Kind.Should().Be(ExternalControllerRequestKind.Cancel);
-            request.Cancel.Reason.Should().Be(ExternalCorrectionReason.ControllerFault);
+            request.Kind.Should().Be(BridgeRequestKind.Cancel);
+            request.Cancel.Reason.Should().Be(BridgeReason.ControllerFault);
         }
 
         [Test]
@@ -326,18 +326,18 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            var stopTask = session.RequestStopAsync(ExternalCorrectionReason.UserStop, CancellationToken.None);
-            session.HandleEnvelope(Command(ExternalCorrectionKind.Stopped,
-                                           payload: new ExternalStoppedPayload {
-                                               Reason = ExternalCorrectionReason.UserStop,
-                                               HardwareStopStatus = ExternalHardwareStopStatus.Ok
+            var stopTask = session.RequestStopAsync(BridgeReason.UserStop, CancellationToken.None);
+            session.HandleEnvelope(Command(BridgeKind.Stopped,
+                                           payload: new BridgeStoppedPayload {
+                                               Reason = BridgeReason.UserStop,
+                                               HardwareStopStatus = BridgeHardwareStopStatus.Ok
                                            }));
 
             var status = await stopTask;
 
-            status.Should().Be(ExternalHardwareStopStatus.Ok);
-            broker.Last(ExternalCorrectionKind.StopRequested).PayloadAs<ExternalStopRequestPayload>().Reason
-                .Should().Be(ExternalCorrectionReason.UserStop);
+            status.Should().Be(BridgeHardwareStopStatus.Ok);
+            broker.Last(BridgeKind.StopRequested).PayloadAs<BridgeStopRequestPayload>().Reason
+                .Should().Be(BridgeReason.UserStop);
         }
 
         [Test]
@@ -346,9 +346,9 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            var status = await session.RequestStopAsync(ExternalCorrectionReason.UserStop, CancellationToken.None);
+            var status = await session.RequestStopAsync(BridgeReason.UserStop, CancellationToken.None);
 
-            status.Should().Be(ExternalHardwareStopStatus.Unknown);
+            status.Should().Be(BridgeHardwareStopStatus.Unknown);
         }
 
         [Test]
@@ -358,7 +358,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
             (await session.WaitForControllerRequestAsync(CancellationToken.None)).Kind
-                .Should().Be(ExternalControllerRequestKind.SessionTimeout);
+                .Should().Be(BridgeRequestKind.SessionTimeout);
         }
 
         [Test]
@@ -370,8 +370,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             await session.PublishMeasurementAsync(Measurement(), CancellationToken.None);
             await session.PublishMeasurementAsync(Measurement(), CancellationToken.None);
 
-            var published = broker.Published.Where(e => e.Kind == ExternalCorrectionKind.Measurement)
-                                  .Select(e => e.PayloadAs<ExternalMeasurementPayload>())
+            var published = broker.Published.Where(e => e.Kind == BridgeKind.Measurement)
+                                  .Select(e => e.PayloadAs<BridgeMeasurementPayload>())
                                   .ToList();
 
             published.Should().HaveCount(2);
@@ -388,18 +388,18 @@ namespace NINA.Plugins.PolarAlignment.Test {
             await session.OpenAsync(1.5, false, CancellationToken.None);
             await session.PublishMeasurementAsync(Measurement(), CancellationToken.None);
 
-            await session.EndAsync(ExternalCorrectionReason.Completed,
+            await session.EndAsync(BridgeReason.Completed,
                                    true,
-                                   new ExternalSessionEndedPayload {
+                                   new BridgeSessionEndedPayload {
                                        AzimuthErrorArcMin = 0.4,
                                        AltitudeErrorArcMin = 0.3,
                                        TotalErrorArcMin = 0.5
                                    },
                                    CancellationToken.None);
 
-            var ended = broker.Last(ExternalCorrectionKind.SessionEnded).PayloadAs<ExternalSessionEndedPayload>();
+            var ended = broker.Last(BridgeKind.SessionEnded).PayloadAs<BridgeSessionEndedPayload>();
             ended.Achieved.Should().BeTrue();
-            ended.Reason.Should().Be(ExternalCorrectionReason.Completed);
+            ended.Reason.Should().Be(BridgeReason.Completed);
             ended.ToleranceUsedArcMin.Should().Be(1.5);
             ended.SamplesUsed.Should().Be(1);
             session.IsActive.Should().BeFalse();
@@ -411,13 +411,13 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.RequestMeasurement,
+            session.HandleEnvelope(Command(BridgeKind.RequestMeasurement,
                                            sessionId: "some-other-session",
-                                           payload: new ExternalMeasurementRequestPayload { StationaryAndSettled = true }));
+                                           payload: new BridgeMeasurementRequestPayload { StationaryAndSettled = true }));
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.ControllerReady));
+            session.HandleEnvelope(Command(BridgeKind.ControllerReady));
             (await session.WaitForControllerRequestAsync(CancellationToken.None)).Kind
-                .Should().Be(ExternalControllerRequestKind.ControllerReady);
+                .Should().Be(BridgeRequestKind.ControllerReady);
         }
 
         [Test]
@@ -426,13 +426,13 @@ namespace NINA.Plugins.PolarAlignment.Test {
             using var session = NewSession(broker);
             await session.OpenAsync(1.0, false, CancellationToken.None);
 
-            var envelope = Command(ExternalCorrectionKind.ControllerReady);
-            envelope.Version = ExternalCorrectionContract.InterfaceVersion + 1;
+            var envelope = Command(BridgeKind.ControllerReady);
+            envelope.Version = BridgeContract.InterfaceVersion + 1;
             session.HandleEnvelope(envelope);
 
-            session.HandleEnvelope(Command(ExternalCorrectionKind.ControllerReady));
+            session.HandleEnvelope(Command(BridgeKind.ControllerReady));
             (await session.WaitForControllerRequestAsync(CancellationToken.None)).Kind
-                .Should().Be(ExternalControllerRequestKind.ControllerReady);
+                .Should().Be(BridgeRequestKind.ControllerReady);
         }
 
         [Test]
@@ -457,20 +457,20 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         [Test]
         public void EnvelopeRoundTripsThroughJson() {
-            var envelope = ExternalCorrectionEnvelope.Create(ExternalCorrectionKind.Measurement,
+            var envelope = BridgeEnvelope.Create(BridgeKind.Measurement,
                                                             "session-1",
                                                             "command-1",
                                                             null,
                                                             7,
-                                                            ExternalCorrectionContract.ControllerRecipient,
-                                                            new ExternalMeasurementPayload { TotalErrorArcMin = 3.25 });
+                                                            BridgeContract.ControllerRecipient,
+                                                            new BridgeMeasurementPayload { TotalErrorArcMin = 3.25 });
 
-            var restored = ExternalCorrectionEnvelope.FromJson(envelope.ToJson());
+            var restored = BridgeEnvelope.FromJson(envelope.ToJson());
 
-            restored.Kind.Should().Be(ExternalCorrectionKind.Measurement);
+            restored.Kind.Should().Be(BridgeKind.Measurement);
             restored.SessionId.Should().Be("session-1");
             restored.SequenceNumber.Should().Be(7);
-            restored.PayloadAs<ExternalMeasurementPayload>().TotalErrorArcMin.Should().Be(3.25);
+            restored.PayloadAs<BridgeMeasurementPayload>().TotalErrorArcMin.Should().Be(3.25);
         }
     }
 }

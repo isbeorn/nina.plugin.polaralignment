@@ -1,7 +1,7 @@
-using NINA.Core.Model;
+﻿using NINA.Core.Model;
 using NINA.Core.Utility;
 using NINA.Core.Utility.Notification;
-using NINA.Plugins.PolarAlignment.External;
+using NINA.Plugins.PolarAlignment.Bridge;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,21 +14,21 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
     /// these members are only used by the sequence item, never by the plugin options or the dockable.
     /// </summary>
     public partial class PolarAlignment {
-        private ExternalCorrectionSession externalSession;
-        private string externalSessionEndReason = ExternalCorrectionReason.UserStop;
+        private BridgeSession bridgeSession;
+        private string bridgeSessionEndReason = BridgeReason.UserStop;
 
         /// <summary>True when the controller vanished during a session and the normal loop has to take over.</summary>
-        private bool externalControllerLost;
+        private bool controllerLost;
 
         /// <summary>
         /// Who is on the other end of the broker, e.g. "MLAstroRPA 2.2.0.0". Every status text and
         /// notification that talks about the controller uses this so the operator sees which plugin it is.
         /// </summary>
-        private static string ControllerDisplay => ExternalCorrectionHub.Instance?.ControllerDisplay ?? "the external alignment controller";
+        private static string ControllerDisplay => BridgeHub.Instance?.ControllerDisplay ?? "the external alignment controller";
 
         /// <summary><see cref="ControllerDisplay"/> written so it can start a sentence.</summary>
         private static string ControllerDisplayCapitalized =>
-            ExternalCorrectionHub.Instance?.ControllerDisplayCapitalized ?? "The external alignment controller";
+            BridgeHub.Instance?.ControllerDisplayCapitalized ?? "The external alignment controller";
 
         /// <summary>
         /// Creates and opens the external correction session when a controller is connected. The mode is
@@ -36,23 +36,23 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// enabled, so the presence of those announcements is the handshake. Returns null whenever TPPA
         /// has to run its normal correction loop.
         /// </summary>
-        private async Task<ExternalCorrectionSession> StartExternalCorrectionSessionAsync(IProgress<ApplicationStatus> progress, CancellationToken token) {
-            var hub = ExternalCorrectionHub.Instance;
+        private async Task<BridgeSession> StartBridgeSessionAsync(IProgress<ApplicationStatus> progress, CancellationToken token) {
+            var hub = BridgeHub.Instance;
             if (hub == null) { return null; }
 
             if (!hub.IsControllerPresent) {
-                Logger.Info("[ExternalCorrection] No external alignment controller is connected. Using the internal correction loop.");
+                Logger.Info("[Bridge] No external alignment controller is connected. Using the internal correction loop.");
                 return null;
             }
 
             if (AlignmentTolerance <= 0) {
-                Logger.Warning("[ExternalCorrection] A controller is connected but the alignment tolerance is zero, so no external session is started.");
+                Logger.Warning("[Bridge] A controller is connected but the alignment tolerance is zero, so no external session is started.");
                 Notification.ShowWarning($"{hub.ControllerDisplayCapitalized} is connected, but the alignment tolerance is zero. The external correction mode needs a tolerance above zero, so the normal correction loop runs instead.");
                 return null;
             }
 
-            externalControllerLost = false;
-            var session = new ExternalCorrectionSession(messageBroker);
+            controllerLost = false;
+            var session = new BridgeSession(messageBroker);
             hub.AttachSession(session);
             try {
                 progress?.Report(GetStatus($"Waiting for {ControllerDisplay}"));
@@ -60,19 +60,19 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 var ready = await session.WaitForControllerReadyAsync(token);
                 if (!ready) {
-                    await session.EndAsync(ExternalCorrectionReason.NoControllerReady,
+                    await session.EndAsync(BridgeReason.NoControllerReady,
                                            false,
-                                           new ExternalSessionEndedPayload { Detail = "No external alignment controller became ready in time." },
+                                           new BridgeSessionEndedPayload { Detail = "No external alignment controller became ready in time." },
                                            token);
                     hub.DetachSession(session);
                     session.Dispose();
-                    Logger.Warning("[ExternalCorrection] No controller became ready in time. Falling back to the internal correction loop.");
+                    Logger.Warning("[Bridge] No controller became ready in time. Falling back to the internal correction loop.");
                     Notification.ShowWarning($"{hub.ControllerDisplayCapitalized} assigned but not ready. Three point polar alignment continues with its normal correction loop.");
                     return null;
                 }
 
                 // Tell the controller that the reference sweep starts, so its UI does not look stuck.
-                await session.PublishSessionStateAsync(ExternalCorrectionState.Measuring, ExternalCorrectionReason.ReferenceSweep, token);
+                await session.PublishSessionStateAsync(BridgeState.Measuring, BridgeReason.ReferenceSweep, token);
 
                 progress?.Report(GetStatus(string.Empty));
                 return session;
@@ -87,7 +87,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// finishes because of the measured error: it only publishes the tolerance flags and ends the
         /// session when the controller asks for completion, cancels or stops answering.
         /// </summary>
-        private async Task RunExternalCorrectionAsync(ExternalCorrectionSession session,
+        private async Task RunBridgeAsync(BridgeSession session,
                                                       IProgress<ApplicationStatus> progress,
                                                       CancellationToken token) {
             // The operator reads the first polar error before the controller does: the run holds here
@@ -98,10 +98,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             var firstMeasurementBelowTolerance = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes) <= AlignmentTolerance;
             var autoFinishConditionMet = autoFinishGate.Register(firstMeasurementBelowTolerance);
 
-            await PublishExternalMeasurementAsync(session,
+            await PublishBridgeMeasurementAsync(session,
                                                   isFirstMeasurement: true,
                                                   windowId: null,
-                                                  status: ExternalMeasurementStatus.Valid,
+                                                  status: BridgeMeasurementStatus.Valid,
                                                   autoFinishConditionMet: autoFinishConditionMet,
                                                   consecutiveBelowTolerance: autoFinishGate.Consecutive,
                                                   token: token);
@@ -113,38 +113,38 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 var request = await session.WaitForControllerRequestAsync(token);
                 switch (request.Kind) {
-                    case ExternalControllerRequestKind.ControllerReady:
-                    case ExternalControllerRequestKind.StopAcknowledged:
+                    case BridgeRequestKind.ControllerReady:
+                    case BridgeRequestKind.StopAcknowledged:
                         continue;
 
-                    case ExternalControllerRequestKind.AdjustWindow: {
+                    case BridgeRequestKind.AdjustWindow: {
                         var grantedWindowId = await session.GrantWindowAsync(request, token);
                         Logger.Info($"External controller holds capture window {grantedWindowId} for measurement {request.MeasurementId}.");
                         progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is adjusting"));
                         continue;
                     }
 
-                    case ExternalControllerRequestKind.RequestMeasurement: {
+                    case BridgeRequestKind.RequestMeasurement: {
                         if (request.Duplicate) {
-                            Logger.Info("[ExternalCorrection] Ignored duplicated measurement request.");
+                            Logger.Info("[Bridge] Ignored duplicated measurement request.");
                             continue;
                         }
                         var windowId = request.WindowId ?? session.CurrentWindowId;
-                        session.CloseWindow(request.MeasurementRequest?.Reason ?? ExternalCorrectionReason.StepFinished);
-                        var measurement = await CaptureExternalMeasurementAsync(session, windowId, autoFinishGate, progress, token);
+                        session.CloseWindow(request.MeasurementRequest?.Reason ?? BridgeReason.StepFinished);
+                        var measurement = await CaptureBridgeMeasurementAsync(session, windowId, autoFinishGate, progress, token);
                         await session.PublishMeasurementAsync(measurement, token);
                         continue;
                     }
 
-                    case ExternalControllerRequestKind.RequestCompletion: {
+                    case BridgeRequestKind.RequestCompletion: {
                         session.EnterVerifying();
-                        session.CloseWindow(ExternalCorrectionReason.CompletionRequested);
+                        session.CloseWindow(BridgeReason.CompletionRequested);
                         progress?.Report(GetStatus("Verifying final polar alignment"));
-                        var measurement = await CaptureExternalMeasurementAsync(session, request.WindowId, autoFinishGate, progress, token);
-                        if (measurement.Status == ExternalMeasurementStatus.Valid
+                        var measurement = await CaptureBridgeMeasurementAsync(session, request.WindowId, autoFinishGate, progress, token);
+                        if (measurement.Status == BridgeMeasurementStatus.Valid
                             && autoFinishGate.Consecutive >= autoFinishGate.RequiredConsecutive) {
-                            await session.EndAsync(ExternalCorrectionReason.Completed, true, BuildSessionEndedDetail(measurement), token);
-                            Logger.Info($"[ExternalCorrection] Alignment confirmed within tolerance {AlignmentTolerance}'. Session completed.");
+                            await session.EndAsync(BridgeReason.Completed, true, BuildSessionEndedDetail(measurement), token);
+                            Logger.Info($"[Bridge] Alignment confirmed within tolerance {AlignmentTolerance}'. Session completed.");
                             // Same order as the hand-over prompt: clear the older toasts, then report the result.
                             Notification.CloseAll();
                             Notification.ShowInformation(
@@ -155,20 +155,20 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                 TimeSpan.FromMinutes(1));
                             return;
                         }
-                        Logger.Info($"[ExternalCorrection] Completion request not confirmed ({Math.Round(measurement.TotalErrorArcMin, 2)}' vs tolerance {AlignmentTolerance}'). Continuing the session.");
+                        Logger.Info($"[Bridge] Completion request not confirmed ({Math.Round(measurement.TotalErrorArcMin, 2)}' vs tolerance {AlignmentTolerance}'). Continuing the session.");
                         await session.PublishMeasurementAsync(measurement, token);
                         continue;
                     }
 
-                    case ExternalControllerRequestKind.Cancel: {
-                        var reason = request.Cancel?.Reason ?? ExternalCorrectionReason.ControllerCancel;
+                    case BridgeRequestKind.Cancel: {
+                        var reason = request.Cancel?.Reason ?? BridgeReason.ControllerCancel;
                         var note = request.Cancel?.Note;
                         var faulted = request.Fault != null;
 
-                        Logger.Warning($"[ExternalCorrection] {ControllerDisplayCapitalized} {(faulted ? "stopped" : "cancelled")} the session: {reason}" +
+                        Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} {(faulted ? "stopped" : "cancelled")} the session: {reason}" +
                                        (string.IsNullOrWhiteSpace(note) ? "." : $" ({note})."));
 
-                        await session.EndAsync(reason, false, new ExternalSessionEndedPayload { Detail = note }, token);
+                        await session.EndAsync(reason, false, new BridgeSessionEndedPayload { Detail = note }, token);
 
                         // The reason is what the operator needs to act on, so both the sentence and the raw
                         // reason go into one toast instead of leaving it in the log only.
@@ -182,17 +182,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         return;
                     }
 
-                    case ExternalControllerRequestKind.ExternalLost:
-                        Logger.Warning("[ExternalCorrection] External controller stopped answering. Handing the run back to the normal correction loop.");
-                        externalControllerLost = true;
+                    case BridgeRequestKind.ExternalLost:
+                        Logger.Warning("[Bridge] External controller stopped answering. Handing the run back to the normal correction loop.");
+                        controllerLost = true;
                         return;
 
-                    case ExternalControllerRequestKind.SessionTimeout:
-                        Logger.Warning("[ExternalCorrection] Session safety time limit reached. Asking the controller to stop.");
-                        await StopExternalSessionAsync(session, ExternalCorrectionReason.SessionTimeout, token);
+                    case BridgeRequestKind.SessionTimeout:
+                        Logger.Warning("[Bridge] Session safety time limit reached. Asking the controller to stop.");
+                        await StopBridgeSessionAsync(session, BridgeReason.SessionTimeout, token);
                         return;
 
-                    case ExternalControllerRequestKind.WindowExpired:
+                    case BridgeRequestKind.WindowExpired:
                         progress?.Report(GetStatus($"Capture window expired - waiting for {ControllerDisplay}"));
                         continue;
 
@@ -209,7 +209,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// error before the external controller takes over. The session is already open, but the first
         /// measurement is only published to the controller once Resume is pressed.
         /// </summary>
-        private async Task WaitForHandoverResumeAsync(ExternalCorrectionSession session, IProgress<ApplicationStatus> progress, CancellationToken token) {
+        private async Task WaitForHandoverResumeAsync(BridgeSession session, IProgress<ApplicationStatus> progress, CancellationToken token) {
             // Older toasts are closed first so this prompt, with the measured error in it, is the one the
             // operator actually reads.
             Notification.CloseAll();
@@ -229,7 +229,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// still ends the session instead of waiting for a resume that may never come. Ordinary requests
         /// stay in the session queue for the resumed loop.
         /// </summary>
-        private async Task WaitWhilePausedAsync(ExternalCorrectionSession session, IProgress<ApplicationStatus> progress, CancellationToken token) {
+        private async Task WaitWhilePausedAsync(BridgeSession session, IProgress<ApplicationStatus> progress, CancellationToken token) {
             if (!IsPausing) { return; }
 
             IsPaused = true;
@@ -237,13 +237,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             try {
                 while (!token.IsCancellationRequested && IsPausing) {
                     if (session.HasPendingTerminalRequest) {
-                        Logger.Info("[ExternalCorrection] The controller ended the session while the run was paused.");
+                        Logger.Info("[Bridge] The controller ended the session while the run was paused.");
                         return;
                     }
 
-                    if (ExternalCorrectionHub.Instance?.IsControllerPresent != true) {
-                        Logger.Warning("[ExternalCorrection] The controller is gone while the run was paused.");
-                        externalControllerLost = true;
+                    if (BridgeHub.Instance?.IsControllerPresent != true) {
+                        Logger.Warning("[Bridge] The controller is gone while the run was paused.");
+                        controllerLost = true;
                         return;
                     }
 
@@ -273,34 +273,34 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// </summary>
         private string DescribeControllerCancel(string reason) {
             switch (reason) {
-                case ExternalCorrectionReason.UserStop:
+                case BridgeReason.UserStop:
                     return$"";
-                case ExternalCorrectionReason.BrokerDisabled:
+                case BridgeReason.BrokerDisabled:
                     return$"";
-                case ExternalCorrectionReason.FirmwareDisconnected:
+                case BridgeReason.FirmwareDisconnected:
                     return$"";
-                case ExternalCorrectionReason.SessionTimeout:
-                case ExternalCorrectionReason.SilenceTimeout:
+                case BridgeReason.SessionTimeout:
+                case BridgeReason.SilenceTimeout:
                     return $"The {ControllerDisplayCapitalized} controller reached its session time limit.";
-                case ExternalCorrectionReason.ControllerFault:
+                case BridgeReason.ControllerFault:
                     return $"The {ControllerDisplayCapitalized} controller reported a fault.";
-                case ExternalCorrectionReason.CaptureFailed:
+                case BridgeReason.CaptureFailed:
                     return "The polar alignment measurement stayed unusable.";
-                case ExternalCorrectionReason.ControllerCancel:
+                case BridgeReason.ControllerCancel:
                     return $"The {ControllerDisplayCapitalized} controller cancelled the session.";
                 default:
                     return $"The {ControllerDisplayCapitalized} controller ended the session.";
             }
         }
 
-        private async Task<ExternalMeasurementPayload> CaptureExternalMeasurementAsync(ExternalCorrectionSession session,
+        private async Task<BridgeMeasurementPayload> CaptureBridgeMeasurementAsync(BridgeSession session,
                                                                                        string windowId,
                                                                                        AutoFinishGate autoFinishGate,
                                                                                        IProgress<ApplicationStatus> progress,
                                                                                        CancellationToken token) {
             var solve = await Solve(TPAPAVM, 0, progress, token);
             if (!solve.Success) {
-                return BuildExternalMeasurement(windowId, ExternalMeasurementStatus.CaptureFailed, false, autoFinishGate.Consecutive);
+                return BuildBridgeMeasurement(windowId, BridgeMeasurementStatus.CaptureFailed, false, autoFinishGate.Consecutive);
             }
 
             var estimateStable = await TPAPAVM.UpdateDetails(solve, progress, token);
@@ -317,8 +317,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                                                       totalError: totalError.Degree));
 
             if (!estimateStable) {
-                Logger.Warning("[ExternalCorrection] Publishing an unstable measurement so the controller is not left waiting.");
-                return BuildExternalMeasurement(windowId, ExternalMeasurementStatus.Unstable, false, autoFinishGate.Consecutive);
+                Logger.Warning("[Bridge] Publishing an unstable measurement so the controller is not left waiting.");
+                return BuildBridgeMeasurement(windowId, BridgeMeasurementStatus.Unstable, false, autoFinishGate.Consecutive);
             }
 
             var belowTolerance = Math.Abs(totalError.ArcMinutes) <= AlignmentTolerance;
@@ -327,17 +327,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 Logger.Info($"Total Error is below alignment tolerance ({AlignmentTolerance}') for {autoFinishGate.Consecutive} consecutive solves. The external controller decides when to finish.");
             }
 
-            return BuildExternalMeasurement(windowId, ExternalMeasurementStatus.Valid, autoFinishConditionMet, autoFinishGate.Consecutive);
+            return BuildBridgeMeasurement(windowId, BridgeMeasurementStatus.Valid, autoFinishConditionMet, autoFinishGate.Consecutive);
         }
 
-        private async Task PublishExternalMeasurementAsync(ExternalCorrectionSession session,
+        private async Task PublishBridgeMeasurementAsync(BridgeSession session,
                                                           bool isFirstMeasurement,
                                                           string windowId,
                                                           string status,
                                                           bool autoFinishConditionMet,
                                                           int consecutiveBelowTolerance,
                                                           CancellationToken token) {
-            var measurement = BuildExternalMeasurement(windowId, status, autoFinishConditionMet, consecutiveBelowTolerance);
+            var measurement = BuildBridgeMeasurement(windowId, status, autoFinishConditionMet, consecutiveBelowTolerance);
             measurement.IsFirstMeasurement = isFirstMeasurement;
             await session.PublishMeasurementAsync(measurement, token);
         }
@@ -347,7 +347,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// sent: the controller derives the correction direction from the sign and, for altitude, the
         /// hemisphere flag, exactly like TPPA's own display does.
         /// </summary>
-        private ExternalMeasurementPayload BuildExternalMeasurement(string windowId,
+        private BridgeMeasurementPayload BuildBridgeMeasurement(string windowId,
                                                                    string status,
                                                                    bool autoFinishConditionMet,
                                                                    int consecutiveBelowTolerance) {
@@ -356,7 +356,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             var altitudeError = determination.CurrentMountAxisAltitudeError;
             var totalError = determination.CurrentMountAxisTotalError;
 
-            return new ExternalMeasurementPayload {
+            return new BridgeMeasurementPayload {
                 MeasurementId = Guid.NewGuid().ToString("N"),
                 WindowId = windowId,
                 Status = status,
@@ -373,50 +373,50 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             };
         }
 
-        private static ExternalSessionEndedPayload BuildSessionEndedDetail(ExternalMeasurementPayload measurement) {
-            return new ExternalSessionEndedPayload {
+        private static BridgeSessionEndedPayload BuildSessionEndedDetail(BridgeMeasurementPayload measurement) {
+            return new BridgeSessionEndedPayload {
                 AzimuthErrorArcMin = measurement?.AzimuthErrorArcMin ?? 0,
                 AltitudeErrorArcMin = measurement?.AltitudeErrorArcMin ?? 0,
                 TotalErrorArcMin = measurement?.TotalErrorArcMin ?? 0
             };
         }
 
-        private async Task StopExternalSessionAsync(ExternalCorrectionSession session, string reason, CancellationToken token) {
+        private async Task StopBridgeSessionAsync(BridgeSession session, string reason, CancellationToken token) {
             var hardwareStopStatus = await session.RequestStopAsync(reason, token);
-            await session.EndAsync(reason, false, new ExternalSessionEndedPayload { HardwareStopStatus = hardwareStopStatus }, token);
+            await session.EndAsync(reason, false, new BridgeSessionEndedPayload { HardwareStopStatus = hardwareStopStatus }, token);
         }
 
         /// <summary>
         /// Ends the session if the loop did not end it already. The reason distinguishes a user cancel
         /// from a failure of the run itself.
         /// </summary>
-        private async Task CloseExternalCorrectionSessionAsync(string reason = null, bool requestStop = true) {
-            var hub = ExternalCorrectionHub.Instance;
+        private async Task CloseBridgeSessionAsync(string reason = null, bool requestStop = true) {
+            var hub = BridgeHub.Instance;
             // Fall back to the session the hub holds: without it a session that was never stored in the
             // field would be closed on the hub side while the controller is never asked to stop.
-            var session = externalSession ?? hub?.Session;
-            externalSession = null;
+            var session = bridgeSession ?? hub?.Session;
+            bridgeSession = null;
             if (session == null) {
-                Logger.Info("[ExternalCorrection] No external session to close: no stop request was sent to the controller.");
+                Logger.Info("[Bridge] No external session to close: no stop request was sent to the controller.");
                 return;
             }
 
             try {
                 if (session.IsActive) {
-                    var endReason = reason ?? externalSessionEndReason;
+                    var endReason = reason ?? bridgeSessionEndReason;
                     // A controller that just went silent cannot acknowledge a stop request, so the
                     // handover path closes the session without waiting for one.
                     var hardwareStopStatus = requestStop
                         ? await session.RequestStopAsync(endReason, CancellationToken.None)
-                        : ExternalHardwareStopStatus.Unknown;
-                    await session.EndAsync(endReason, false, new ExternalSessionEndedPayload { HardwareStopStatus = hardwareStopStatus }, CancellationToken.None);
+                        : BridgeHardwareStopStatus.Unknown;
+                    await session.EndAsync(endReason, false, new BridgeSessionEndedPayload { HardwareStopStatus = hardwareStopStatus }, CancellationToken.None);
                 }
             } catch (Exception ex) {
-                Logger.Error($"[ExternalCorrection] Failed to close the external session cleanly: {ex.Message}");
+                Logger.Error($"[Bridge] Failed to close the external session cleanly: {ex.Message}");
             } finally {
                 hub?.DetachSession(session);
                 session.Dispose();
-                externalSessionEndReason = ExternalCorrectionReason.UserStop;
+                bridgeSessionEndReason = BridgeReason.UserStop;
             }
         }
     }

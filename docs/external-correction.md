@@ -1,4 +1,4 @@
-# External correction (three point polar alignment driven by another plugin)
+﻿# External correction (three point polar alignment driven by another plugin)
 
 This document is the contract between the Three Point Polar Alignment plugin (TPPA) and an external
 controller plugin that moves the mount axes, for example the MLAstro RPA plugin. TPPA keeps measuring,
@@ -186,7 +186,7 @@ within the announced ack timeout.
 
 ## 9. Tests
 
-`NINA.Plugins.PolarAlignment.Test/ExternalCorrectionProtocolTest.cs` covers the protocol without a
+`NINA.Plugins.PolarAlignment.Test/BridgeProtocolTest.cs` covers the protocol without a
 camera or mount: window grant and reuse, idempotent `BeginAdjustment` / `RequestMeasurement`, window
 expiry on silence, `ExternalLost` after the grace period, keep-alive keeping a long move window open,
 completion and cancel while a window is open, stop acknowledgement and the stop-ack timeout, the

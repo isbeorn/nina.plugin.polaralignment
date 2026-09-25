@@ -1,12 +1,12 @@
-using System;
+﻿using System;
 
-namespace NINA.Plugins.PolarAlignment.External {
+namespace NINA.Plugins.PolarAlignment.Bridge {
 
     /// <summary>
     /// Payload published by TPPA in reply to a controller <c>Capabilities</c> announcement. The
     /// controller must read every tunable value from here instead of hard coding it.
     /// </summary>
-    public sealed class ExternalCapabilitiesPayload {
+    public sealed class BridgeCapabilitiesPayload {
         public string Controller { get; set; }
         public string TppaVersion { get; set; }
         public int InterfaceVersion { get; set; }
@@ -25,7 +25,7 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Payload sent by the controller to announce itself on the command topic.</summary>
-    public sealed class ExternalCapabilitiesAnnouncePayload {
+    public sealed class BridgeCapabilitiesAnnouncePayload {
         public string Controller { get; set; }
         public string ControllerVersion { get; set; }
         public int InterfaceVersion { get; set; }
@@ -34,7 +34,7 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Payload sent by the controller when its hardware is connected and its axes are idle.</summary>
-    public sealed class ExternalControllerReadyPayload {
+    public sealed class BridgeControllerReadyPayload {
         public string Controller { get; set; }
         public string ControllerVersion { get; set; }
         public bool HardwareReady { get; set; }
@@ -48,7 +48,7 @@ namespace NINA.Plugins.PolarAlignment.External {
     /// correction direction is not sent: it follows from the sign of the error and, for altitude, the
     /// hemisphere flag.
     /// </summary>
-    public sealed class ExternalMeasurementPayload {
+    public sealed class BridgeMeasurementPayload {
         public string MeasurementId { get; set; }
         public string SessionId { get; set; }
         public string WindowId { get; set; }
@@ -68,7 +68,7 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Payload sent by the controller when it wants to hold the capture for a move sequence.</summary>
-    public sealed class ExternalAdjustmentRequestPayload {
+    public sealed class BridgeAdjustmentRequestPayload {
         public string MeasurementId { get; set; }
         public double? PlannedAzimuthArcMin { get; set; }
         public double? PlannedAltitudeArcMin { get; set; }
@@ -76,7 +76,7 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Payload sent by TPPA when a capture window has been granted.</summary>
-    public sealed class ExternalAdjustmentGrantPayload {
+    public sealed class BridgeAdjustmentGrantPayload {
         public string WindowId { get; set; }
         public string MeasurementId { get; set; }
         public long MaxWindowMs { get; set; }
@@ -85,21 +85,21 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Payload sent by the controller when it wants a new measurement.</summary>
-    public sealed class ExternalMeasurementRequestPayload {
+    public sealed class BridgeMeasurementRequestPayload {
         public string WindowId { get; set; }
         public bool StationaryAndSettled { get; set; }
         public string Reason { get; set; }
     }
 
     /// <summary>Payload sent by the controller when it believes the alignment is finished.</summary>
-    public sealed class ExternalCompletionRequestPayload {
+    public sealed class BridgeCompletionRequestPayload {
         public string WindowId { get; set; }
         public string Reason { get; set; }
         public int ConsecutiveBelowTolerance { get; set; }
     }
 
     /// <summary>Payload sent by the controller to refresh the silence watchdog while it holds a window.</summary>
-    public sealed class ExternalKeepAlivePayload {
+    public sealed class BridgeKeepAlivePayload {
         public string WindowId { get; set; }
         public string State { get; set; }
         public string Note { get; set; }
@@ -110,13 +110,13 @@ namespace NINA.Plugins.PolarAlignment.External {
     /// the run. While paused the controller must not start a move and has to stop a move in progress,
     /// because TPPA stops capturing and would leave the axes turning without a reader.
     /// </summary>
-    public sealed class ExternalPauseRequestPayload {
+    public sealed class BridgePauseRequestPayload {
         public bool Paused { get; set; }
         public string Reason { get; set; }
     }
 
     /// <summary>Payload sent by TPPA as a heartbeat and whenever the session state changes.</summary>
-    public sealed class ExternalSessionStatePayload {
+    public sealed class BridgeSessionStatePayload {
         public string State { get; set; }
         public string Reason { get; set; }
         public string WindowId { get; set; }
@@ -128,33 +128,33 @@ namespace NINA.Plugins.PolarAlignment.External {
     }
 
     /// <summary>Payload sent by TPPA when it wants the controller to stop and park.</summary>
-    public sealed class ExternalStopRequestPayload {
+    public sealed class BridgeStopRequestPayload {
         public string Reason { get; set; }
         public int AckTimeoutMs { get; set; }
     }
 
     /// <summary>Payload sent by the controller as acknowledgement of a stop request.</summary>
-    public sealed class ExternalStoppedPayload {
+    public sealed class BridgeStoppedPayload {
         public string Reason { get; set; }
         public string HardwareStopStatus { get; set; }
         public string Detail { get; set; }
     }
 
     /// <summary>Payload sent by the controller when it cannot continue the session.</summary>
-    public sealed class ExternalFaultPayload {
+    public sealed class BridgeFaultPayload {
         public string Reason { get; set; }
         public string Detail { get; set; }
         public string HardwareStopStatus { get; set; }
     }
 
     /// <summary>Payload sent by the controller when it aborts the session on purpose.</summary>
-    public sealed class ExternalCancelPayload {
+    public sealed class BridgeCancelPayload {
         public string Reason { get; set; }
         public string Note { get; set; }
     }
 
     /// <summary>Payload sent by TPPA as the last message of a session.</summary>
-    public sealed class ExternalSessionEndedPayload {
+    public sealed class BridgeSessionEndedPayload {
         public string Reason { get; set; }
         public bool Achieved { get; set; }
         public double AzimuthErrorArcMin { get; set; }

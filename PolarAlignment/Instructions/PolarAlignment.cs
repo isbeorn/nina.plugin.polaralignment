@@ -17,7 +17,7 @@ using NINA.PlateSolving;
 using NINA.PlateSolving.Interfaces;
 using NINA.Plugin.Interfaces;
 using NINA.Plugins.PolarAlignment.Dockables;
-using NINA.Plugins.PolarAlignment.External;
+using NINA.Plugins.PolarAlignment.Bridge;
 using NINA.Plugins.PolarAlignment.Properties;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.SequenceItem;
@@ -374,14 +374,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 pauseTS.IsPaused = true;
                 RaisePropertyChanged(nameof(IsPaused));
             }
-            NotifyExternalControllerOfPause(paused: true);
+            NotifyBridgeOfPause(paused: true);
         }
         public void Resume() {
             if (pauseTS != null) {
                 pauseTS.IsPaused = false;
                 RaisePropertyChanged(nameof(IsPaused));
             }
-            NotifyExternalControllerOfPause(paused: false);
+            NotifyBridgeOfPause(paused: false);
         }
 
         /// <summary>
@@ -389,17 +389,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// alignment axes instead of turning them for a capture that will not happen. Fire and forget:
         /// a pause must not depend on the broker, and without a controller there is nothing to stop.
         /// </summary>
-        private void NotifyExternalControllerOfPause(bool paused) {
-            var session = ExternalCorrectionHub.Instance?.Session;
+        private void NotifyBridgeOfPause(bool paused) {
+            var session = BridgeHub.Instance?.Session;
             if (session == null || !session.IsActive) { return; }
 
             _ = Task.Run(async () => {
                 try {
                     await session.PublishPauseRequestAsync(paused,
-                                                          paused ? ExternalCorrectionReason.Paused : ExternalCorrectionReason.Resumed,
+                                                          paused ? BridgeReason.Paused : BridgeReason.Resumed,
                                                           CancellationToken.None);
                 } catch (Exception ex) {
-                    Logger.Warning($"[ExternalCorrection] Failed to tell the controller about the pause: {ex.Message}");
+                    Logger.Warning($"[Bridge] Failed to tell the controller about the pause: {ex.Message}");
                 }
             });
         }
@@ -421,7 +421,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// <param name="progress">The application status progress that can be sent back during execution</param>
         /// <param name="token">When a cancel signal is triggered from outside, this token can be used to register to it or check if it is cancelled</param>
         /// <returns></returns>
-        public override async Task Execute(IProgress<ApplicationStatus> externalProgress, CancellationToken token) {
+        public override async Task Execute(IProgress<ApplicationStatus> bridgeProgress, CancellationToken token) {
             try {
                 using (var localCTS = CancellationTokenSource.CreateLinkedTokenSource(token)) {
                     Guid correlatedGuid = Guid.NewGuid();
@@ -433,7 +433,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
                     IProgress<ApplicationStatus> progress = new Progress<ApplicationStatus>(p => {
                         TPAPAVM.Status = p;
-                        externalProgress?.Report(p);
+                        bridgeProgress?.Report(p);
                         messageBroker?.Publish(new PolarAlignmentProgressMessage(correlatedGuid, p));
                     });
 
@@ -478,12 +478,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                             OAPA: {Properties.Settings.Default.UseOAPAPolarAlignmentSystem}
                             Selected System: {Properties.Settings.Default.SelectedPolarAlignmentSystem}
                             Automated adjustments: {Properties.Settings.Default.DoAutomatedAdjustments}
-                            External controller connected: {ExternalCorrectionHub.Instance?.IsControllerPresent == true}
+                            External controller connected: {BridgeHub.Instance?.IsControllerPresent == true}
                         """);
 
                     // Stored in the field, not a local: the cancel path closes this session through
-                    // CloseExternalCorrectionSessionAsync, which is what asks the controller to stop.
-                    externalSession = await StartExternalCorrectionSessionAsync(progress, localCTS.Token);
+                    // CloseBridgeSessionAsync, which is what asks the controller to stop.
+                    bridgeSession = await StartBridgeSessionAsync(progress, localCTS.Token);
 
                     TPAPAVM.ActivateFirstStep();
 
@@ -606,14 +606,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     await TPAPAVM.UseImageCenterAsReference(localCTS.Token);
 
-                    if (externalSession != null) {
-                        await RunExternalCorrectionAsync(externalSession, progress, localCTS.Token);
-                        if (!externalControllerLost) { return; }
+                    if (bridgeSession != null) {
+                        await RunBridgeAsync(bridgeSession, progress, localCTS.Token);
+                        if (!controllerLost) { return; }
 
                         // The controller stopped answering mid-session. Close the external session and
                         // carry on with the normal loop: without a controller TPPA behaves like it always
                         // did instead of aborting the whole run.
-                        await CloseExternalCorrectionSessionAsync(ExternalCorrectionReason.ExternalLost, requestStop: false);
+                        await CloseBridgeSessionAsync(BridgeReason.ExternalLost, requestStop: false);
                         progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
                         Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
                     }
@@ -689,13 +689,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                externalSessionEndReason = ExternalCorrectionReason.CaptureFailed;
+                bridgeSessionEndReason = BridgeReason.CaptureFailed;
                 Logger.Error(ex);
                 Notification.ShowError("Three Point Polar Alignment failed - " + ex.Message);
                 throw;
             } finally {
                 try {
-                    await CloseExternalCorrectionSessionAsync();
+                    await CloseBridgeSessionAsync();
                 } catch (Exception) { }
                 try {
                     await windowService?.Close();
@@ -704,7 +704,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     TPAPAVM?.Dispose();
                 } catch (Exception) { }
                 IsPaused = false;
-                externalProgress?.Report(GetStatus(string.Empty));
+                bridgeProgress?.Report(GetStatus(string.Empty));
                 if (Properties.Settings.Default.StopTrackingWhenDone) {
                     SetTrackingSidereal(false);
                 }

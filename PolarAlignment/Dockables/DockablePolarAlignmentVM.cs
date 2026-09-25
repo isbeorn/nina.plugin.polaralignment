@@ -131,13 +131,13 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
             return new ApplicationStatus { Source = "TPPA", Status = status };
         }
 
-        public async Task<bool> Execute(IProgress<ApplicationStatus> externalProgress, CancellationToken token) {
+        public async Task<bool> Execute(IProgress<ApplicationStatus> bridgeProgress, CancellationToken token) {
             try {
                 OptionsExpanded = false;
                 cameraMediator.RegisterCaptureBlock(this);
                 PolarAlignment.ResetProgress();
                 using (var localCTS = CancellationTokenSource.CreateLinkedTokenSource(token)) {
-                    await PolarAlignment.Run(externalProgress, localCTS.Token);
+                    await PolarAlignment.Run(bridgeProgress, localCTS.Token);
                 }
             } catch (OperationCanceledException) {
             } catch (Exception ex) {
@@ -146,7 +146,7 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
             } finally {
                 OptionsExpanded = true;
                 cameraMediator.ReleaseCaptureBlock(this);
-                externalProgress?.Report(GetStatus(string.Empty));
+                bridgeProgress?.Report(GetStatus(string.Empty));
                 // The error panel keeps the values of the finished run: the last measurement is the one
                 // that confirmed the tolerance, and it must stay readable until the next Start. Start
                 // replaces the view model itself (Instructions.PolarAlignment.Execute), which is what

@@ -1,4 +1,4 @@
-using NINA.Core.Model;
+﻿using NINA.Core.Model;
 using NINA.Core.Utility;
 using NINA.Plugin.Interfaces;
 using System;
@@ -6,15 +6,15 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace NINA.Plugins.PolarAlignment.External {
+namespace NINA.Plugins.PolarAlignment.Bridge {
 
     /// <summary>
     /// Always-on external-correction endpoint of the plugin. It owns the single subscription to the
     /// command topic so a controller announcing itself is answered even before the user starts a
     /// session, and it routes session-scoped messages into the active
-    /// <see cref="ExternalCorrectionSession"/>.
+    /// <see cref="BridgeSession"/>.
     /// </summary>
-    public sealed class ExternalCorrectionHub : ISubscriber, IDisposable {
+    public sealed class BridgeHub : ISubscriber, IDisposable {
         /// <summary>
         /// How long a controller may stay quiet before TPPA considers it gone. A controller announces
         /// itself every few seconds while it is connected, so this timeout IS the handshake: no user
@@ -24,19 +24,19 @@ namespace NINA.Plugins.PolarAlignment.External {
 
         private readonly IMessageBroker broker;
         private readonly object gate = new object();
-        private ExternalCorrectionSession session;
+        private BridgeSession session;
         private DateTimeOffset? lastControllerSeenAt;
         private string controllerName;
         private string controllerVersion;
         private bool disposed;
 
-        private ExternalCorrectionHub(IMessageBroker broker) {
+        private BridgeHub(IMessageBroker broker) {
             this.broker = broker;
-            broker.Subscribe(ExternalCorrectionContract.CommandTopic, this);
+            broker.Subscribe(BridgeContract.CommandTopic, this);
         }
 
         /// <summary>Hub created once by the plugin manifest; null while the plugin is not loaded.</summary>
-        public static ExternalCorrectionHub Instance { get; private set; }
+        public static BridgeHub Instance { get; private set; }
 
         /// <summary>
         /// True while a controller announced itself within the presence window. The external correction
@@ -75,10 +75,10 @@ namespace NINA.Plugins.PolarAlignment.External {
             }
         }
 
-        public static ExternalCorrectionHub EnsureInitialized(IMessageBroker broker) {
+        public static BridgeHub EnsureInitialized(IMessageBroker broker) {
             if (Instance != null || broker == null) { return Instance; }
-            Instance = new ExternalCorrectionHub(broker);
-            Logger.Info("[ExternalCorrection] External correction endpoint initialized.");
+            Instance = new BridgeHub(broker);
+            Logger.Info("[Bridge] External correction endpoint initialized.");
             return Instance;
         }
 
@@ -89,15 +89,15 @@ namespace NINA.Plugins.PolarAlignment.External {
         }
 
         /// <summary>The session currently owning the capture loop, if any.</summary>
-        public ExternalCorrectionSession Session {
+        public BridgeSession Session {
             get { lock (gate) { return session; } }
         }
 
-        public void AttachSession(ExternalCorrectionSession newSession) {
+        public void AttachSession(BridgeSession newSession) {
             lock (gate) { session = newSession; }
         }
 
-        public void DetachSession(ExternalCorrectionSession oldSession) {
+        public void DetachSession(BridgeSession oldSession) {
             lock (gate) {
                 if (ReferenceEquals(session, oldSession)) { session = null; }
             }
@@ -106,14 +106,14 @@ namespace NINA.Plugins.PolarAlignment.External {
         public Task OnMessageReceived(IMessage message) {
             if (message == null || disposed) { return Task.CompletedTask; }
 
-            var envelope = ExternalCorrectionEnvelope.FromJson(message.Content as string);
+            var envelope = BridgeEnvelope.FromJson(message.Content as string);
             if (envelope == null) {
-                Logger.Warning("[ExternalCorrection] Received a malformed controller message.");
+                Logger.Warning("[Bridge] Received a malformed controller message.");
                 return Task.CompletedTask;
             }
 
-            if (envelope.Version != ExternalCorrectionContract.InterfaceVersion) {
-                Logger.Warning($"[ExternalCorrection] Controller uses interface version {envelope.Version}, TPPA has {ExternalCorrectionContract.InterfaceVersion}.");
+            if (envelope.Version != BridgeContract.InterfaceVersion) {
+                Logger.Warning($"[Bridge] Controller uses interface version {envelope.Version}, TPPA has {BridgeContract.InterfaceVersion}.");
                 return Task.CompletedTask;
             }
 
@@ -121,8 +121,8 @@ namespace NINA.Plugins.PolarAlignment.External {
                 lastControllerSeenAt = DateTimeOffset.UtcNow;
             }
 
-            if (string.Equals(envelope.Kind, ExternalCorrectionKind.Capabilities, StringComparison.Ordinal)) {
-                var announce = envelope.PayloadAs<ExternalCapabilitiesAnnouncePayload>();
+            if (string.Equals(envelope.Kind, BridgeKind.Capabilities, StringComparison.Ordinal)) {
+                var announce = envelope.PayloadAs<BridgeCapabilitiesAnnouncePayload>();
                 if (announce != null) {
                     lock (gate) {
                         controllerName = announce.Controller;
@@ -134,7 +134,7 @@ namespace NINA.Plugins.PolarAlignment.External {
 
             var activeSession = Session;
             if (activeSession == null) {
-                Logger.Debug($"[ExternalCorrection] Ignoring '{envelope.Kind}' because no session is running.");
+                Logger.Debug($"[Bridge] Ignoring '{envelope.Kind}' because no session is running.");
                 return Task.CompletedTask;
             }
 
@@ -146,13 +146,13 @@ namespace NINA.Plugins.PolarAlignment.External {
 
         public Task PublishCapabilitiesAsync(CancellationToken token) {
             var activeSession = Session;
-            var options = activeSession?.Options ?? new ExternalCorrectionOptions();
+            var options = activeSession?.Options ?? new BridgeOptions();
 
-            var payload = new ExternalCapabilitiesPayload {
-                Controller = ExternalCorrectionContract.TppaRecipient,
+            var payload = new BridgeCapabilitiesPayload {
+                Controller = BridgeContract.TppaRecipient,
                 TppaVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown",
-                InterfaceVersion = ExternalCorrectionContract.InterfaceVersion,
-                SupportedKinds = ExternalCorrectionKind.All,
+                InterfaceVersion = BridgeContract.InterfaceVersion,
+                SupportedKinds = BridgeKind.All,
                 SessionActive = activeSession?.IsActive == true,
                 ActiveSessionId = activeSession?.IsActive == true ? activeSession.SessionId : null,
                 ToleranceArcMin = options.ToleranceArcMin > 0
@@ -168,26 +168,26 @@ namespace NINA.Plugins.PolarAlignment.External {
                 ContinuousEstimation = Properties.Settings.Default.UseContinuousErrorEstimator
             };
 
-            var envelope = ExternalCorrectionEnvelope.Create(
-                kind: ExternalCorrectionKind.Capabilities,
+            var envelope = BridgeEnvelope.Create(
+                kind: BridgeKind.Capabilities,
                 sessionId: activeSession?.SessionId,
                 commandId: Guid.NewGuid().ToString("N"),
                 replyTo: null,
                 sequenceNumber: 0,
-                recipient: ExternalCorrectionContract.ControllerRecipient,
+                recipient: BridgeContract.ControllerRecipient,
                 payload: payload);
 
-            Logger.Debug("[ExternalCorrection] Answered controller capabilities announcement.");
-            return broker.Publish(new ExternalCorrectionEventMessage(envelope));
+            Logger.Debug("[Bridge] Answered controller capabilities announcement.");
+            return broker.Publish(new BridgeEventMessage(envelope));
         }
 
         public void Dispose() {
             if (disposed) { return; }
             disposed = true;
             try {
-                broker?.Unsubscribe(ExternalCorrectionContract.CommandTopic, this);
+                broker?.Unsubscribe(BridgeContract.CommandTopic, this);
             } catch (Exception ex) {
-                Logger.Error($"[ExternalCorrection] Failed to unsubscribe: {ex.Message}");
+                Logger.Error($"[Bridge] Failed to unsubscribe: {ex.Message}");
             }
         }
     }

@@ -284,7 +284,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         public async Task MoveCloser(IProgress<ApplicationStatus> progress, CancellationToken token) {
             // An external correction session owns the motors; TPPA must not nudge the axes as well.
-            if (External.ExternalCorrectionHub.Instance?.Session != null) { return; }
+            if (Bridge.BridgeHub.Instance?.Session != null) { return; }
 
             var activeSystem = ActiveAlignmentSystemVM;
             if (activeSystem == null || !activeSystem.DoAutomatedAdjustments) { return; }

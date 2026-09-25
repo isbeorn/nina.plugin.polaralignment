@@ -79,7 +79,7 @@ namespace NINA.Plugins.PolarAlignment {
 
             // The external correction endpoint has to exist before the first session starts, because a
             // controller announces itself as soon as NINA loads it.
-            External.ExternalCorrectionHub.EnsureInitialized(messageBroker);
+            Bridge.BridgeHub.EnsureInitialized(messageBroker);
         }
 
         public ICommand ResetSettingsCommand { get; }
