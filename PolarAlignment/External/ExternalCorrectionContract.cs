@@ -66,6 +66,10 @@ namespace NINA.Plugins.PolarAlignment.External {
         public const string SequenceCancel = "SequenceCancel";
         public const string WindowClosed = "WindowClosed";
         public const string Disconnect = "Disconnect";
+
+        /// <summary>The controller lost its firmware link (serial or wireless) and cannot drive the axes.</summary>
+        public const string FirmwareDisconnected = "FirmwareDisconnected";
+
         public const string SilenceTimeout = "SilenceTimeout";
         public const string SessionTimeout = "SessionTimeout";
         public const string StopAckTimeout = "StopAckTimeout";
@@ -88,6 +92,9 @@ namespace NINA.Plugins.PolarAlignment.External {
 
         /// <summary>Operator resumed the run: the controller may move and measure again.</summary>
         public const string Resumed = "Resumed";
+
+        /// <summary>The controller switched its TPPA broker off: the session has to end.</summary>
+        public const string BrokerDisabled = "BrokerDisabled";
     }
 
     /// <summary>Session states reported through <c>SessionState</c>.</summary>

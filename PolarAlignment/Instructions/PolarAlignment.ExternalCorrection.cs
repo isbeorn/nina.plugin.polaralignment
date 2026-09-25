@@ -162,8 +162,23 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     case ExternalControllerRequestKind.Cancel: {
                         var reason = request.Cancel?.Reason ?? ExternalCorrectionReason.ControllerCancel;
-                        Logger.Info($"[ExternalCorrection] External controller ended the session: {reason}.");
-                        await session.EndAsync(reason, false, new ExternalSessionEndedPayload { Detail = request.Cancel?.Note }, token);
+                        var note = request.Cancel?.Note;
+                        var faulted = request.Fault != null;
+
+                        Logger.Warning($"[ExternalCorrection] {ControllerDisplayCapitalized} {(faulted ? "stopped" : "cancelled")} the session: {reason}" +
+                                       (string.IsNullOrWhiteSpace(note) ? "." : $" ({note})."));
+
+                        await session.EndAsync(reason, false, new ExternalSessionEndedPayload { Detail = note }, token);
+
+                        // The reason is what the operator needs to act on, so both the sentence and the raw
+                        // reason go into one toast instead of leaving it in the log only.
+                        Notification.CloseAll();
+                        Notification.ShowWarning(
+                            (faulted ? $"{ControllerDisplayCapitalized} stopped the session on a fault." : $"{ControllerDisplayCapitalized} cancelled the session.") + Environment.NewLine +
+                            DescribeControllerCancel(reason) + Environment.NewLine +
+                            (string.IsNullOrWhiteSpace(note) ? string.Empty : note + Environment.NewLine) +
+                            $"Reason: {reason}",
+                            TimeSpan.FromMinutes(1));
                         return;
                     }
 
@@ -250,6 +265,32 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                    $"Azimuth Error: {Math.Round(determination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
                    $"Altitude Error: {Math.Round(determination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
                    $"Total Error: {Math.Round(determination.CurrentMountAxisTotalError.ArcMinutes, 2)}'";
+        }
+
+        /// <summary>
+        /// Turns a controller cancel reason into a sentence the operator can act on. The raw reason is
+        /// always shown next to it, so the toast never invents behaviour the controller did not report.
+        /// </summary>
+        private string DescribeControllerCancel(string reason) {
+            switch (reason) {
+                case ExternalCorrectionReason.UserStop:
+                    return$"";
+                case ExternalCorrectionReason.BrokerDisabled:
+                    return$"";
+                case ExternalCorrectionReason.FirmwareDisconnected:
+                    return$"";
+                case ExternalCorrectionReason.SessionTimeout:
+                case ExternalCorrectionReason.SilenceTimeout:
+                    return $"The {ControllerDisplayCapitalized} controller reached its session time limit.";
+                case ExternalCorrectionReason.ControllerFault:
+                    return $"The {ControllerDisplayCapitalized} controller reported a fault.";
+                case ExternalCorrectionReason.CaptureFailed:
+                    return "The polar alignment measurement stayed unusable.";
+                case ExternalCorrectionReason.ControllerCancel:
+                    return $"The {ControllerDisplayCapitalized} controller cancelled the session.";
+                default:
+                    return $"The {ControllerDisplayCapitalized} controller ended the session.";
+            }
         }
 
         private async Task<ExternalMeasurementPayload> CaptureExternalMeasurementAsync(ExternalCorrectionSession session,
@@ -350,11 +391,16 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// from a failure of the run itself.
         /// </summary>
         private async Task CloseExternalCorrectionSessionAsync(string reason = null, bool requestStop = true) {
-            var session = externalSession;
-            externalSession = null;
-            if (session == null) { return; }
-
             var hub = ExternalCorrectionHub.Instance;
+            // Fall back to the session the hub holds: without it a session that was never stored in the
+            // field would be closed on the hub side while the controller is never asked to stop.
+            var session = externalSession ?? hub?.Session;
+            externalSession = null;
+            if (session == null) {
+                Logger.Info("[ExternalCorrection] No external session to close: no stop request was sent to the controller.");
+                return;
+            }
+
             try {
                 if (session.IsActive) {
                     var endReason = reason ?? externalSessionEndReason;

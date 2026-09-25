@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 2.2.8.0
+### Fixed — external correction. Cancel and stop coming from the alignment controller now close the session that is actually running, so a stop request really reaches the controller and the axes are stopped once instead of twice. A pause or a stop no longer lets a planned move start, and the cancel reason (stop pressed, firmware link lost, broker switched off) is written to the log and shown in a toast.
+
 ## Version 2.2.7.0
 - OAPA: controllers running firmware 1.2.2 are found again. The status frame's version field is accepted, the run-current and hold-current settings are sent in the command format the firmware parses, and moves finish at the whole step the controller reaches instead of timing out.
 - OAPA: connecting waits for boards that restart when the port is opened, repeats the status probe, and tries the last port that worked first.

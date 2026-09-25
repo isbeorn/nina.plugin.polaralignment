@@ -481,7 +481,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                             External controller connected: {ExternalCorrectionHub.Instance?.IsControllerPresent == true}
                         """);
 
-                    var externalSession = await StartExternalCorrectionSessionAsync(progress, localCTS.Token);
+                    // Stored in the field, not a local: the cancel path closes this session through
+                    // CloseExternalCorrectionSessionAsync, which is what asks the controller to stop.
+                    externalSession = await StartExternalCorrectionSessionAsync(progress, localCTS.Token);
 
                     TPAPAVM.ActivateFirstStep();
 

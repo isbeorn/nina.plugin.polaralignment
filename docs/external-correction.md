@@ -69,8 +69,8 @@ Every message carries:
 | `PauseRequested` | TPPA → controller | The operator paused or resumed the run. While paused the controller must not start a move and has to stop a move in progress, because TPPA stops capturing. |
 | `StopRequested` | TPPA → controller | Stop and park, with a reason and an ack timeout. |
 | `Stopped` | controller → TPPA | Acknowledgement, with a hardware stop status (`ok`, `unknown`, `fault`). |
-| `Cancel` | controller → TPPA | The controller gives up on the session. |
-| `Fault` | controller → TPPA | The controller cannot continue (hardware, link, repeated unusable measurements). |
+| `Cancel` | controller → TPPA | The controller gives up on the session, with a reason: `UserStop` (stop pressed on the controller), `BrokerDisabled` (the broker was switched off in the plugin options), `Disconnect`, `FirmwareDisconnected` (serial or wireless firmware link lost), `SessionTimeout`, `ExternalLost`, `ControllerFault`. TPPA logs the reason and shows it in a toast. |
+| `Fault` | controller → TPPA | The controller cannot continue (hardware, link, repeated unusable measurements). TPPA treats it as a cancel carrying the same reason and detail. |
 | `SessionEnded` | TPPA → controller | Last message of a session: reason, achieved, final errors, tolerance used, samples used. |
 
 ### 4.1 `Measurement` fields
