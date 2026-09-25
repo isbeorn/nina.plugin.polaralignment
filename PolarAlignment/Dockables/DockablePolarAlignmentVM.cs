@@ -147,7 +147,10 @@ namespace NINA.Plugins.PolarAlignment.Dockables {
                 OptionsExpanded = true;
                 cameraMediator.ReleaseCaptureBlock(this);
                 externalProgress?.Report(GetStatus(string.Empty));
-                (PolarAlignment as Instructions.PolarAlignment).TPAPAVM = new TPAPAVM(profileService, weatherDataMediator);
+                // The error panel keeps the values of the finished run: the last measurement is the one
+                // that confirmed the tolerance, and it must stay readable until the next Start. Start
+                // replaces the view model itself (Instructions.PolarAlignment.Execute), which is what
+                // clears the panel - so nothing may reset it here.
             }
             return false;
         }

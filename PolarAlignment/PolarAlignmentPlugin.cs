@@ -76,6 +76,10 @@ namespace NINA.Plugins.PolarAlignment {
             UniversalPolarAlignmentOAPAVM = new UniversalPolarAlignmentOAPAVM(
                 profileService, imagingMediator, telescopeMediator, plateSolverFactory, messageBroker);
             PluginId = this.Identifier;
+
+            // The external correction endpoint has to exist before the first session starts, because a
+            // controller announces itself as soon as NINA loads it.
+            External.ExternalCorrectionHub.EnsureInitialized(messageBroker);
         }
 
         public ICommand ResetSettingsCommand { get; }

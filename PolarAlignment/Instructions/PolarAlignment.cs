@@ -17,6 +17,7 @@ using NINA.PlateSolving;
 using NINA.PlateSolving.Interfaces;
 using NINA.Plugin.Interfaces;
 using NINA.Plugins.PolarAlignment.Dockables;
+using NINA.Plugins.PolarAlignment.External;
 using NINA.Plugins.PolarAlignment.Properties;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.SequenceItem;
@@ -58,7 +59,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
     [ExportMetadata("Category", "Polar Alignment")]
     [Export(typeof(ISequenceItem))]
     [JsonObject(MemberSerialization.OptIn)]
-    public class PolarAlignment : SequenceItem, IValidatable, ISubscriber {
+    public partial class PolarAlignment : SequenceItem, IValidatable, ISubscriber {
         private IProfileService profileService;
         private ICameraMediator cameraMediator;
         private IImagingMediator imagingMediator;
@@ -373,12 +374,34 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 pauseTS.IsPaused = true;
                 RaisePropertyChanged(nameof(IsPaused));
             }
+            NotifyExternalControllerOfPause(paused: true);
         }
         public void Resume() {
             if (pauseTS != null) {
                 pauseTS.IsPaused = false;
                 RaisePropertyChanged(nameof(IsPaused));
             }
+            NotifyExternalControllerOfPause(paused: false);
+        }
+
+        /// <summary>
+        /// Tells the external controller that the operator paused or resumed the run, so it stops the
+        /// alignment axes instead of turning them for a capture that will not happen. Fire and forget:
+        /// a pause must not depend on the broker, and without a controller there is nothing to stop.
+        /// </summary>
+        private void NotifyExternalControllerOfPause(bool paused) {
+            var session = ExternalCorrectionHub.Instance?.Session;
+            if (session == null || !session.IsActive) { return; }
+
+            _ = Task.Run(async () => {
+                try {
+                    await session.PublishPauseRequestAsync(paused,
+                                                          paused ? ExternalCorrectionReason.Paused : ExternalCorrectionReason.Resumed,
+                                                          CancellationToken.None);
+                } catch (Exception ex) {
+                    Logger.Warning($"[ExternalCorrection] Failed to tell the controller about the pause: {ex.Message}");
+                }
+            });
         }
 
         private bool isPaused;
@@ -455,7 +478,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                             OAPA: {Properties.Settings.Default.UseOAPAPolarAlignmentSystem}
                             Selected System: {Properties.Settings.Default.SelectedPolarAlignmentSystem}
                             Automated adjustments: {Properties.Settings.Default.DoAutomatedAdjustments}
+                            External controller connected: {ExternalCorrectionHub.Instance?.IsControllerPresent == true}
                         """);
+
+                    var externalSession = await StartExternalCorrectionSessionAsync(progress, localCTS.Token);
 
                     TPAPAVM.ActivateFirstStep();
 
@@ -578,6 +604,18 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     await TPAPAVM.UseImageCenterAsReference(localCTS.Token);
 
+                    if (externalSession != null) {
+                        await RunExternalCorrectionAsync(externalSession, progress, localCTS.Token);
+                        if (!externalControllerLost) { return; }
+
+                        // The controller stopped answering mid-session. Close the external session and
+                        // carry on with the normal loop: without a controller TPPA behaves like it always
+                        // did instead of aborting the whole run.
+                        await CloseExternalCorrectionSessionAsync(ExternalCorrectionReason.ExternalLost, requestStop: false);
+                        progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
+                        Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
+                    }
+
                     // A single lucky solve must not end the procedure: require consecutive
                     // confirmations below tolerance before auto-finishing.
                     var autoFinishGate = new AutoFinishGate(2);
@@ -612,7 +650,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                         $"Automatically finishing polar alignment.");
                                     Notification.ShowInformation(
                                         $"Total Error is below alignment tolerance.{Environment.NewLine}" +
-                                        $"Tolerance: {AlignmentTolerance}{Environment.NewLine}'" +
+                                        $"Tolerance: {AlignmentTolerance}'{Environment.NewLine}" +
                                         $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
                                         $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
                                         $"Total Error: {Math.Round(totalErrorMinutes, 2)}'{Environment.NewLine}" +
@@ -649,10 +687,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
+                externalSessionEndReason = ExternalCorrectionReason.CaptureFailed;
                 Logger.Error(ex);
                 Notification.ShowError("Three Point Polar Alignment failed - " + ex.Message);
                 throw;
             } finally {
+                try {
+                    await CloseExternalCorrectionSessionAsync();
+                } catch (Exception) { }
                 try {
                     await windowService?.Close();
                 } catch { }
@@ -964,7 +1006,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             if (PolarAlignmentPlugin.ActiveAlignmentSystemVM != null && PolarAlignmentPlugin.ActiveAlignmentSystemVM?.DoAutomatedAdjustments == true && AlignmentTolerance == 0) {
                 i.Add("Automated adjustments are enabled, but polar alignment tolerance is set to zero. Please set an alignment tolerance greater than zero - decimal values like 0.5 arcmin are supported!");
             }
-
 
             Issues = i;
             return i.Count == 0;
