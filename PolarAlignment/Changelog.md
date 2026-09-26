@@ -1,13 +1,18 @@
 # Changelog
 
-## Version 2.2.10.0
-### Fixed — external correction. A cancel or fault from the alignment controller now ends the run while the three reference points are still being measured instead of after the first error is solved: that phase does not serve the controller queue yet, so the stop is acted on as soon as it arrives, with the same session end and toast as a stop that arrives during the correction loop. The toast also names the reason again for a stop pressed on the controller, for a controller whose broker was switched off and for a controller that lost its firmware link.
+## Version 2.2.8.0 (Feature-AutoPA-over-brokerBridge)
 
-## Version 2.2.9.0
-### Changed — external correction renamed to the bridge vocabulary: the folder, the classes, the payloads and the helper methods now read `BridgeHub`, `BridgeSession`, `BridgeContract` and `BridgePayloads`, which keeps their names unique against the merged MLAstroRPA+TPPA plugin. Every wire string - topics, kinds, reasons and payload property names - is unchanged.
+### Added — external correction over the NINA message broker: TPPA hands the run over to an external controller (MLAstroRPA) when the operator resumes after the reference sweep, publishes the measured errors, holds the capture windows and honours pause, stop and cancel
+  - Before: TPPA always ran its own correction loop. Now: while a controller is present, TPPA publishes every measurement and waits for the controller to ask for the next one, and the operator can still hold the run with pause
+  - `Measurement`: the signed arcminutes `AzimuthErrorArcMin`, `AltitudeErrorArcMin`, `TotalErrorArcMin`, plus `MeasurementId, SessionId, WindowId, SampleIndex, IsFirstMeasurement, Status, ToleranceArcMin, ToleranceReached, AutoFinishConditionMet, ConsecutiveBelowTolerance, Northern, ContinuousEstimation, TimestampUtc`.
+  - `SessionEnded` (new): `Reason, Achieved, AzimuthErrorArcMin, AltitudeErrorArcMin, TotalErrorArcMin, ToleranceUsedArcMin, SamplesUsed, HardwareStopStatus, Detail`
+  - `Capabilities` (new): `ToleranceArcMin, AutoFinishConditionAvailable, HeartbeatMs, SilenceTimeoutMs, ReadyTimeoutMs, SessionTimeoutSec, GraceAfterSilenceMs, StopAckTimeoutMs, ContinuousEstimation`
+  - Added since the first draft: the `PauseRequested` kind with `{ Paused, Reason }`, and the reasons `Paused`, `Resumed`, `BrokerDisabled`, `FirmwareDisconnected`
+  - On the controller side three settings are gone: `CorrectionConsecutiveToFinish` and `CorrectionTimeoutSec` (TPPA owns the finish policy and the session time limit) and `CorrectionAzBacklashArcMin` (the firmware already compensates the backlash)
+### Fixed — a stop or a fault from the controller now ends the run as soon as it arrives, including while the three reference points are still being measured, with the same session end and toast as a stop during the correction loop; the toast and the log name the reason (stop pressed, broker switched off, firmware link lost)
+### Fixed — a stop now stops the axes before the session is cancelled and only once: the session used to be kept in a local variable, so the cancel path never sent a stop request, and the move it aborted was reported as a hardware fault on top of that
+### Fixed — a pause or a stop no longer lets a planned move start
 
-## Version 2.2.8.0
-### Fixed — external correction. Cancel and stop coming from the alignment controller now close the session that is actually running, so a stop request really reaches the controller and the axes are stopped once instead of twice. A pause or a stop no longer lets a planned move start, and the cancel reason (stop pressed, firmware link lost, broker switched off) is written to the log and shown in a toast.
 
 ## Version 2.2.7.0
 - OAPA: controllers running firmware 1.2.2 are found again. The status frame's version field is accepted, the run-current and hold-current settings are sent in the command format the firmware parses, and moves finish at the whole step the controller reaches instead of timing out.
