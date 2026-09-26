@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 2.2.10.0
+### Fixed — external correction. A cancel or fault from the alignment controller now ends the run while the three reference points are still being measured instead of after the first error is solved: that phase does not serve the controller queue yet, so the stop is acted on as soon as it arrives, with the same session end and toast as a stop that arrives during the correction loop. The toast also names the reason again for a stop pressed on the controller, for a controller whose broker was switched off and for a controller that lost its firmware link.
+
 ## Version 2.2.9.0
 ### Changed — external correction renamed to the bridge vocabulary: the folder, the classes, the payloads and the helper methods now read `BridgeHub`, `BridgeSession`, `BridgeContract` and `BridgePayloads`, which keeps their names unique against the merged MLAstroRPA+TPPA plugin. Every wire string - topics, kinds, reasons and payload property names - is unchanged.
 

@@ -303,6 +303,49 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public async Task Cancel_RaisesTheControllerStopBeforeTheQueueIsServed() {
+            var broker = new FakeMessageBroker();
+            using var session = NewSession(broker);
+            await session.OpenAsync(1.0, false, CancellationToken.None);
+
+            BridgeControllerStopEventArgs stopped = null;
+            session.ControllerStopRequested += (_, e) => stopped = e;
+
+            session.HandleEnvelope(Command(BridgeKind.Cancel,
+                                           payload: new BridgeCancelPayload {
+                                               Reason = BridgeReason.UserStop,
+                                               Note = "STOP on the MLAstro dock"
+                                           }));
+
+            stopped.Should().NotBeNull();
+            stopped.Reason.Should().Be(BridgeReason.UserStop);
+            stopped.Note.Should().Be("STOP on the MLAstro dock");
+            stopped.IsFault.Should().BeFalse();
+        }
+
+        [Test]
+        public async Task Fault_RaisesTheControllerStopAsAFault() {
+            var broker = new FakeMessageBroker();
+            using var session = NewSession(broker);
+            await session.OpenAsync(1.0, false, CancellationToken.None);
+
+            BridgeControllerStopEventArgs stopped = null;
+            session.ControllerStopRequested += (_, e) => stopped = e;
+
+            session.HandleEnvelope(Command(BridgeKind.Fault,
+                                           payload: new BridgeFaultPayload {
+                                               Reason = BridgeReason.ControllerFault,
+                                               Detail = "serial link lost",
+                                               HardwareStopStatus = BridgeHardwareStopStatus.Unknown
+                                           }));
+
+            stopped.Should().NotBeNull();
+            stopped.Reason.Should().Be(BridgeReason.ControllerFault);
+            stopped.Note.Should().Be("serial link lost");
+            stopped.IsFault.Should().BeTrue();
+        }
+
+        [Test]
         public async Task Fault_IsDeliveredAsCancelCarryingTheHardwareStopStatus() {
             var broker = new FakeMessageBroker();
             using var session = NewSession(broker);

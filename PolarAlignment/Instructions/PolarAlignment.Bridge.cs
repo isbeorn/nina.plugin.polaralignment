@@ -21,6 +21,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private bool controllerLost;
 
         /// <summary>
+        /// True once <see cref="RunBridgeAsync"/> serves the controller request queue. While it is false the
+        /// run is still measuring the three reference points, so a controller stop ends it immediately
+        /// instead of waiting for the queue to be drained.
+        /// </summary>
+        private bool bridgeLoopStarted;
+
+        /// <summary>
         /// Who is on the other end of the broker, e.g. "MLAstroRPA 2.2.0.0". Every status text and
         /// notification that talks about the controller uses this so the operator sees which plugin it is.
         /// </summary>
@@ -90,6 +97,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private async Task RunBridgeAsync(BridgeSession session,
                                                       IProgress<ApplicationStatus> progress,
                                                       CancellationToken token) {
+            // From here on the queue is served, so a cancel or fault from the controller is handled by the
+            // loop below (session end plus the reason in a toast) instead of aborting the measurement phase.
+            bridgeLoopStarted = true;
+
             // The operator reads the first polar error before the controller does: the run holds here
             // until Resume, so the reference sweep result is never published to the controller on its own.
             await WaitForHandoverResumeAsync(session, progress, token);
@@ -274,11 +285,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private string DescribeControllerCancel(string reason) {
             switch (reason) {
                 case BridgeReason.UserStop:
-                    return$"";
+                    return $"STOP or FORCE STOP was pressed on {ControllerDisplay}.";
                 case BridgeReason.BrokerDisabled:
-                    return$"";
+                    return $"External correction was switched off on {ControllerDisplay}.";
                 case BridgeReason.FirmwareDisconnected:
-                    return$"";
+                    return $"{ControllerDisplayCapitalized} lost its link to the alignment hardware.";
                 case BridgeReason.SessionTimeout:
                 case BridgeReason.SilenceTimeout:
                     return $"The {ControllerDisplayCapitalized} controller reached its session time limit.";
@@ -379,6 +390,52 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 AltitudeErrorArcMin = measurement?.AltitudeErrorArcMin ?? 0,
                 TotalErrorArcMin = measurement?.TotalErrorArcMin ?? 0
             };
+        }
+
+        /// <summary>
+        /// Watches a session for a controller stop that arrives while TPPA is still measuring the three
+        /// reference points. That phase does not serve the request queue, so without this the operator would
+        /// wait for captures the controller has already abandoned.
+        /// </summary>
+        private void WatchControllerStopBeforeHandover(BridgeSession session, CancellationTokenSource runCts) {
+            if (session == null) { return; }
+
+            // The instruction can be executed again, so the flag of the previous run never survives.
+            bridgeLoopStarted = false;
+            session.ControllerStopRequested += (_, e) => OnControllerStopBeforeHandover(session, e, runCts);
+        }
+
+        private void OnControllerStopBeforeHandover(BridgeSession session, BridgeControllerStopEventArgs e, CancellationTokenSource runCts) {
+            if (bridgeLoopStarted || session == null || !ReferenceEquals(session, bridgeSession)) { return; }
+
+            var reason = string.IsNullOrWhiteSpace(e?.Reason) ? BridgeReason.ControllerCancel : e.Reason;
+            var note = e?.Note;
+            var faulted = e?.IsFault == true;
+            bridgeSessionEndReason = reason;
+
+            Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} {(faulted ? "stopped the session on a fault" : "cancelled the session")} while the reference points were still being measured: {reason}" +
+                           (string.IsNullOrWhiteSpace(note) ? "." : $" ({note})."));
+
+            Notification.CloseAll();
+            Notification.ShowWarning(
+                (faulted ? $"{ControllerDisplayCapitalized} stopped the run on a fault." : $"{ControllerDisplayCapitalized} stopped the run.") + Environment.NewLine +
+                DescribeControllerCancel(reason) + Environment.NewLine +
+                (string.IsNullOrWhiteSpace(note) ? string.Empty : note + Environment.NewLine) +
+                $"Reason: {reason}",
+                TimeSpan.FromMinutes(1));
+
+            // The bridge loop never runs, so the session is ended here: the controller is told the session is
+            // over even though no measurement was published for it.
+            _ = EndSessionAfterEarlyStopAsync(session, reason, note);
+            try { runCts?.Cancel(); } catch (ObjectDisposedException) { }
+        }
+
+        private async Task EndSessionAfterEarlyStopAsync(BridgeSession session, string reason, string note) {
+            try {
+                await session.EndAsync(reason, false, new BridgeSessionEndedPayload { Detail = note }, CancellationToken.None).ConfigureAwait(false);
+            } catch (Exception ex) {
+                Logger.Error($"[Bridge] Failed to end the session after an early controller stop: {ex.Message}");
+            }
         }
 
         private async Task StopBridgeSessionAsync(BridgeSession session, string reason, CancellationToken token) {

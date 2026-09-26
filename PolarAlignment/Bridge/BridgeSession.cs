@@ -107,6 +107,14 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             get { lock (gate) { return terminalRequestPending; } }
         }
 
+        /// <summary>
+        /// Raised as soon as the controller asks to cancel or reports a fault, before the request queue is
+        /// served. The alignment run listens while it is still measuring the three reference points: that
+        /// phase does not drain the queue yet, so without this the remaining captures would finish before
+        /// the controller's stop is noticed.
+        /// </summary>
+        public event EventHandler<BridgeControllerStopEventArgs> ControllerStopRequested;
+
         public BridgeSession(IMessageBroker broker, string sessionId = null) {
             this.broker = broker ?? throw new ArgumentNullException(nameof(broker));
             SessionId = string.IsNullOrWhiteSpace(sessionId) ? Guid.NewGuid().ToString("N") : sessionId;
@@ -588,6 +596,10 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                         Envelope = envelope,
                         Cancel = envelope.PayloadAs<BridgeCancelPayload>()
                     });
+                    RaiseControllerStopRequested(
+                        envelope.PayloadAs<BridgeCancelPayload>()?.Reason ?? BridgeReason.ControllerCancel,
+                        envelope.PayloadAs<BridgeCancelPayload>()?.Note,
+                        isFault: false);
                     return;
 
                 case BridgeKind.Fault: {
@@ -608,12 +620,32 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                             Note = fault?.Detail
                         }
                     });
+                    RaiseControllerStopRequested(
+                        string.IsNullOrEmpty(fault?.Reason) ? BridgeReason.ControllerFault : fault.Reason,
+                        fault?.Detail,
+                        isFault: true);
                     return;
                 }
 
                 default:
                     Logger.Warning($"[Bridge] Unsupported controller message kind '{envelope.Kind}'.");
                     return;
+            }
+        }
+
+        /// <summary>
+        /// Tells the run that the controller ended it. Raised for cancels that were already accepted and for
+        /// every fault, so the measurement phase can abort without waiting for the queue.
+        /// </summary>
+        private void RaiseControllerStopRequested(string reason, string note, bool isFault) {
+            try {
+                ControllerStopRequested?.Invoke(this, new BridgeControllerStopEventArgs {
+                    Reason = string.IsNullOrWhiteSpace(reason) ? BridgeReason.ControllerCancel : reason,
+                    Note = note,
+                    IsFault = isFault
+                });
+            } catch (Exception ex) {
+                Logger.Error($"[Bridge] A controller stop listener failed: {ex.Message}");
             }
         }
 

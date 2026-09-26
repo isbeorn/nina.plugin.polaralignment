@@ -484,6 +484,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     // Stored in the field, not a local: the cancel path closes this session through
                     // CloseBridgeSessionAsync, which is what asks the controller to stop.
                     bridgeSession = await StartBridgeSessionAsync(progress, localCTS.Token);
+                    if (bridgeSession != null) {
+                        // A STOP on the controller while the reference points are measured has to end the run
+                        // at once - the bridge loop only serves that queue after the first measurement.
+                        WatchControllerStopBeforeHandover(bridgeSession, localCTS);
+                    }
 
                     TPAPAVM.ActivateFirstStep();
 
