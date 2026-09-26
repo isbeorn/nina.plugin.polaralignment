@@ -8,10 +8,14 @@
   - `SessionEnded` (new): `Reason, Achieved, AzimuthErrorArcMin, AltitudeErrorArcMin, TotalErrorArcMin, ToleranceUsedArcMin, SamplesUsed, HardwareStopStatus, Detail`
   - `Capabilities` (new): `ToleranceArcMin, AutoFinishConditionAvailable, HeartbeatMs, SilenceTimeoutMs, ReadyTimeoutMs, SessionTimeoutSec, GraceAfterSilenceMs, StopAckTimeoutMs, ContinuousEstimation`
   - Added since the first draft: the `PauseRequested` kind with `{ Paused, Reason }`, and the reasons `Paused`, `Resumed`, `BrokerDisabled`, `FirmwareDisconnected`
-  - On the controller side three settings are gone: `CorrectionConsecutiveToFinish` and `CorrectionTimeoutSec` (TPPA owns the finish policy and the session time limit) and `CorrectionAzBacklashArcMin` (the firmware already compensates the backlash)
+  - Pause and resume are forwarded to the controller, including the automatic pause after the reference sweep: TPPA waits for RESUME before the controller may move the axes
+  - Every controller decision is reported with a toast: the hand-over prompt, the successful finish, a cancel with its reason, and a stop that arrives while the reference points are still being measured
 ### Fixed — a stop or a fault from the controller now ends the run as soon as it arrives, including while the three reference points are still being measured, with the same session end and toast as a stop during the correction loop; the toast and the log name the reason (stop pressed, broker switched off, firmware link lost)
 ### Fixed — a stop now stops the axes before the session is cancelled and only once: the session used to be kept in a local variable, so the cancel path never sent a stop request, and the move it aborted was reported as a hardware fault on top of that
-### Fixed — a pause or a stop no longer lets a planned move start
+### Fixed — a move that was already planned but not yet sent now follows a pause or a stop: the axes stay still instead of starting after the operator stopped the run
+### Fixed — The run pauses right after the sweep and shows the first polar error; the controller receives its first measurement only after RESUME
+### Fixed — the error panel keeps the values of the finished run, so the last measurement that confirmed the tolerance stays readable; the dockable no longer recreates the view model when a run ends, and the panel is only renewed when the next run starts
+
 
 
 ## Version 2.2.7.0
