@@ -48,12 +48,12 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     // longer converting to an on-sky angle). Stored factors calibrated far from
                     // the meridian carry the old projection error; the values are left untouched
                     // - behaviour is exactly as before until the user re-calibrates - but one
-                    // Self-Calibration and Apply per axis picks up the corrected geometry.
+                    // Calibrate picks up the corrected geometry.
                     settings.OAPABacklashPairSchema = ProjectionCorrectedCalibration;
                     settings.Save();
                     NINA.Core.Utility.Logger.Info(
                         "OAPA: stored factors from an older calibration keep their previous behaviour; " +
-                        "'Calibrate on controller' measures them again on TPPA's readings.");
+                        "'Calibrate' in the OAPA panel measures them again.");
                     return;
                 }
 
@@ -64,8 +64,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 // stalled at exactly theirs. The values are unrecoverable from here (only a
                 // new calibration knows the verdict), so the negative direction goes back to
                 // "not set", which makes both axes symmetric again and restores the behaviour
-                // of the release before the pair existed. One Self-Calibration and Apply
-                // re-establishes a genuine directional pair on the rigs that have one.
+                // of the release before the pair existed. One Calibrate re-establishes a
+                // genuine directional pair on the rigs that have one.
                 // Schema 0 is also what a machine that has never run this plugin carries, and
                 // the two cases must not be told the same story. On a fresh profile both
                 // directions already hold the sentinel, so there is nothing to repair - and
