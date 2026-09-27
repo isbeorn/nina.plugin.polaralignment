@@ -134,6 +134,33 @@
     <Setting Name="OAPALastPort" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
+    <Setting Name="OAPAConnection" Type="System.String" Scope="User">
+      <Value Profile="(Default)">USB</Value>
+    </Setting>
+    <Setting Name="OAPAWifiAddress" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="OAPAXFactorMode" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Steps/arcmin</Value>
+    </Setting>
+    <Setting Name="OAPAXMechanicalRatio" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="OAPAXMotorStepsPerRev" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">200</Value>
+    </Setting>
+    <Setting Name="OAPAYFactorMode" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Steps/arcmin</Value>
+    </Setting>
+    <Setting Name="OAPAYMechanicalRatio" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="OAPAYMotorStepsPerRev" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">200</Value>
+    </Setting>
+    <Setting Name="OAPAControllerAligns" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
     <Setting Name="OAPAReverseAzimuth" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>

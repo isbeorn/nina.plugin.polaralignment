@@ -92,27 +92,6 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task GoHome_AfterApplyCalibration_ReturnsToSameControllerPositionOnBothAxes() {
-            var (vm, system) = Vm(xRatio: 100, yRatio: 100);
-            system.ReportedX = 2f;   // controller position 200
-            system.ReportedY = 4f;   // controller position 400
-            await vm.SetHome(CancellationToken.None);
-
-            vm.DiscoveredXRatio = 200;
-            vm.DiscoveredYRatio = 400;
-            vm.DiscoveredXBacklash = 0f;
-            vm.DiscoveredYBacklash = 0f;
-            vm.DiscoveredReverseAzimuth = vm.ReverseAzimuth;
-            vm.DiscoveredReverseAltitude = vm.ReverseAltitude;
-            vm.HasCalibrationResult = true;
-            vm.ApplyCalibration();
-
-            await vm.GoHome(CancellationToken.None);
-
-            system.AbsoluteMoves.Should().Equal((Axis.XAxis, 1f), (Axis.YAxis, 1f));
-        }
-
-        [Test]
         public async Task HomeDisplay_TracksRatioChanges_WhileHomeIsSet() {
             var (vm, system) = Vm(xRatio: 100, yRatio: 100);
             system.ReportedX = 2f;
@@ -147,35 +126,26 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task WhileGoHomeIsMoving_TheFactorsCannotChange_AndApplyIsUnavailable() {
+        public async Task WhileGoHomeIsMoving_TheFactorsCannotChange() {
             // Go Home computes both targets up front and drives the axes one after the other. A
-            // factor changed between the two moves - typed in, or written by Apply - makes the
-            // second move execute a target calculated under the old factor with the new one.
+            // factor changed between the two moves makes the second move execute a target
+            // calculated under the old factor with the new one.
             var (vm, system) = Vm(xRatio: 100, yRatio: 100);
             system.ReportedX = 2f;
             system.ReportedY = 4f;
             await vm.SetHome(CancellationToken.None);
-            vm.DiscoveredXRatio = 200;
-            vm.DiscoveredYRatio = 400;
-            vm.DiscoveredReverseAzimuth = vm.ReverseAzimuth;
-            vm.DiscoveredReverseAltitude = vm.ReverseAltitude;
-            vm.HasCalibrationResult = true;
             var release = new TaskCompletionSource();
             system.HoldAbsoluteMoves = release.Task;
 
             var goingHome = vm.GoHome(CancellationToken.None);
 
             vm.IsNotMoving.Should().BeFalse("the first axis is still moving");
-            vm.CanApplyCalibration().Should().BeFalse();
-            vm.ApplyCalibration();
             vm.XGearRatio = 300;
-            vm.XGearRatio.Should().Be(100f, "neither Apply nor an edit may change a factor mid-move");
+            vm.XGearRatio.Should().Be(100f, "an edit may not change a factor mid-move");
             vm.YGearRatio.Should().Be(100f);
 
             release.SetResult();
             await goingHome;
-
-            vm.CanApplyCalibration().Should().BeTrue("the result is still there once the axes have stopped");
         }
     }
 }

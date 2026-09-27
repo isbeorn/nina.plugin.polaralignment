@@ -96,24 +96,6 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task ManualAndFineNudge_OAPA_FollowTheSameModePlan() {
-            // OAPA replaces the legacy excursion with its mode plan on both paths: under
-            // the default Full mode a reversal is a single move extended by the backlash.
-            var fake = new FakeSystem();
-            var (vm, system) = Prepare(new OapaTestVm { Hardware = fake }, fake);
-            ((UniversalPolarAlignmentOAPAVM)vm).XBacklashMode = OapaBacklashMode.Full;
-
-            await RunReversal(vm, system, fine: false, reversalMove: -0.5f);
-            system.RelativeMoves.Should().Equal((Axis.XAxis, -5.5f));
-
-            system.RelativeMoves.Clear();
-            (await vm.TryNudgeX(15f, CancellationToken.None)).Should().BeTrue();
-            system.RelativeMoves.Clear();
-            (await vm.TryFineNudgeX(-0.5f, CancellationToken.None)).Should().BeTrue();
-            system.RelativeMoves.Should().Equal((Axis.XAxis, -5.5f));
-        }
-
-        [Test]
         public async Task FineNudge_UPAS_SubCompensationReversal_StillClears() {
             var fake = new FakeSystem();
             var (vm, system) = Prepare(new UpasTestVm { Hardware = fake }, fake);

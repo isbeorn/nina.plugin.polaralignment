@@ -52,9 +52,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     settings.OAPABacklashPairSchema = ProjectionCorrectedCalibration;
                     settings.Save();
                     NINA.Core.Utility.Logger.Info(
-                        "OAPA: calibration geometry is projection-corrected in this release. Stored factors keep " +
-                        "their previous behaviour; re-run the Self-Calibration and Apply once per axis to adopt " +
-                        "the corrected measurement (required if you calibrate away from the meridian).");
+                        "OAPA: stored factors from an older calibration keep their previous behaviour; " +
+                        "'Calibrate on controller' measures them again on TPPA's readings.");
                     return;
                 }
 
@@ -85,7 +84,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     NINA.Core.Utility.Logger.Info(
                         "OAPA: per-direction backlash reset to symmetric - the previous release stored a direction " +
                         "difference the calibration had not established, which biases every reversal. " +
-                        "Re-run the Self-Calibration and Apply to measure it again.");
+                        "Set the negative direction again only if it has been measured.");
                 }
             }
         }

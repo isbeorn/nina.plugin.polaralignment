@@ -8,6 +8,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
     public enum OapaParameterSource {
         Default,
         Manual,
-        Calibrated
+        Calibrated,
+        /// <summary>Computed from the known gear ratio, motor steps per revolution and microsteps.</summary>
+        Gear
     }
 }

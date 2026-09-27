@@ -5,11 +5,13 @@
 - OAPA: connecting waits for boards that restart when the port is opened, repeats the status probe, and tries the last port that worked first.
 - OAPA: a serial link that drops during a session is reopened, up to three times, before the move fails.
 - OAPA: the side of its backlash each axis rests on is remembered across alignment runs instead of being assumed positive at the start of every run.
-- OAPA: Self-Calibration in the OAPA panel measures the calibration factor and backlash of both axes by plate solving and shows the result next to the values in use. Nothing is changed until Apply, and values entered by hand are named and need a second Apply.
+- OAPA: the controller runs the alignment (firmware 1.3.0 or later). With "Controller aligns" on, every error TPPA measures is sent to the controller, which decides every move and compensates the backlash; TPPA never drives an OAPA axis itself and still finishes by itself below its tolerance.
+- OAPA: Calibrate measures the calibration factor and the backlash of both axes: the controller moves the axes and computes them on TPPA's readings while an alignment runs, or on frames the plugin captures and plate-solves when none does. The values found are kept in the OAPA settings.
+- OAPA: the calibration factor of each axis can also be computed from a known gear ratio, the motor's steps per revolution and the microstepping.
+- OAPA: the controller can be reached over WiFi as well as USB.
 - OAPA: Set Home and Go Home for the current connection session.
-- OAPA: each axis handles its own play according to a backlash mode - the compensation folded into the move, folded in gradually, approached from the engaged side only, or left alone. Self-Calibration recommends the mode for each axis when its result is applied, and the mode is honoured on every path that moves the axis.
-- OAPA: the play measured in each direction is used as measured, and a reversal finer than the calibration could measure is reported instead of being commanded, because compensating it would add more error than it removes.
-- OAPA: a STOP button in the panel halts both axes wherever they are, and says so when the halt did not reach the controller instead of looking like a success.
+- OAPA: each axis handles its own play according to a backlash mode - the compensation folded into the move, folded in gradually, approached from the engaged side only, or left alone. The controller applies it in the moves of its own alignment, and the calibration recommends it.
+- OAPA: hand moves use an arrow pad - altitude up and down, azimuth left and right, by a chosen step - with STOP in the middle, which halts both axes wherever they are and says so when the halt did not reach the controller instead of looking like a success.
 - OAPA: microstepping is selectable per axis and rescales the calibration factor with it, the speed dropdown offers the whole range the firmware accepts, and the panel shows what the selected step rate is in arcminutes per second once a calibration makes it computable.
 
 ## Version 2.2.6.7

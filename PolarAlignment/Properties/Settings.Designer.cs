@@ -553,6 +553,114 @@ namespace NINA.Plugins.PolarAlignment.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("USB")]
+        public string OAPAConnection {
+            get {
+                return ((string)(this["OAPAConnection"]));
+            }
+            set {
+                this["OAPAConnection"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string OAPAWifiAddress {
+            get {
+                return ((string)(this["OAPAWifiAddress"]));
+            }
+            set {
+                this["OAPAWifiAddress"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool OAPAControllerAligns {
+            get {
+                return ((bool)(this["OAPAControllerAligns"]));
+            }
+            set {
+                this["OAPAControllerAligns"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Steps/arcmin")]
+        public string OAPAXFactorMode {
+            get {
+                return ((string)(this["OAPAXFactorMode"]));
+            }
+            set {
+                this["OAPAXFactorMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAXMechanicalRatio {
+            get {
+                return ((float)(this["OAPAXMechanicalRatio"]));
+            }
+            set {
+                this["OAPAXMechanicalRatio"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("200")]
+        public int OAPAXMotorStepsPerRev {
+            get {
+                return ((int)(this["OAPAXMotorStepsPerRev"]));
+            }
+            set {
+                this["OAPAXMotorStepsPerRev"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Steps/arcmin")]
+        public string OAPAYFactorMode {
+            get {
+                return ((string)(this["OAPAYFactorMode"]));
+            }
+            set {
+                this["OAPAYFactorMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAYMechanicalRatio {
+            get {
+                return ((float)(this["OAPAYMechanicalRatio"]));
+            }
+            set {
+                this["OAPAYMechanicalRatio"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("200")]
+        public int OAPAYMotorStepsPerRev {
+            get {
+                return ((int)(this["OAPAYMotorStepsPerRev"]));
+            }
+            set {
+                this["OAPAYMotorStepsPerRev"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool OAPAReverseAzimuth {
             get {
