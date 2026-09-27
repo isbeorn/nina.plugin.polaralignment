@@ -287,6 +287,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
 
             CalibrationRunning = true;
+            // The axes are the controller's until it is done: every control that moves them or
+            // changes what it works with is off, STOP excepted (it only needs a connection).
+            await RunOnUi(() => IsNotMoving = false);
             calibrationCts = new CancellationTokenSource();
             ControllerStatus = "calibrating: capturing the first frame";
             try {
@@ -308,6 +311,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 calibrationCts?.Dispose();
                 calibrationCts = null;
                 CalibrationRunning = false;
+                await RunOnUi(() => IsNotMoving = true);
             }
         }
 

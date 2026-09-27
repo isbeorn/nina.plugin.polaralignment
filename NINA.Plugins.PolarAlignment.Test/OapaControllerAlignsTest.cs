@@ -76,16 +76,22 @@ namespace NINA.Plugins.PolarAlignment.Test {
             }
         }
 
-        /// <summary>Frames whose field moves as the test says; or a solver that fails.</summary>
+        /// <summary>Frames whose field moves as the test says; or a solver that fails, or one that waits for the sky.</summary>
         private sealed class FakeSolver : IOapaCalibrationSolver {
             public readonly Queue<CalibrationSolveSample> Frames = new();
             public Exception Failure;
+            public bool Hang;
+            public readonly TaskCompletionSource Capturing = new(TaskCreationOptions.RunContinuationsAsynchronously);
             public int Captures;
 
-            public Task<CalibrationSolveSample> CaptureAndSolve(CancellationToken token) {
+            public async Task<CalibrationSolveSample> CaptureAndSolve(CancellationToken token) {
                 Captures++;
                 if (Failure != null) { throw Failure; }
-                return Task.FromResult(Frames.Count > 1 ? Frames.Dequeue() : Frames.Peek());
+                if (Hang) {
+                    Capturing.TrySetResult();
+                    await Task.Delay(Timeout.Infinite, token);
+                }
+                return Frames.Count > 1 ? Frames.Dequeue() : Frames.Peek();
             }
         }
 
@@ -421,6 +427,33 @@ namespace NINA.Plugins.PolarAlignment.Test {
             controller.CalibrationRequests.Should().Be(1);
             controller.CalibrationOnlyRequests.Should().Be(0);
             solver.Captures.Should().Be(0);
+        }
+
+        [Test]
+        public async Task WhileTheControllerCalibrates_OnlyStopStaysAvailable_AndStopEndsIt() {
+            var controller = new FakeController();
+            var solver = new FakeSolver { Hang = true };
+            solver.Frames.Enqueue(Field(0.0, 45.0));
+            var vm = new OapaTestVm { Hardware = controller, Solver = solver };
+            vm.Connected = true;
+
+            var calibrating = vm.CalibrateOnControllerCommand.ExecuteAsync(null);
+            await solver.Capturing.Task;
+
+            vm.CalibrationRunning.Should().BeTrue();
+            vm.IsNotMoving.Should().BeFalse("the axes are the controller's while it calibrates");
+            vm.MoveXCommand.CanExecute(null).Should().BeFalse();
+            vm.JogCommand.CanExecute("up").Should().BeFalse();
+            vm.SetHomeCommand.CanExecute(null).Should().BeFalse();
+            vm.StopMotionCommand.CanExecute(null).Should().BeTrue("STOP is the one control a running calibration must leave");
+
+            vm.StopMotionCommand.Execute(null);
+            await calibrating;
+
+            controller.CalibrationStops.Should().Be(1, "the controller's calibration is ended too");
+            vm.ControllerStatus.Should().Be("calibration stopped");
+            vm.CalibrationRunning.Should().BeFalse();
+            vm.IsNotMoving.Should().BeTrue();
         }
 
         [Test]
