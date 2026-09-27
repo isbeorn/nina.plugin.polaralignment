@@ -289,6 +289,39 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void ThePanelShowsTheLastErrorTppaMeasured_EvenWithControllerAlignsOff() {
+            // Hand moves are watched on these numbers, so they do not depend on the controller
+            // aligning. Azimuth and altitude signed as measured; the total is TPPA's hypotenuse.
+            var vm = new OapaTestVm { Hardware = new FakeController() };
+            vm.ControllerAligns = false;
+            vm.AzimuthErrorDisplay.Should().Be("\u2014", "nothing measured yet");
+
+            vm.OnAlignmentError(2.1, -0.4);
+
+            vm.AzimuthErrorDisplay.Should().Be("+2.10'");
+            vm.AltitudeErrorDisplay.Should().Be("-0.40'");
+            vm.TotalErrorDisplay.Should().Be("2.14'");
+        }
+
+        [Test]
+        public void TheErrorReadout_ClearsAfter90SecondsWithoutAReading_AndSaysSo() {
+            // What the panel shows is live: a value TPPA stopped updating is not left on screen.
+            var now = new DateTime(2026, 9, 28, 1, 0, 0, DateTimeKind.Utc);
+            var vm = new OapaTestVm { Clock = () => now };
+            var changed = new List<string>();
+            vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+            vm.OnAlignmentError(1.0, 1.0);
+            changed.Should().Contain(new[] { nameof(vm.AzimuthErrorDisplay), nameof(vm.AltitudeErrorDisplay), nameof(vm.TotalErrorDisplay) });
+
+            now = now.AddSeconds(89);
+            vm.TotalErrorDisplay.Should().Be("1.41'");
+            now = now.AddSeconds(2);
+            vm.AzimuthErrorDisplay.Should().Be("\u2014");
+            vm.TotalErrorDisplay.Should().Be("\u2014");
+        }
+
+        [Test]
         public void TppaNeverDrivesAnOapaAxis_WhateverTheSharedSettingSays() {
             // The controller moves the axes; TPPA only measures. The shared setting belongs to
             // the other alignment system as well, so it is kept, but it cannot hand OAPA to TPPA.

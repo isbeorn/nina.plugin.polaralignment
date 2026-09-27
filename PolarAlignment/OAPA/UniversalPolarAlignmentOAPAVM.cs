@@ -215,6 +215,61 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
+        // ----- Live alignment error: hand moves are watched on these numbers -----
+
+        /// <summary>Silence after which the readout is no longer live and clears.</summary>
+        private static readonly TimeSpan ErrorReadoutExpiry = TimeSpan.FromSeconds(90);
+
+        internal Func<DateTime> Clock = () => DateTime.UtcNow;
+
+        private sealed record ErrorReading(double AzimuthArcmin, double AltitudeArcmin, DateTime At);
+
+        private ErrorReading lastError;
+        private System.Threading.Timer errorExpiryTimer;
+
+        private void RecordAlignmentError(double azimuthArcmin, double altitudeArcmin) {
+            lastError = new ErrorReading(azimuthArcmin, altitudeArcmin, Clock());
+            RaiseErrorReadoutChanged();
+            // Re-evaluates the readout while it is live, so an expiry shows without a reading;
+            // it stops itself once the values have cleared.
+            errorExpiryTimer ??= new System.Threading.Timer(_ => OnErrorExpiryTick(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+        }
+
+        private void OnErrorExpiryTick() {
+            RaiseErrorReadoutChanged();
+            if (LiveError == null) {
+                errorExpiryTimer?.Dispose();
+                errorExpiryTimer = null;
+            }
+        }
+
+        private void RaiseErrorReadoutChanged() {
+            RaisePropertyChanged(nameof(AzimuthErrorDisplay));
+            RaisePropertyChanged(nameof(AltitudeErrorDisplay));
+            RaisePropertyChanged(nameof(TotalErrorDisplay));
+        }
+
+        private ErrorReading LiveError => lastError is { } e && Clock() - e.At < ErrorReadoutExpiry ? e : null;
+
+        private const string NoValue = "\u2014";
+
+        // The arcminute tick is appended, not put in the format: in a .NET custom numeric
+        // format an apostrophe quotes a literal section.
+        private static string Signed(double? arcmin) =>
+            arcmin.HasValue ? arcmin.Value.ToString("+0.00;-0.00", System.Globalization.CultureInfo.InvariantCulture) + "'" : NoValue;
+
+        private static string Magnitude(double? arcmin) =>
+            arcmin.HasValue ? arcmin.Value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "'" : NoValue;
+
+        /// <summary>Azimuth error of the last TPPA reading, signed as measured.</summary>
+        public string AzimuthErrorDisplay => Signed(LiveError?.AzimuthArcmin);
+
+        /// <summary>Altitude error of the last TPPA reading, signed as measured.</summary>
+        public string AltitudeErrorDisplay => Signed(LiveError?.AltitudeArcmin);
+
+        /// <summary>Total error, TPPA's hypotenuse of the two.</summary>
+        public string TotalErrorDisplay => Magnitude(LiveError is { } e ? Math.Sqrt(e.AzimuthArcmin * e.AzimuthArcmin + e.AltitudeArcmin * e.AltitudeArcmin) : null);
+
         private string controllerStatus = "";
 
         /// <summary>What the controller reported after the last forwarded reading.</summary>
@@ -230,6 +285,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// <summary>One TPPA reading, in arcminutes, on its way to the controller.</summary>
         internal void OnAlignmentError(double azimuthArcmin, double altitudeArcmin, double? toleranceArcmin = null) {
             lastTppaReadingUtc = DateTime.UtcNow;
+            RecordAlignmentError(azimuthArcmin, altitudeArcmin);
             if (!ControllerAligns || upa == null || !upa.Connected || upa is not IOapaAlignmentController controller) {
                 return;
             }
