@@ -170,8 +170,14 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Properties.Settings.Default.OAPAControllerAligns = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged(nameof(ControllerAligns));
+                RaisePropertyChanged(nameof(ControllerAlignsMeaning));
             }
         }
+
+        /// <summary>What the switch does in the state it is in: the switch itself is drawn without a caption.</summary>
+        public string ControllerAlignsMeaning => ControllerAligns
+            ? "ON: the controller runs the alignment - it moves the axes on every error TPPA measures."
+            : "OFF: TPPA only measures - nothing moves by itself.";
 
         /// <summary>
         /// The largest single correction the controller makes, in arcminutes. A larger cap closes

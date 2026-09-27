@@ -279,6 +279,20 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void ThePanelSaysWhatControllerAlignsDoes_InTheStateItIsIn() {
+            // The switch is drawn without its caption, so the panel says in words what it does.
+            var vm = new OapaTestVm();
+            var changed = new List<string>();
+            vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+            vm.ControllerAligns = true;
+            vm.ControllerAlignsMeaning.Should().Contain("moves the axes");
+            vm.ControllerAligns = false;
+            vm.ControllerAlignsMeaning.Should().Contain("only measures");
+            changed.Should().Contain(nameof(vm.ControllerAlignsMeaning), "the sentence follows the switch");
+        }
+
+        [Test]
         public void TheMoveCap_StaysWithinWhatTheControllerAccepts() {
             var settings = new Properties.Settings();
             settings.OAPAMoveCap = 500f;
