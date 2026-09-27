@@ -113,12 +113,6 @@
     <Setting Name="OAPAYBacklashCompensation" Type="System.Single" Scope="User">
       <Value Profile="(Default)">0</Value>
     </Setting>
-    <Setting Name="OAPAXBacklashSplitLast" Type="System.Single" Scope="User">
-      <Value Profile="(Default)">0</Value>
-    </Setting>
-    <Setting Name="OAPAYBacklashSplitLast" Type="System.Single" Scope="User">
-      <Value Profile="(Default)">0</Value>
-    </Setting>
     <Setting Name="OAPAXGearRatioSource" Type="System.String" Scope="User">
       <Value Profile="(Default)">Default</Value>
     </Setting>
@@ -170,12 +164,6 @@
     <Setting Name="OAPAReverseAltitude" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
-    <Setting Name="OAPAReverseAzimuthSource" Type="System.String" Scope="User">
-      <Value Profile="(Default)">Default</Value>
-    </Setting>
-    <Setting Name="OAPAReverseAltitudeSource" Type="System.String" Scope="User">
-      <Value Profile="(Default)">Default</Value>
-    </Setting>
     <Setting Name="OAPAXRunCurrent" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">600</Value>
     </Setting>
@@ -205,12 +193,6 @@
     </Setting>
     <Setting Name="OAPAYBacklashMode" Type="System.String" Scope="User">
       <Value Profile="(Default)">Full</Value>
-    </Setting>
-    <Setting Name="OAPAXCalibrationNoise" Type="System.Single" Scope="User">
-      <Value Profile="(Default)">0</Value>
-    </Setting>
-    <Setting Name="OAPAYCalibrationNoise" Type="System.Single" Scope="User">
-      <Value Profile="(Default)">0</Value>
     </Setting>
     <Setting Name="OAPABacklashPairSchema" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">0</Value>

@@ -469,30 +469,6 @@ namespace NINA.Plugins.PolarAlignment.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public float OAPAXBacklashSplitLast {
-            get {
-                return ((float)(this["OAPAXBacklashSplitLast"]));
-            }
-            set {
-                this["OAPAXBacklashSplitLast"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public float OAPAYBacklashSplitLast {
-            get {
-                return ((float)(this["OAPAYBacklashSplitLast"]));
-            }
-            set {
-                this["OAPAYBacklashSplitLast"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("Default")]
         public string OAPAXGearRatioSource {
             get {
@@ -697,30 +673,6 @@ namespace NINA.Plugins.PolarAlignment.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Default")]
-        public string OAPAReverseAzimuthSource {
-            get {
-                return ((string)(this["OAPAReverseAzimuthSource"]));
-            }
-            set {
-                this["OAPAReverseAzimuthSource"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Default")]
-        public string OAPAReverseAltitudeSource {
-            get {
-                return ((string)(this["OAPAReverseAltitudeSource"]));
-            }
-            set {
-                this["OAPAReverseAltitudeSource"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("600")]
         public int OAPAXRunCurrent {
             get {
@@ -836,30 +788,6 @@ namespace NINA.Plugins.PolarAlignment.Properties {
             }
             set {
                 this["OAPAYBacklashMode"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public float OAPAXCalibrationNoise {
-            get {
-                return ((float)(this["OAPAXCalibrationNoise"]));
-            }
-            set {
-                this["OAPAXCalibrationNoise"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public float OAPAYCalibrationNoise {
-            get {
-                return ((float)(this["OAPAYCalibrationNoise"]));
-            }
-            set {
-                this["OAPAYCalibrationNoise"] = value;
             }
         }
 
