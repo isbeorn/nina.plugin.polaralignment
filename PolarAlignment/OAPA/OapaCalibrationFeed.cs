@@ -21,14 +21,21 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             "preloading", "baseline", "probing", "measuring", "restoring"
         };
 
+        /// <summary>
+        /// The controller starts on the reading after the request, so by the second reading it
+        /// reports a running state; the third is margin for a slow link. Still idle then, it has
+        /// not taken the request (another source is driving it, or it simulates).
+        /// </summary>
+        private const int FramesToStart = 3;
+
         /// <summary>The controller's calibration is under way (a $K? state).</summary>
         public static bool IsRunning(string state) => state != null && RunningStates.Contains(state);
 
         /// <summary>
         /// Runs one calibration and returns the controller's final calibration line
         /// ("&lt;K|state:done|...|&gt;"). Stops after <paramref name="maxFrames"/> frames if the
-        /// controller never finishes; throws when a frame cannot be solved or on cancellation,
-        /// and the caller stops the controller's calibration then.
+        /// controller never finishes; throws when a frame cannot be solved, when the controller
+        /// does not start, or on cancellation, and the caller stops the controller's calibration then.
         /// </summary>
         public static async Task<string> Run(IOapaCalibrationSolver solver, IOapaAlignmentController controller,
                                              Action<string> onStatus, CancellationToken token, int maxFrames = 400) {
@@ -56,6 +63,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     started = true;
                 } else if (started) {
                     return calibration;
+                } else if (frame + 1 >= FramesToStart) {
+                    throw new InvalidOperationException($"the controller did not start the calibration ({calibration})");
                 }
             }
             Logger.Warning($"OAPA calibration: the controller did not finish within {maxFrames} frames");

@@ -157,5 +157,68 @@ namespace NINA.Plugins.PolarAlignment.Test {
             controller.Received.Should().Contain(line => line.StartsWith("CX"), "the stored driver settings are pushed on every connection");
             controller.Received.Should().Contain(line => line.StartsWith("HY"));
         }
+
+        [Test]
+        [NonParallelizable]
+        public void AToleranceChangedInTppaWhileConnected_GoesAheadOfTheNextReading() {
+            var d = Properties.Settings.Default;
+            var saved = d.AlignmentTolerance;
+            try {
+                d.AlignmentTolerance = 1.0;
+                using var controller = new FakeController();
+                using var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address);
+                system.ForwardError(30, -20);
+                while (controller.Received.TryDequeue(out _)) { }
+
+                system.ForwardError(28, -19);
+                controller.Received.Should().Equal(new[] { "$E=28.000,-19.000" }, "an unchanged tolerance is not sent again");
+
+                d.AlignmentTolerance = 0.5;
+                system.ForwardError(26, -18);
+                controller.Received.Should().Equal("$E=28.000,-19.000", "$T=0.5", "$E=26.000,-18.000");
+            } finally {
+                d.AlignmentTolerance = saved;
+            }
+        }
+
+        [TestCase("microsteps", "$F=30,15")]
+        [TestCase("factor", "$F=20,15")]
+        [TestCase("gear", "$F=14.814815,15")]
+        [TestCase("play", "$B=X,F,4,4")]
+        [TestCase("mode", "$B=X,S,2,2")]
+        [NonParallelizable]
+        public void AValueChangedWhileConnected_ReachesTheController(string change, string expected) {
+            // The controller aligns with the values it was given, not with the ones the panel
+            // shows. Doubling the microsteps doubles the steps per arcminute: a controller left
+            // on 15 would move every correction half as far as it computes.
+            var d = Properties.Settings.Default;
+            var saved = (d.OAPAXGearRatio, d.OAPAYGearRatio, d.OAPAXGearRatioSource, d.OAPAYGearRatioSource, d.OAPAXMicrosteps,
+                d.OAPAXFactorMode, d.OAPAXMechanicalRatio, d.OAPAXMotorStepsPerRev,
+                d.OAPAXBacklashCompensation, d.OAPAXBacklashCompensationNegative, d.OAPAXBacklashMode);
+            try {
+                (d.OAPAXGearRatio, d.OAPAYGearRatio) = (15f, 15f);
+                (d.OAPAXGearRatioSource, d.OAPAYGearRatioSource) = (nameof(OapaParameterSource.Calibrated), nameof(OapaParameterSource.Calibrated));
+                (d.OAPAXMicrosteps, d.OAPAXFactorMode, d.OAPAXMechanicalRatio, d.OAPAXMotorStepsPerRev) = (16, UniversalPolarAlignmentOAPAVM.FactorModeSteps, 100f, 200);
+                (d.OAPAXBacklashCompensation, d.OAPAXBacklashCompensationNegative, d.OAPAXBacklashMode) = (2f, -1f, nameof(OapaBacklashMode.Full));
+                using var controller = new FakeController();
+                using var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address);
+                var vm = new OapaTestVm { Hardware = system };
+                while (controller.Received.TryDequeue(out _)) { }
+
+                switch (change) {
+                    case "microsteps": vm.XMicrosteps = 32; break;
+                    case "factor": vm.XGearRatio = 20f; break;
+                    case "gear": vm.XFactorMode = UniversalPolarAlignmentOAPAVM.FactorModeGear; break;   // 200 x 16 x 100 / 21600
+                    case "play": vm.XBacklashCompensation = 4f; break;
+                    case "mode": vm.XBacklashMode = OapaBacklashMode.Soft; break;
+                }
+
+                controller.Received.Should().Contain(expected);
+            } finally {
+                (d.OAPAXGearRatio, d.OAPAYGearRatio, d.OAPAXGearRatioSource, d.OAPAYGearRatioSource, d.OAPAXMicrosteps,
+                    d.OAPAXFactorMode, d.OAPAXMechanicalRatio, d.OAPAXMotorStepsPerRev,
+                    d.OAPAXBacklashCompensation, d.OAPAXBacklashCompensationNegative, d.OAPAXBacklashMode) = saved;
+            }
+        }
     }
 }

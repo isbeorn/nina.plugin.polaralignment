@@ -136,8 +136,32 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         internal static bool FirmwareAtLeast(string reported, string minimum) =>
             Version.TryParse(reported, out var version) && version >= Version.Parse(minimum);
 
-        public string ForwardError(double azimuthArcmin, double altitudeArcmin) =>
-            ExecuteWireCommand(string.Format(CultureInfo.InvariantCulture, "$E={0:F3},{1:F3}", azimuthArcmin, altitudeArcmin))?.Trim();
+        public string ForwardError(double azimuthArcmin, double altitudeArcmin) {
+            SendToleranceIfChanged();
+            return ExecuteWireCommand(string.Format(CultureInfo.InvariantCulture, "$E={0:F3},{1:F3}", azimuthArcmin, altitudeArcmin))?.Trim();
+        }
+
+        private double? sentTolerance;
+
+        /// <summary>
+        /// TPPA's tolerance is set in its own options and can change while connected; the
+        /// controller has to stop at the same error, so a changed value goes ahead of the next
+        /// reading. The controller only uses it while readings arrive, so that is always in time.
+        /// A send that fails is retried with the next reading.
+        /// </summary>
+        private void SendToleranceIfChanged() {
+            var tolerance = Properties.Settings.Default.AlignmentTolerance;
+            if (sentTolerance == tolerance) {
+                return;
+            }
+            try {
+                var response = ExecuteWireCommand(string.Format(CultureInfo.InvariantCulture, "$T={0}", tolerance));
+                sentTolerance = tolerance;
+                Logger.Info($"OAPA controller: tolerance {tolerance}' sent (response: {response?.Trim()})");
+            } catch (Exception ex) {
+                Logger.Error($"OAPA controller: sending the tolerance failed: {ex.Message}");
+            }
+        }
 
         public string AlignmentStatus() => ExecuteWireCommand("$L?")?.Trim();
 
@@ -177,7 +201,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             return commands.ToArray();
         }
 
-        private void ApplyControllerParameters() {
+        internal void ApplyControllerParameters() {
             if (!RunsAlignment) {
                 return;
             }

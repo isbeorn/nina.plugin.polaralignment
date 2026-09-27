@@ -274,7 +274,6 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                     var reply = controller.RequestCalibration();
                     Logger.Info($"OAPA controller: calibration on TPPA's readings requested -> {reply}");
                     ControllerStatus = "calibrating on TPPA's readings, then aligning";
-                    lastControllerPhase = "calibrating";
                 } catch (Exception ex) {
                     Logger.Error($"OAPA controller: requesting a calibration failed: {ex.Message}");
                     ControllerStatus = $"calibration request failed: {ex.Message}";
@@ -439,6 +438,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             if (upa?.Connected == true && upa is UniversalPolarAlignmentOAPA oapa) {
                 oapa.SetMicrosteps(axis, value);
             }
+            PushControllerParameters();
 
             RaisePropertyChanged(isX ? nameof(XMicrosteps) : nameof(YMicrosteps));
             RaisePropertyChanged(isX ? nameof(XSpeedPhysical) : nameof(YSpeedPhysical));
@@ -458,6 +458,18 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 SetXGearRatio(factor, OapaParameterSource.Gear);
             } else {
                 SetYGearRatio(factor, OapaParameterSource.Gear);
+            }
+            PushControllerParameters();
+        }
+
+        /// <summary>
+        /// The controller aligns with the values it was given, not with the ones shown here: a
+        /// value changed while connected is sent at once, not at the next connection. Not used
+        /// for a calibration result, which the controller already holds.
+        /// </summary>
+        private void PushControllerParameters() {
+            if (upa?.Connected == true && upa is UniversalPolarAlignmentOAPA oapa) {
+                oapa.ApplyControllerParameters();
             }
         }
 
@@ -481,6 +493,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             set {
                 if (!AcceptsEditNow(nameof(XGearRatio))) { return; }
                 SetXGearRatio(value, MarkEdit(value, XGearRatio, XGearRatioSource));
+                PushControllerParameters();
             }
         }
 
@@ -582,6 +595,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
                 RaisePropertyChanged(nameof(XBacklashModeName));
+                PushControllerParameters();
             }
         }
 
@@ -592,6 +606,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
                 RaisePropertyChanged(nameof(YBacklashModeName));
+                PushControllerParameters();
             }
         }
 
@@ -650,17 +665,19 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Properties.Settings.Default.OAPAXBacklashCompensation = value;
                 Properties.Settings.Default.OAPAXBacklashCompensationNegative = value;
                 Properties.Settings.Default.OAPAXBacklashSource = source;
-                XBacklashMode = mode;
+                Properties.Settings.Default.OAPAXBacklashMode = mode.ToString();
             } else {
                 Properties.Settings.Default.OAPAYBacklashCompensation = value;
                 Properties.Settings.Default.OAPAYBacklashCompensationNegative = value;
                 Properties.Settings.Default.OAPAYBacklashSource = source;
-                YBacklashMode = mode;
+                Properties.Settings.Default.OAPAYBacklashMode = mode.ToString();
             }
             CoreUtil.SaveSettings(Properties.Settings.Default);
             RaisePropertyChanged(isX ? nameof(XBacklashCompensation) : nameof(YBacklashCompensation));
             RaisePropertyChanged(isX ? nameof(XBacklashCompensationNegative) : nameof(YBacklashCompensationNegative));
             RaisePropertyChanged(isX ? nameof(XBacklashSourceLabel) : nameof(YBacklashSourceLabel));
+            RaisePropertyChanged(isX ? nameof(XBacklashMode) : nameof(YBacklashMode));
+            RaisePropertyChanged(isX ? nameof(XBacklashModeName) : nameof(YBacklashModeName));
         }
 
         private void SetBacklash(string property, float value, Action<float> store, float current, bool isX) {
@@ -675,6 +692,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             CoreUtil.SaveSettings(Properties.Settings.Default);
             RaisePropertyChanged(property);
             RaisePropertyChanged(isX ? nameof(XBacklashSourceLabel) : nameof(YBacklashSourceLabel));
+            PushControllerParameters();
         }
 
         // ----- Where a value came from: shown next to the fields, and it decides whether the

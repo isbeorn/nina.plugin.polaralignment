@@ -469,6 +469,57 @@ namespace NINA.Plugins.PolarAlignment.Test {
             vm.CalibrationRunning.Should().BeFalse();
         }
 
+        [Test]
+        public void Calibrate_IsOff_WhenTheControllerCannotRunIt_OrIsNotConnected() {
+            var controller = new FakeController { RunsAlignment = false };
+            var vm = new OapaTestVm { Hardware = controller, Solver = new FakeSolver() };
+            vm.Connected = true;
+
+            vm.CalibrateOnControllerCommand.CanExecute(null).Should().BeFalse("firmware before 1.3.0 has no calibration to run");
+
+            controller.RunsAlignment = true;
+            vm.CalibrateOnControllerCommand.CanExecute(null).Should().BeTrue();
+
+            vm.Connected = false;
+            vm.CalibrateOnControllerCommand.CanExecute(null).Should().BeFalse();
+        }
+
+        [Test]
+        public async Task ARequestedCalibration_IsNotTakenFromTheControllerBeforeItHasRun() {
+            // The controller starts a calibration on the reading after the request, and not at
+            // all while its alignment is still running. Until it reports calibrating, the result
+            // it holds is an earlier one, and taking it would replace the factor now in force.
+            var controller = new FakeController();
+            var vm = new OapaTestVm { Hardware = controller };
+            vm.ControllerAligns = true;
+            vm.Connected = true;
+            vm.OnAlignmentError(30, -20);                      // TPPA is measuring
+            vm.XGearRatio = 20f;                               // typed in after an earlier calibration
+
+            await vm.CalibrateOnControllerCommand.ExecuteAsync(null);
+            controller.Statuses.Enqueue("<L|phase:moving_x|outcome:none|source:nina|moves:4|az:-2.10|alt:0.40|plan:-1.60,0.00|reason:Continuing corrections.|>");
+            vm.OnAlignmentError(28, -19);                      // still aligning; $K? has the earlier 15.02
+
+            vm.XGearRatio.Should().BeApproximately(20f, 1e-4f);
+            vm.XGearRatioSource.Should().Be(OapaParameterSource.Manual);
+        }
+
+        [Test]
+        public async Task AControllerThatNeverStartsTheCalibration_EndsTheFeed_WithinAFewFrames() {
+            // The controller starts on the reading after the request, so by the second reading it
+            // reports a running state. One that stays idle has not taken the request (busy with
+            // another source, or simulating); capturing on for 400 frames would look like a
+            // calibration while nothing moves.
+            var controller = new FakeController { Calibration = "<K|state:idle|x:-|y:-|xplay:-|yplay:-|reason:|>" };
+            var solver = new FakeSolver();
+            solver.Frames.Enqueue(Field(0.0, 45.0));
+
+            Func<Task> run = () => OapaCalibrationFeed.Run(solver, controller, null, CancellationToken.None);
+
+            await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("*did not start*");
+            solver.Captures.Should().BeLessThanOrEqualTo(3);
+        }
+
         [TestCase("1.3.0", true)]
         [TestCase("1.10.0", true)]
         [TestCase("1.2.3", false)]
