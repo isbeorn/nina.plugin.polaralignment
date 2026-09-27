@@ -74,6 +74,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             ApplyCalibrationCommand.NotifyCanExecuteChanged();
             SetHomeCommand.NotifyCanExecuteChanged();
             GoHomeCommand.NotifyCanExecuteChanged();
+            StopMotionCommand.NotifyCanExecuteChanged();
         }
 
         /// <summary>
@@ -209,6 +210,23 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 : 0f;
         }
 
+        // Available whenever connected - including while a move or the calibration is driving
+        // the motors, which is precisely when it is needed.
+        public bool CanStopMotion() => Connected;
+
+        [RelayCommand(CanExecute = nameof(CanStopMotion))]
+        private void StopMotion() {
+            if (upa is not UniversalPolarAlignmentOAPA oapa) { return; }
+            if (oapa.TryRequestStop()) { return; }
+
+            // The one button whose failure must never be quiet. Somebody pressing Stop is
+            // watching the platform go somewhere they do not want it to go, and a halt that
+            // did not reach the controller looks exactly like one that did: nothing happens
+            // on screen either way, except that in one case the axis is still moving.
+            Notification.ShowError("Stop was not delivered to the controller - the axis may still be moving. "
+                + "Check the connection, and cut power to the controller if it does not stop.");
+        }
+
         public override bool DoAutomatedAdjustments {
             get => Properties.Settings.Default.DoAutomatedAdjustments;
             set {
@@ -272,6 +290,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             RaisePropertyChanged(nameof(XGearRatioSource));
             RaisePropertyChanged(nameof(XGearRatioSourceLabel));
             RaisePropertyChanged(nameof(PositionX));
+            RaisePropertyChanged(nameof(XSpeedPhysical));
             RefreshHomeDisplay();
         }
 
@@ -281,7 +300,24 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Properties.Settings.Default.OAPAXSpeed = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
+                RaisePropertyChanged(nameof(XSpeedPhysical));
             }
+        }
+
+        // The speed setting is a step rate, and the same number means very different sky
+        // speeds on the two axes: on one tester's rig 1000 steps/s is ~74 '/s in azimuth and
+        // ~8.6 '/s in altitude. The rate is shown as it actually is, once a calibration
+        // factor makes it computable.
+        public string XSpeedPhysical => PhysicalSpeed(XSpeed, XGearRatio);
+
+        public string YSpeedPhysical => PhysicalSpeed(YSpeed, YGearRatio);
+
+        private static string PhysicalSpeed(int stepsPerSecond, float stepsPerArcmin) {
+            // A factor of 1 is the factory default: the platform has never been calibrated,
+            // and inventing a reading from it would be worse than showing none.
+            if (stepsPerArcmin <= 1f) { return string.Empty; }
+            var arcminPerSecond = stepsPerSecond / stepsPerArcmin;
+            return $"~ {arcminPerSecond.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)} '/s";
         }
 
         public override float YGearRatio {
@@ -303,6 +339,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             RaisePropertyChanged(nameof(YGearRatioSource));
             RaisePropertyChanged(nameof(YGearRatioSourceLabel));
             RaisePropertyChanged(nameof(PositionY));
+            RaisePropertyChanged(nameof(YSpeedPhysical));
             RefreshHomeDisplay();
         }
 
@@ -312,6 +349,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Properties.Settings.Default.OAPAYSpeed = value;
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged();
+                RaisePropertyChanged(nameof(YSpeedPhysical));
             }
         }
 
@@ -439,6 +477,55 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             CoreUtil.SaveSettings(Properties.Settings.Default);
             RaisePropertyChanged(nameof(YBacklashCompensationNegative));
             RaisePropertyChanged(nameof(YBacklashSourceLabel));
+        }
+
+        // ----- Microstepping -----
+        // Trades resolution for speed and torque, and polar alignment has resolution to
+        // spare: a platform at 1000 steps per arcminute is two orders of magnitude past
+        // what the plate solve can resolve, and pays for it in speed.
+        //
+        // Steps per arcminute scale exactly with the microstep setting, so changing it
+        // invalidates the calibration factor by a known factor. Rescaling it here is not a
+        // convenience: leaving a stale factor behind would make every commanded move wrong
+        // by that same ratio, and on a short-travel platform the first move would drive an
+        // axis into its end stop. The backlash is in physical arcminutes and does not scale.
+
+        /// <summary>Instance property on purpose: a XAML {Binding} cannot resolve a static one.</summary>
+        public int[] MicrostepOptions => SupportedMicrosteps;
+
+        private static readonly int[] SupportedMicrosteps = { 1, 2, 4, 8, 16, 32, 64, 128, 256 };
+
+        public int XMicrosteps {
+            get => Properties.Settings.Default.OAPAXMicrosteps;
+            set => SetMicrosteps(Axis.XAxis, value);
+        }
+
+        public int YMicrosteps {
+            get => Properties.Settings.Default.OAPAYMicrosteps;
+            set => SetMicrosteps(Axis.YAxis, value);
+        }
+
+        private void SetMicrosteps(Axis axis, int value) {
+            if (Array.IndexOf(SupportedMicrosteps, value) < 0) { return; }
+            var isX = axis == Axis.XAxis;
+            var previous = isX ? XMicrosteps : YMicrosteps;
+            if (previous == value) { return; }
+
+            if (isX) { Properties.Settings.Default.OAPAXMicrosteps = value; } else { Properties.Settings.Default.OAPAYMicrosteps = value; }
+
+            var scale = (float)value / previous;
+            var oldRatio = isX ? XGearRatio : YGearRatio;
+            var newRatio = System.Math.Clamp(oldRatio * scale, MinimumFactor, MaximumFactor);
+            if (isX) { SetXGearRatio(newRatio, XGearRatioSource); } else { SetYGearRatio(newRatio, YGearRatioSource); }
+
+            CoreUtil.SaveSettings(Properties.Settings.Default);
+            Logger.Info($"OAPA microsteps {axis}: {previous} -> {value}; calibration factor rescaled {oldRatio:F2} -> {newRatio:F2} steps/arcmin");
+            if (upa?.Connected == true && upa is UniversalPolarAlignmentOAPA oapa) {
+                oapa.SetMicrosteps(axis, value);
+            }
+
+            RaisePropertyChanged(isX ? nameof(XMicrosteps) : nameof(YMicrosteps));
+            RaisePropertyChanged(isX ? nameof(XSpeedPhysical) : nameof(YSpeedPhysical));
         }
 
         // ----- Parameter provenance -----
