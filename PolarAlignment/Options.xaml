@@ -438,13 +438,16 @@
                             IsChecked="{Binding ActiveSystem.ReverseAltitude}"
                             ToolTip="{StaticResource ReverseAltitudeToolTip}"
                             Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <!-- TPPA's own backlash compensation and automated adjustments: UPAS only. The OAPA
+                             controller runs its own alignment and compensates its backlash itself; its values
+                             are in the OAPA panel, in arcminutes. -->
                         <TextBlock
                             Grid.Row="21"
                             Margin="0,5,0,0"
                             VerticalAlignment="Center"
                             Text="Azimuth backlash compensation"
                             ToolTip="{StaticResource AzimuthBacklashCompensationToolTip}"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            Visibility="{Binding IsUPASSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <ninactrl:UnitTextBox
                             Grid.Row="21"
                             Grid.Column="1"
@@ -455,14 +458,14 @@
                             Text="{Binding ActiveSystem.XBacklashCompensation}"
                             ToolTip="{StaticResource AzimuthBacklashCompensationToolTip}"
                             Unit="steps"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            Visibility="{Binding IsUPASSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <TextBlock
                             Grid.Row="22"
                             Margin="0,5,0,0"
                             VerticalAlignment="Center"
                             Text="Do automated adjustments?"
                             ToolTip="{StaticResource AutomatedAdjustmentsToolTip}"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            Visibility="{Binding IsUPASSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <StackPanel
                             Grid.Row="22"
                             Grid.Column="1"
@@ -474,8 +477,8 @@
                                 VerticalAlignment="Center"
                                 IsChecked="{Binding ActiveSystem.DoAutomatedAdjustments}"
                                 ToolTip="{StaticResource AutomatedAdjustmentsToolTip}"
-                                Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                            <Grid Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                Visibility="{Binding IsUPASSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Grid Visibility="{Binding IsUPASSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <TextBlock
                                     Margin="5,5,0,0"
                                     VerticalAlignment="Center"

@@ -293,6 +293,24 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void TppasOwnBacklashAndAutomatedAdjustments_AreShownForUpasOnly() {
+            // For OAPA the controller runs the alignment and compensates its own backlash: the
+            // shared rows would show the OAPA play in "steps" and a switch that does nothing.
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "PolarAlignment", "Options.xaml"))) {
+                dir = dir.Parent;
+            }
+            var xaml = System.IO.File.ReadAllText(System.IO.Path.Combine(dir.FullName, "PolarAlignment", "Options.xaml"));
+            var start = xaml.IndexOf("Grid.Row=\"21\"", StringComparison.Ordinal);
+            var end = xaml.IndexOf("Grid.Row=\"23\"", start, StringComparison.Ordinal);
+            var rows = xaml.Substring(start, end - start);
+
+            rows.Should().Contain("Azimuth backlash compensation").And.Contain("Do automated adjustments?");
+            rows.Should().NotContain("Binding IsSystemSelected");
+            System.Text.RegularExpressions.Regex.Matches(rows, @"Visibility=""\{Binding IsUPASSelected").Count.Should().Be(5);
+        }
+
+        [Test]
         public void TheMoveCap_StaysWithinWhatTheControllerAccepts() {
             var settings = new Properties.Settings();
             settings.OAPAMoveCap = 500f;
