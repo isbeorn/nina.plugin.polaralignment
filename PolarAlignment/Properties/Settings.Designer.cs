@@ -469,30 +469,6 @@ namespace NINA.Plugins.PolarAlignment.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public float OAPAXBacklashSplitLast {
-            get {
-                return ((float)(this["OAPAXBacklashSplitLast"]));
-            }
-            set {
-                this["OAPAXBacklashSplitLast"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public float OAPAYBacklashSplitLast {
-            get {
-                return ((float)(this["OAPAYBacklashSplitLast"]));
-            }
-            set {
-                this["OAPAYBacklashSplitLast"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("Default")]
         public string OAPAXGearRatioSource {
             get {
@@ -553,6 +529,126 @@ namespace NINA.Plugins.PolarAlignment.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("USB")]
+        public string OAPAConnection {
+            get {
+                return ((string)(this["OAPAConnection"]));
+            }
+            set {
+                this["OAPAConnection"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string OAPAWifiAddress {
+            get {
+                return ((string)(this["OAPAWifiAddress"]));
+            }
+            set {
+                this["OAPAWifiAddress"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool OAPAControllerAligns {
+            get {
+                return ((bool)(this["OAPAControllerAligns"]));
+            }
+            set {
+                this["OAPAControllerAligns"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Steps/arcmin")]
+        public string OAPAXFactorMode {
+            get {
+                return ((string)(this["OAPAXFactorMode"]));
+            }
+            set {
+                this["OAPAXFactorMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("30")]
+        public float OAPAMoveCap {
+            get {
+                return ((float)(this["OAPAMoveCap"]));
+            }
+            set {
+                this["OAPAMoveCap"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAXMechanicalRatio {
+            get {
+                return ((float)(this["OAPAXMechanicalRatio"]));
+            }
+            set {
+                this["OAPAXMechanicalRatio"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("200")]
+        public int OAPAXMotorStepsPerRev {
+            get {
+                return ((int)(this["OAPAXMotorStepsPerRev"]));
+            }
+            set {
+                this["OAPAXMotorStepsPerRev"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Steps/arcmin")]
+        public string OAPAYFactorMode {
+            get {
+                return ((string)(this["OAPAYFactorMode"]));
+            }
+            set {
+                this["OAPAYFactorMode"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public float OAPAYMechanicalRatio {
+            get {
+                return ((float)(this["OAPAYMechanicalRatio"]));
+            }
+            set {
+                this["OAPAYMechanicalRatio"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("200")]
+        public int OAPAYMotorStepsPerRev {
+            get {
+                return ((int)(this["OAPAYMotorStepsPerRev"]));
+            }
+            set {
+                this["OAPAYMotorStepsPerRev"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool OAPAReverseAzimuth {
             get {
@@ -572,30 +668,6 @@ namespace NINA.Plugins.PolarAlignment.Properties {
             }
             set {
                 this["OAPAReverseAltitude"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Default")]
-        public string OAPAReverseAzimuthSource {
-            get {
-                return ((string)(this["OAPAReverseAzimuthSource"]));
-            }
-            set {
-                this["OAPAReverseAzimuthSource"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Default")]
-        public string OAPAReverseAltitudeSource {
-            get {
-                return ((string)(this["OAPAReverseAltitudeSource"]));
-            }
-            set {
-                this["OAPAReverseAltitudeSource"] = value;
             }
         }
 
@@ -716,30 +788,6 @@ namespace NINA.Plugins.PolarAlignment.Properties {
             }
             set {
                 this["OAPAYBacklashMode"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public float OAPAXCalibrationNoise {
-            get {
-                return ((float)(this["OAPAXCalibrationNoise"]));
-            }
-            set {
-                this["OAPAXCalibrationNoise"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public float OAPAYCalibrationNoise {
-            get {
-                return ((float)(this["OAPAYCalibrationNoise"]));
-            }
-            set {
-                this["OAPAYCalibrationNoise"] = value;
             }
         }
 

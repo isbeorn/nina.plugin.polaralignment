@@ -1,9 +1,10 @@
 using NINA.Core.Utility;
 using System;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace NINA.Plugins.PolarAlignment.OAPA {
-    public partial class UniversalPolarAlignmentOAPA : UniversalPolarAlignmentBase {
+    public partial class UniversalPolarAlignmentOAPA : UniversalPolarAlignmentBase, IOapaAlignmentController {
         protected override string SystemName => "OAPA System";
         protected override string NewLineSequence => "\n";
         // ESP32 (CH340) auto-resets when the host opens the port: needs ~1.5s to finish booting
@@ -35,7 +36,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         }
 
         // The firmware reports its version in the status frame (V: field) starting with 1.1.0.
-        protected override string MinimumFirmwareVersion => "1.1.0";
+        // The minimum is the one that runs the alignment, so the shared connection check names
+        // an older board when it connects, not when TPPA's first reading goes nowhere.
+        protected override string MinimumFirmwareVersion => AlignmentFirmwareVersion;
         protected override string FirmwareReferenceUrl => "https://github.com/michelebergo/oapa-firmware";
 
         private float xGearRatio = Properties.Settings.Default.OAPAXGearRatio;
@@ -73,12 +76,31 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         // ignored, leaving the drivers on their 600 mA / 50% firmware defaults.
         public UniversalPolarAlignmentOAPA() : base() {
             ApplyStoredDriverConfiguration();
+            ApplyControllerParameters();
         }
 
         // Talks to an already-open link: same post-connect behavior as the scanning constructor
         // (status probe in the base, then the driver-configuration push), no COM scan.
         protected UniversalPolarAlignmentOAPA(ISerialLink link) : base(link) {
             ApplyStoredDriverConfiguration();
+            ApplyControllerParameters();
+        }
+
+        /// <summary>
+        /// Connects over WiFi instead of scanning the COM ports: "host" or "host:port"
+        /// (default port 2323, firmware 1.3.0+). From here on the controller behaves exactly
+        /// as on USB.
+        /// </summary>
+        public static UniversalPolarAlignmentOAPA ConnectOverWifi(string address) {
+            var link = OapaTcpLink.Connect(address);
+            try {
+                var system = new UniversalPolarAlignmentOAPA(link);
+                Logger.Info($"Found OAPA System over WiFi at {link.Address}");
+                return system;
+            } catch {
+                link.Dispose();
+                throw;
+            }
         }
 
         // Driver settings are volatile on the controller (lost on power cycle), so the
@@ -107,6 +129,90 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 NegativeOrSame(settings.OAPAYBacklashCompensationNegative, settings.OAPAYBacklashCompensation),
                 settings.OAPAYMicrosteps));
         }
+
+        /// <summary>The firmware that runs the alignment itself answers the bridge commands.</summary>
+        public const string AlignmentFirmwareVersion = "1.3.0";
+
+        public bool RunsAlignment => FirmwareAtLeast(FirmwareVersion, AlignmentFirmwareVersion);
+
+        internal static bool FirmwareAtLeast(string reported, string minimum) =>
+            Version.TryParse(reported, out var version) && version >= Version.Parse(minimum);
+
+        public string ForwardError(double azimuthArcmin, double altitudeArcmin) =>
+            ExecuteWireCommand(string.Format(CultureInfo.InvariantCulture, "$E={0:F3},{1:F3}", azimuthArcmin, altitudeArcmin))?.Trim();
+
+        private double? sentTolerance;
+
+        /// <summary>
+        /// The running instruction's tolerance, sent when it differs from the last one sent, so
+        /// the controller and TPPA finish at the same error. A tolerance of 0 (none) leaves the
+        /// controller's own. A send that fails is retried with the next reading.
+        /// </summary>
+        public void SyncTolerance(double arcmin) {
+            if (arcmin <= 0 || sentTolerance == arcmin) {
+                return;
+            }
+            try {
+                var response = ExecuteWireCommand(string.Format(CultureInfo.InvariantCulture, "$T={0}", arcmin));
+                sentTolerance = arcmin;
+                Logger.Info($"OAPA controller: tolerance {arcmin}' sent (response: {response?.Trim()})");
+            } catch (Exception ex) {
+                Logger.Error($"OAPA controller: sending the tolerance failed: {ex.Message}");
+            }
+        }
+
+        public string StopAlignment() => ExecuteWireCommand("$A=0")?.Trim();
+
+        public string AlignmentStatus() => ExecuteWireCommand("$L?")?.Trim();
+
+        public string RequestCalibration() => ExecuteWireCommand("$C=1")?.Trim();
+
+        public string ControllerCalibrationStatus() => ExecuteWireCommand("$K?")?.Trim();
+
+        public string RequestCalibrationOnly() => ExecuteWireCommand("$C=2")?.Trim();
+
+        public string StopCalibration() => ExecuteWireCommand("$C=0")?.Trim();
+
+        /// <summary>
+        /// What the controller needs to run the alignment the way this plugin would: the steps
+        /// per arcminute, each axis' backlash and mode, TPPA's tolerance, so both stop at the
+        /// same error, and the largest single correction. Volatile on the controller like the driver settings, so pushed on
+        /// every connection. Skipped on firmware that does not run the alignment.
+        ///
+        /// The factors are sent only when they were measured or typed in: factory defaults
+        /// would only mislead the controller, which calibrates by itself when it has none.
+        /// </summary>
+        internal static string[] ControllerParameterCommands(Properties.Settings settings) {
+            var c = CultureInfo.InvariantCulture;
+            string Backlash(char axis, string mode, float positive, float negativeOrUnset) {
+                var letter = mode switch { "Off" => 'O', "Soft" => 'S', "Unidirectional" => 'U', _ => 'F' };
+                return string.Format(c, "$B={0},{1},{2},{3}", axis, letter, positive, NegativeOrSame(negativeOrUnset, positive));
+            }
+            var commands = new System.Collections.Generic.List<string>();
+            if (settings.OAPAXGearRatioSource != nameof(OapaParameterSource.Default)
+                && settings.OAPAYGearRatioSource != nameof(OapaParameterSource.Default)) {
+                commands.Add(string.Format(c, "$F={0},{1}", settings.OAPAXGearRatio, settings.OAPAYGearRatio));
+            }
+            commands.AddRange(new[] {
+                Backlash('X', settings.OAPAXBacklashMode, settings.OAPAXBacklashCompensation, settings.OAPAXBacklashCompensationNegative),
+                Backlash('Y', settings.OAPAYBacklashMode, settings.OAPAYBacklashCompensation, settings.OAPAYBacklashCompensationNegative),
+                string.Format(c, "$T={0}", settings.AlignmentTolerance),
+                string.Format(c, "$M={0}", ClampMoveCap(settings.OAPAMoveCap)),
+            });
+            return commands.ToArray();
+        }
+
+        internal void ApplyControllerParameters() {
+            if (!RunsAlignment) {
+                return;
+            }
+            foreach (var command in ControllerParameterCommands(Properties.Settings.Default)) {
+                SendDriverCommand(command, "push alignment parameters");
+            }
+        }
+
+        /// <summary>The move cap the controller accepts ($M=), in arcminutes.</summary>
+        internal static float ClampMoveCap(float arcmin) => Math.Clamp(arcmin, 1f, 120f);
 
         /// <summary>A stored value below zero means "never set": the axis is symmetric.</summary>
         private static float NegativeOrSame(float stored, float positive) {

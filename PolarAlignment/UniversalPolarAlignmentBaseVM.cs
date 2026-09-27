@@ -150,7 +150,7 @@ namespace NINA.Plugins.PolarAlignment {
 
         /// <summary>
         /// Automated fine-approach nudges default to the exact manual behaviour. A system
-        /// with its own backlash strategy (the OAPA modes) overrides
+        /// with its own backlash strategy can override
         /// <see cref="ExecuteRelativeMove"/>, which serves both paths.
         /// </summary>
         public virtual Task<bool> TryFineNudgeX(float position, CancellationToken token) => TryNudgeX(position, token);
@@ -186,8 +186,8 @@ namespace NINA.Plugins.PolarAlignment {
         /// <summary>
         /// Backlash compensation for the given axis. The base policy compensates azimuth
         /// only, which is what this plugin has always done: the Avalon UPAS altitude axis
-        /// carries no configured backlash. A system that measures its altitude play (OAPA)
-        /// overrides this to supply it.
+        /// carries no configured backlash. A system can override this to supply its own;
+        /// OAPA returns 0, since its controller compensates the play in its own moves.
         /// </summary>
         protected virtual float GetBacklashCompensation(Axis axis) {
             return axis == Axis.XAxis ? XBacklashCompensation : 0f;
@@ -205,8 +205,8 @@ namespace NINA.Plugins.PolarAlignment {
         /// Executes a relative move together with its backlash handling. The base behaviour
         /// is the one this plugin has always had: the axis is left under a positive
         /// mechanical preload, so a negative move is followed by an overtravel-and-return
-        /// pair and a positive move needs no compensation. OAPA overrides this with its
-        /// per-axis backlash-mode planning; every other system keeps what it had.
+        /// pair and a positive move needs no compensation. A system with its own backlash
+        /// strategy can override it.
         /// </summary>
         protected virtual async Task ExecuteRelativeMove(Axis axis, int speed, float position, CancellationToken token) {
             await upa.MoveRelative(axis, speed, position, token).ConfigureAwait(false);
@@ -239,7 +239,7 @@ namespace NINA.Plugins.PolarAlignment {
                 // Same treatment the azimuth axis has always had. For a system whose altitude
                 // carries no configured backlash - the Avalon UPAS, and any system that does
                 // not override GetBacklashCompensation - the planner returns no moves and this
-                // is a no-op; a system that measures its altitude play (OAPA) gets it cleared.
+                // is a no-op; a system that supplies an altitude play gets it cleared.
                 await ClearBacklash(Axis.YAxis, YSpeed, LastDirectionOf(Axis.YAxis), token);
             } catch (Exception ex) {
                 Logger.Error(ex);

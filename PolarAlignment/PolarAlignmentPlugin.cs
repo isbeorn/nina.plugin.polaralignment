@@ -64,7 +64,8 @@ namespace NINA.Plugins.PolarAlignment {
             IImagingMediator imagingMediator,
             ITelescopeMediator telescopeMediator,
             IPlateSolverFactory plateSolverFactory,
-            ICameraMediator cameraMediator) {
+            ICameraMediator cameraMediator,
+            IMessageBroker messageBroker) {
             if (Properties.Settings.Default.UpdateSettings) {
                 Properties.Settings.Default.Upgrade();
                 Properties.Settings.Default.UpdateSettings = false;
@@ -73,7 +74,7 @@ namespace NINA.Plugins.PolarAlignment {
             ResetSettingsCommand = new GalaSoft.MvvmLight.Command.RelayCommand(ResetSettings);
             UniversalPolarAlignmentVM = new UniversalPolarAlignmentVM(profileService);
             UniversalPolarAlignmentOAPAVM = new UniversalPolarAlignmentOAPAVM(
-                profileService, imagingMediator, telescopeMediator, plateSolverFactory, cameraMediator);
+                profileService, imagingMediator, telescopeMediator, plateSolverFactory, messageBroker);
             PluginId = this.Identifier;
         }
 

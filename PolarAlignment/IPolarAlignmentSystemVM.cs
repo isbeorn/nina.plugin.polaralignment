@@ -15,7 +15,7 @@ namespace NINA.Plugins.PolarAlignment {
         /// <summary>
         /// Relative nudge issued by the automated fine-approach loop. Systems without a
         /// specific policy behave exactly like <see cref="TryNudgeX"/>; a system that models
-        /// its own backlash (OAPA) plans the compensation into the move instead.
+        /// its own backlash can plan the compensation into the move instead.
         /// </summary>
         Task<bool> TryFineNudgeX(float position, CancellationToken token);
 

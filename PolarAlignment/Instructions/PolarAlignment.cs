@@ -596,7 +596,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                         correlatedGuid,
                                         altitudeError: TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.Degree,
                                         azimuthError: TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.Degree,
-                                        totalError: TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.Degree
+                                        totalError: TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.Degree,
+                                        alignmentTolerance: AlignmentTolerance
                                     )
                                 );
 
@@ -1091,7 +1092,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public object Content { get; } = status;
     }
     
-    public class PolarAlignmentErrorMessage(Guid correlatedGuid, double altitudeError, double azimuthError, double totalError) : IMessage {
+    public class PolarAlignmentErrorMessage(Guid correlatedGuid, double altitudeError, double azimuthError, double totalError, double alignmentTolerance) : IMessage {
 
         public Guid SenderId => Guid.Parse(PolarAlignmentPlugin.PluginId);
 
@@ -1114,7 +1115,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public object Content { get; } = new {
             AzimuthError = azimuthError,
             AltitudeError = altitudeError,
-            TotalError = totalError
+            TotalError = totalError,
+            AlignmentTolerance = alignmentTolerance
         };
     }
 }

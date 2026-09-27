@@ -9,18 +9,53 @@
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-        <s:String x:Key="OAPASpeedToolTip">Speed value passed to OAPA move commands for this axis.</s:String>
+        <s:String x:Key="OAPASpeedToolTip">Speed of this axis for the moves made from this panel. The controller's own alignment and calibration moves use the speed set on its page.</s:String>
         <s:String x:Key="OAPAGearRatioToolTip">Scale factor used when converting between OAPA motor units and the axis units shown by TPPA.</s:String>
         <s:String x:Key="OAPARunCurrentToolTip">Run-current value, in milliamps, sent to the OAPA controller for this axis.</s:String>
         <s:String x:Key="OAPAHoldPercentToolTip">Hold-current percentage sent to the OAPA controller for this axis.</s:String>
         <s:String x:Key="OAPAMicrostepsToolTip">Driver microstepping for this axis. Lower values move faster and give more torque at the cost of resolution, and polar alignment has resolution to spare - a platform at 1000 steps per arcminute is far past what a plate solve can measure. Steps per arcminute scale exactly with this setting, so the calibration factor is rescaled with it.</s:String>
-        <s:String x:Key="OAPAXBacklashToolTip">Azimuth-axis mechanical backlash in arcminutes, measured automatically by the Self-Calibration. Same value as "Azimuth backlash compensation" in the plugin options.</s:String>
-        <s:String x:Key="OAPABacklashModeToolTip">How this axis handles its own play. Full compensates the whole measured backlash on every reversal; Soft compensates it gradually; Unidirectional always approaches from the engaged side; Off leaves the play alone. Self-Calibration recommends the mode when its result is applied.</s:String>
-        <s:String x:Key="OAPABacklashNegativeToolTip">Backlash entering the negative direction, in arcminutes. Measured by the Self-Calibration; on an axis loaded by gravity the two directions rarely cost the same. Left equal to the positive value until a calibration establishes a difference.</s:String>
-        <s:String x:Key="OAPAYBacklashToolTip">Altitude-axis mechanical backlash in arcminutes, measured automatically by the Self-Calibration. Specific to OAPA platforms.</s:String>
+        <s:String x:Key="OAPAXBacklashToolTip">Azimuth-axis mechanical backlash in arcminutes, entering the positive direction. Sent to the controller, which compensates it in the moves of its own alignment.</s:String>
+        <s:String x:Key="OAPABacklashModeToolTip">How this axis handles its own play. Full compensates the whole measured backlash on every reversal; Soft compensates it gradually; Unidirectional always approaches from the engaged side; Off leaves the play alone. The controller applies it to the moves of its own alignment.</s:String>
+        <s:String x:Key="OAPABacklashNegativeToolTip">Backlash entering the negative direction, in arcminutes. On an axis loaded by gravity the two directions rarely cost the same. Left equal to the positive value unless set.</s:String>
+        <s:String x:Key="OAPAYBacklashToolTip">Altitude-axis mechanical backlash in arcminutes, entering the positive direction. Sent to the controller, which compensates it in the moves of its own alignment.</s:String>
+        <s:String x:Key="OAPAConnectionToolTip">How Connect reaches the OAPA controller: USB scans the COM ports, WiFi connects to the address below (firmware 1.3.0 or later).</s:String>
+        <s:String x:Key="OAPAWifiAddressToolTip">The controller's address on your network, e.g. 192.168.1.50, or host:port. The port defaults to 2323. Your router's device list shows it, and so does the controller's event log ("joined ... as ...").</s:String>
+        <s:String x:Key="OAPAControllerAlignsToolTip">The OAPA controller runs the alignment: every error TPPA measures is sent to it, and it decides every move - axis, size, backlash, settling, when to stop. TPPA never moves an OAPA axis itself: it measures, and still finishes by itself below its alignment tolerance. Off, TPPA only measures and nothing moves by itself. Needs controller firmware 1.3.0 or later.</s:String>
+        <s:String x:Key="OAPAMoveCapToolTip">The largest single correction the controller makes, 1 to 120 arcminutes. Larger closes a large error in fewer corrections; each is still at most 80% of the error TPPA measures. Sent to the controller on connection and whenever it changes; it applies from the next alignment the controller starts.</s:String>
+        <s:String x:Key="OAPACalibrateOnControllerToolTip">The controller measures the steps per arcminute and the backlash of both axes, and the values found are kept in these settings. While TPPA is measuring it uses TPPA's readings and aligns afterwards; otherwise this panel captures and plate-solves frames itself and nothing is aligned afterwards. Without calibrated or known factors the controller also calibrates by itself when TPPA starts.</s:String>
+        <s:String x:Key="OAPAFactorModeToolTip">Where this axis' factor comes from. Steps/arcmin: the calibration's value, or one typed in. Gear ratio: computed from the known reduction, the motor's steps per revolution and the driver's microsteps. A calibration switches the axis back to Steps/arcmin with the measured value.</s:String>
+        <s:String x:Key="OAPAMechanicalRatioToolTip">Motor turns per axis turn, e.g. 100 for a 100:1 worm. Only exact for gears; an axis driven by a screw does not turn at a constant ratio along its travel, so there the calibration is more precise.</s:String>
+        <s:String x:Key="OAPAMotorStepsToolTip">Full steps per motor revolution: 200 for a 1.8 degree motor, 400 for a 0.9 degree one.</s:String>
+        <s:String x:Key="OAPAJogUpToolTip">Altitude up by the step (the positive direction). If it goes the wrong way, use one of the two, not both: "Motor direction" on the controller&apos;s page turns the motor around for everyone (N.I.N.A., the page, the alignment); "Reverse altitude" in the options flips N.I.N.A.&apos;s moves only.</s:String>
+        <s:String x:Key="OAPAJogDownToolTip">Altitude down by the step.</s:String>
+        <s:String x:Key="OAPAJogLeftToolTip">Azimuth by the step in the negative direction. If it goes the wrong way, use one of the two, not both: "Motor direction" on the controller&apos;s page turns the motor around for everyone (N.I.N.A., the page, the alignment); "Reverse azimuth" in the options flips N.I.N.A.&apos;s moves only.</s:String>
+        <s:String x:Key="OAPAJogRightToolTip">Azimuth by the step in the positive direction.</s:String>
+        <s:String x:Key="OAPAStopToolTip">Immediately decelerate both axes to a stop, wherever they are - also while the controller is aligning or calibrating, which it then ends. A stop that does not reach the controller is reported.</s:String>
+        <s:String x:Key="OAPAJogStepToolTip">How far one press of an arrow moves the axis, in arcminutes.</s:String>
     </UserControl.Resources>
 
     <StackPanel>
+        <!-- Connection -->
+        <GroupBox Header="Connection">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAConnectionToolTip}">Link</TextBlock>
+                    <ComboBox VerticalAlignment="Center" Margin="5" MinWidth="70" ItemsSource="{Binding ConnectionModes}" SelectedItem="{Binding ConnectionMode}" ToolTip="{StaticResource OAPAConnectionToolTip}" />
+                    <TextBlock VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAWifiAddressToolTip}" Visibility="{Binding IsWifiConnection, Converter={StaticResource BooleanToVisibilityConverter}}">Address</TextBlock>
+                    <TextBox VerticalAlignment="Center" Margin="5" MinWidth="140" Text="{Binding WifiAddress, UpdateSourceTrigger=LostFocus}" ToolTip="{StaticResource OAPAWifiAddressToolTip}" Visibility="{Binding IsWifiConnection, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAControllerAlignsToolTip}">Controller aligns</TextBlock>
+                    <CheckBox Margin="5" VerticalAlignment="Center" IsChecked="{Binding ControllerAligns}" ToolTip="{StaticResource OAPAControllerAlignsToolTip}" />
+                    <TextBlock VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMoveCapToolTip}">Move cap (')</TextBlock>
+                    <TextBox VerticalAlignment="Center" Margin="5" MinWidth="45" Text="{Binding MoveCap, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAMoveCapToolTip}" />
+                    <Button Margin="5" Padding="8,2" Command="{Binding CalibrateOnControllerCommand}" ToolTip="{StaticResource OAPACalibrateOnControllerToolTip}" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">Calibrate</Button>
+                </StackPanel>
+                <TextBlock Margin="5,0,5,5" TextWrapping="Wrap" Text="{Binding ControllerAlignsMeaning}" ToolTip="{StaticResource OAPAControllerAlignsToolTip}" />
+                <TextBlock Margin="5,0,5,5" TextWrapping="Wrap" Text="{Binding ControllerStatus}" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </StackPanel>
+        </GroupBox>
+
         <!-- Motor Settings -->
         <Grid>
             <Grid.ColumnDefinitions>
@@ -32,6 +67,8 @@
             <GroupBox Header="Azimuth Motor Settings">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -73,7 +110,7 @@
                     <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAGearRatioToolTip}">Calibration Factor</TextBlock>
                     <DockPanel Grid.Row="0" Grid.Column="3">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="2,0,5,0" Opacity="0.6" FontSize="10" Text="{Binding XGearRatioSourceLabel}" />
-                        <TextBox VerticalAlignment="Center" Margin="5" Text="{Binding XGearRatio}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAGearRatioToolTip}" />
+                        <TextBox VerticalAlignment="Center" Margin="5" Text="{Binding XGearRatio}" IsEnabled="{Binding XFactorEditable}" ToolTip="{StaticResource OAPAGearRatioToolTip}" />
                     </DockPanel>
 
                     <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPARunCurrentToolTip}">Run (mA)</TextBlock>
@@ -93,6 +130,13 @@
                     <TextBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Margin="5" Text="{Binding XBacklashCompensationNegative}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPABacklashNegativeToolTip}" />
                     <TextBlock Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMicrostepsToolTip}">Microsteps</TextBlock>
                     <ComboBox Grid.Row="3" Grid.Column="3" VerticalAlignment="Center" Margin="5" ItemsSource="{Binding MicrostepOptions}" SelectedValue="{Binding XMicrosteps}" ToolTip="{StaticResource OAPAMicrostepsToolTip}" />
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAFactorModeToolTip}">Factor from</TextBlock>
+                    <ComboBox Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" Margin="5" ItemsSource="{Binding FactorModes}" SelectedItem="{Binding XFactorMode}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAFactorModeToolTip}" />
+                    <TextBlock Grid.Row="4" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMechanicalRatioToolTip}" Visibility="{Binding XIsGearMode, Converter={StaticResource BooleanToVisibilityConverter}}">Gear ratio (N:1)</TextBlock>
+                    <TextBox Grid.Row="4" Grid.Column="3" VerticalAlignment="Center" Margin="5" Text="{Binding XMechanicalRatio}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAMechanicalRatioToolTip}" Visibility="{Binding XIsGearMode, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMotorStepsToolTip}" Visibility="{Binding XIsGearMode, Converter={StaticResource BooleanToVisibilityConverter}}">Motor steps/rev</TextBlock>
+                    <TextBox Grid.Row="5" Grid.Column="1" VerticalAlignment="Center" Margin="5" Text="{Binding XMotorStepsPerRev}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAMotorStepsToolTip}" Visibility="{Binding XIsGearMode, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </Grid>
             </GroupBox>
 
@@ -100,6 +144,8 @@
             <GroupBox Grid.Column="1" Header="Altitude Motor Settings">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -141,7 +187,7 @@
                     <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAGearRatioToolTip}">Calibration Factor</TextBlock>
                     <DockPanel Grid.Row="0" Grid.Column="3">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="2,0,5,0" Opacity="0.6" FontSize="10" Text="{Binding YGearRatioSourceLabel}" />
-                        <TextBox VerticalAlignment="Center" Margin="5" Text="{Binding YGearRatio}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAGearRatioToolTip}" />
+                        <TextBox VerticalAlignment="Center" Margin="5" Text="{Binding YGearRatio}" IsEnabled="{Binding YFactorEditable}" ToolTip="{StaticResource OAPAGearRatioToolTip}" />
                     </DockPanel>
 
                     <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPARunCurrentToolTip}">Run (mA)</TextBlock>
@@ -161,6 +207,13 @@
                     <TextBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Margin="5" Text="{Binding YBacklashCompensationNegative}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPABacklashNegativeToolTip}" />
                     <TextBlock Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMicrostepsToolTip}">Microsteps</TextBlock>
                     <ComboBox Grid.Row="3" Grid.Column="3" VerticalAlignment="Center" Margin="5" ItemsSource="{Binding MicrostepOptions}" SelectedValue="{Binding YMicrosteps}" ToolTip="{StaticResource OAPAMicrostepsToolTip}" />
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAFactorModeToolTip}">Factor from</TextBlock>
+                    <ComboBox Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" Margin="5" ItemsSource="{Binding FactorModes}" SelectedItem="{Binding YFactorMode}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAFactorModeToolTip}" />
+                    <TextBlock Grid.Row="4" Grid.Column="2" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMechanicalRatioToolTip}" Visibility="{Binding YIsGearMode, Converter={StaticResource BooleanToVisibilityConverter}}">Gear ratio (N:1)</TextBlock>
+                    <TextBox Grid.Row="4" Grid.Column="3" VerticalAlignment="Center" Margin="5" Text="{Binding YMechanicalRatio}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAMechanicalRatioToolTip}" Visibility="{Binding YIsGearMode, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAMotorStepsToolTip}" Visibility="{Binding YIsGearMode, Converter={StaticResource BooleanToVisibilityConverter}}">Motor steps/rev</TextBlock>
+                    <TextBox Grid.Row="5" Grid.Column="1" VerticalAlignment="Center" Margin="5" Text="{Binding YMotorStepsPerRev}" IsEnabled="{Binding IsNotMoving}" ToolTip="{StaticResource OAPAMotorStepsToolTip}" Visibility="{Binding YIsGearMode, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </Grid>
             </GroupBox>
         </Grid>
@@ -184,99 +237,70 @@
                 <ColumnDefinition />
                 <ColumnDefinition />
             </Grid.ColumnDefinitions>
-            <Grid.Resources>
-                <s:Single x:Key="NegativeDotOne">-0.1</s:Single>
-                <s:Single x:Key="DotOne">0.1</s:Single>
-                <s:Single x:Key="NegativeOne">-1</s:Single>
-                <s:Single x:Key="One">1</s:Single>
-                <s:Single x:Key="NegativeTen">-10</s:Single>
-                <s:Single x:Key="Ten">10</s:Single>
-            </Grid.Resources>
 
-            <!-- Azimuth Control -->
-            <GroupBox Header="Azimuth">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24" Text="{Binding PositionX, StringFormat=N2}" />
-
-                    <Grid Grid.Row="1">
+            <!-- Arrows: up/down move the altitude, left/right the azimuth, STOP halts a move -->
+            <GroupBox Header="Manual move">
+                <StackPanel HorizontalAlignment="Center">
+                    <Grid HorizontalAlignment="Center" Margin="0,5,0,5">
                         <Grid.RowDefinitions>
-                            <RowDefinition />
-                            <RowDefinition />
-                            <RowDefinition />
-                            <RowDefinition />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition />
-                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-
-                        <Button Height="25" Margin="0,0,2.5,0" Command="{Binding NudgeXCommand}" CommandParameter="{StaticResource NegativeDotOne}">-0.1</Button>
-                        <Button Grid.Column="1" Height="25" Margin="2.5,0,0,0" Command="{Binding NudgeXCommand}" CommandParameter="{StaticResource DotOne}">+0.1</Button>
-
-                        <Button Grid.Row="1" Height="25" Margin="0,5,2.5,0" Command="{Binding NudgeXCommand}" CommandParameter="{StaticResource NegativeOne}">-1</Button>
-                        <Button Grid.Row="1" Grid.Column="1" Height="25" Margin="2.5,5,0,0" Command="{Binding NudgeXCommand}" CommandParameter="{StaticResource One}">+1</Button>
-
-                        <Button Grid.Row="2" Height="25" Margin="0,5,2.5,0" Command="{Binding NudgeXCommand}" CommandParameter="{StaticResource NegativeTen}">-10</Button>
-                        <Button Grid.Row="2" Grid.Column="1" Height="25" Margin="2.5,5,0,0" Command="{Binding NudgeXCommand}" CommandParameter="{StaticResource Ten}">+10</Button>
-
-                        <TextBox Grid.Row="3" Margin="0,5,2.5,0" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding TargetPositionX}" />
-                        <Button Grid.Row="3" Grid.Column="1" Height="25" Margin="2.5,5,0,0" Command="{Binding MoveXCommand}">Move</Button>
+                        <Button Grid.Row="0" Grid.Column="1" Width="60" Height="45" Margin="3" Command="{Binding JogCommand}" CommandParameter="up" ToolTip="{StaticResource OAPAJogUpToolTip}">
+                            <StackPanel><TextBlock HorizontalAlignment="Center" FontSize="18" Text="&#x25B2;" /><TextBlock HorizontalAlignment="Center" FontSize="10" Text="ALT +" /></StackPanel>
+                        </Button>
+                        <Button Grid.Row="1" Grid.Column="0" Width="60" Height="45" Margin="3" Command="{Binding JogCommand}" CommandParameter="left" ToolTip="{StaticResource OAPAJogLeftToolTip}">
+                            <StackPanel><TextBlock HorizontalAlignment="Center" FontSize="18" Text="&#x25C0;" /><TextBlock HorizontalAlignment="Center" FontSize="10" Text="AZ -" /></StackPanel>
+                        </Button>
+                        <Button Grid.Row="1" Grid.Column="1" Width="60" Height="45" Margin="3" Command="{Binding StopMotionCommand}" ToolTip="{StaticResource OAPAStopToolTip}">
+                            <StackPanel><TextBlock HorizontalAlignment="Center" FontSize="18" Text="&#x25A0;" /><TextBlock HorizontalAlignment="Center" FontSize="10" Text="STOP" /></StackPanel>
+                        </Button>
+                        <Button Grid.Row="1" Grid.Column="2" Width="60" Height="45" Margin="3" Command="{Binding JogCommand}" CommandParameter="right" ToolTip="{StaticResource OAPAJogRightToolTip}">
+                            <StackPanel><TextBlock HorizontalAlignment="Center" FontSize="18" Text="&#x25B6;" /><TextBlock HorizontalAlignment="Center" FontSize="10" Text="AZ +" /></StackPanel>
+                        </Button>
+                        <Button Grid.Row="2" Grid.Column="1" Width="60" Height="45" Margin="3" Command="{Binding JogCommand}" CommandParameter="down" ToolTip="{StaticResource OAPAJogDownToolTip}">
+                            <StackPanel><TextBlock HorizontalAlignment="Center" FontSize="18" Text="&#x25BC;" /><TextBlock HorizontalAlignment="Center" FontSize="10" Text="ALT -" /></StackPanel>
+                        </Button>
                     </Grid>
-                </Grid>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,5">
+                        <TextBlock VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAJogStepToolTip}">Step (')</TextBlock>
+                        <ComboBox VerticalAlignment="Center" Margin="5" MinWidth="60" ItemsSource="{Binding JogSteps}" SelectedItem="{Binding JogStep}" ToolTip="{StaticResource OAPAJogStepToolTip}" />
+                    </StackPanel>
+                </StackPanel>
             </GroupBox>
 
-            <!-- Altitude Control -->
-            <GroupBox Grid.Column="1" Header="Altitude">
-                <Grid>
+            <!-- Where the axes are, and a move to an exact position -->
+            <GroupBox Grid.Column="1" Header="Position">
+                <Grid Margin="0,5,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
 
-                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24" Text="{Binding PositionY, StringFormat=N2}" />
+                    <TextBlock Grid.Row="0" Grid.Column="0" HorizontalAlignment="Center" FontSize="11" Opacity="0.7" Text="AZ (X)" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Center" FontSize="11" Opacity="0.7" Text="ALT (Y)" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" FontSize="24" Text="{Binding PositionX, StringFormat=N2}" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Center" FontSize="24" Text="{Binding PositionY, StringFormat=N2}" />
 
-                    <Grid Grid.Row="1">
-                        <Grid.RowDefinitions>
-                            <RowDefinition />
-                            <RowDefinition />
-                            <RowDefinition />
-                            <RowDefinition />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition />
-                            <ColumnDefinition />
-                        </Grid.ColumnDefinitions>
-
-                        <Button Height="25" Margin="0,0,2.5,0" Command="{Binding NudgeYCommand}" CommandParameter="{StaticResource NegativeDotOne}">-0.1</Button>
-                        <Button Grid.Column="1" Height="25" Margin="2.5,0,0,0" Command="{Binding NudgeYCommand}" CommandParameter="{StaticResource DotOne}">+0.1</Button>
-
-                        <Button Grid.Row="1" Height="25" Margin="0,5,2.5,0" Command="{Binding NudgeYCommand}" CommandParameter="{StaticResource NegativeOne}">-1</Button>
-                        <Button Grid.Row="1" Grid.Column="1" Height="25" Margin="2.5,5,0,0" Command="{Binding NudgeYCommand}" CommandParameter="{StaticResource One}">+1</Button>
-
-                        <Button Grid.Row="2" Height="25" Margin="0,5,2.5,0" Command="{Binding NudgeYCommand}" CommandParameter="{StaticResource NegativeTen}">-10</Button>
-                        <Button Grid.Row="2" Grid.Column="1" Height="25" Margin="2.5,5,0,0" Command="{Binding NudgeYCommand}" CommandParameter="{StaticResource Ten}">+10</Button>
-
-                        <TextBox Grid.Row="3" Margin="0,5,2.5,0" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding TargetPositionY}" />
-                        <Button Grid.Row="3" Grid.Column="1" Height="25" Margin="2.5,5,0,0" Command="{Binding MoveYCommand}">Move</Button>
-                    </Grid>
+                    <TextBox Grid.Row="2" Grid.Column="0" Margin="5,5,5,0" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding TargetPositionX}" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Margin="5,5,5,0" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding TargetPositionY}" />
+                    <Button Grid.Row="3" Grid.Column="0" Height="25" Margin="5" Command="{Binding MoveXCommand}">Move AZ</Button>
+                    <Button Grid.Row="3" Grid.Column="1" Height="25" Margin="5" Command="{Binding MoveYCommand}">Move ALT</Button>
                 </Grid>
             </GroupBox>
         </Grid>
-
-        <!-- Halts both axes wherever they are. Deliberately outside every other gate: it has
-             to be usable while automated adjustments, a calibration, or a wrong manual target
-             are driving the motors. Visible whenever connected. -->
-        <Button Height="30" Margin="0,5,0,0" FontWeight="Bold"
-                Command="{Binding StopMotionCommand}"
-                Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}"
-                ToolTip="Immediately decelerate both axes to a stop (requires firmware 1.2.1 or newer)">
-            ■ STOP
-        </Button>
 
         <!-- Home Position - Only Visible When Connected -->
         <GroupBox Header="Home Position"
@@ -302,91 +326,5 @@
             </Grid>
         </GroupBox>
 
-        <!-- Self-Calibration Panel - Only Visible When Connected -->
-        <GroupBox Header="Self-Calibration"
-                  Margin="0,5,0,0"
-                  Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <StackPanel>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0" Height="25" Margin="5" Padding="10,0" Command="{Binding CalibrateGearRatiosCommand}">Calibrate</Button>
-                    <TextBlock Grid.Column="1" Margin="5" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding CalibrationStatus}" />
-                </Grid>
-
-                <!-- Why the button above is disabled. A grey control with no explanation left a
-                     user with no way forward: the halt message said to re-calibrate, and the
-                     button was dead because the halted alignment still held the camera.
-                     Collapses to nothing when there is nothing in the way. -->
-                <TextBlock Margin="5,0,5,5" TextWrapping="Wrap" Opacity="0.75" Text="{Binding CalibrateUnavailableReason}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding CalibrateUnavailableReason}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
-                <Grid Margin="5,5,5,0" Visibility="{Binding HasCalibrationResult, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Margin="0,0,0,10"
-                               FontWeight="Bold" FontSize="14"
-                               Text="&#x2705; Calibration complete &#x2014; review the discovered values below and click Apply or Discard." />
-
-                    <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,10,5" Text="Discovered X factor:" />
-                    <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,20,5" Text="{Binding DiscoveredXRatio, StringFormat=F2}" FontWeight="Bold" />
-                    <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,0,10,5" Text="Current X factor:" />
-                    <TextBlock Grid.Row="1" Grid.Column="3" Margin="0,0,0,5" Text="{Binding XGearRatio, StringFormat=F2}" />
-
-                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,10,5" Text="Discovered Y factor:" />
-                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,20,5" Text="{Binding DiscoveredYRatio, StringFormat=F2}" FontWeight="Bold" />
-                    <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,0,10,5" Text="Current Y factor:" />
-                    <TextBlock Grid.Row="2" Grid.Column="3" Margin="0,0,0,5" Text="{Binding YGearRatio, StringFormat=F2}" />
-
-                    <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,10,5" Text="Discovered X backlash + / - (arcmin):" />
-                    <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,0,20,5">
-                        <TextBlock Text="{Binding DiscoveredXBacklash, StringFormat=F2}" FontWeight="Bold" />
-                        <TextBlock Text=" / " Opacity="0.6" />
-                        <TextBlock Text="{Binding DiscoveredXBacklashNegative, StringFormat=F2}" FontWeight="Bold" />
-                    </StackPanel>
-                    <TextBlock Grid.Row="3" Grid.Column="2" Margin="0,0,10,5" Text="Discovered Y backlash + / - (arcmin):" />
-                    <StackPanel Grid.Row="3" Grid.Column="3" Orientation="Horizontal" Margin="0,0,0,5">
-                        <TextBlock Text="{Binding DiscoveredYBacklash, StringFormat=F2}" FontWeight="Bold" />
-                        <TextBlock Text=" / " Opacity="0.6" />
-                        <TextBlock Text="{Binding DiscoveredYBacklashNegative, StringFormat=F2}" FontWeight="Bold" />
-                    </StackPanel>
-
-                    <TextBlock Grid.Row="4" Grid.ColumnSpan="4" Margin="0,5,0,5" TextWrapping="Wrap" Text="{Binding CalibrationConsistencyMessage}" FontStyle="Italic" />
-
-                    <Grid Grid.Row="5" Grid.ColumnSpan="4" Margin="0,5,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition />
-                            <ColumnDefinition />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Height="25" Margin="0,0,2.5,0" Command="{Binding ApplyCalibrationCommand}" Content="{Binding ApplyButtonText}" />
-                        <Button Grid.Column="1" Height="25" Margin="2.5,0,0,0" Command="{Binding DiscardCalibrationCommand}">Discard</Button>
-                    </Grid>
-                </Grid>
-            </StackPanel>
-        </GroupBox>
     </StackPanel>
 </UserControl>

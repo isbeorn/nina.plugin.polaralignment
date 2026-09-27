@@ -110,16 +110,19 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task TryNudgeY_OnReversal_FoldsTheAltitudeCompensationIntoTheMove() {
+        public async Task OapaManualReversals_ArePlainMoves_TheControllerOwnsTheBacklash() {
+            // The controller compensates backlash in the moves of its own alignment, where it
+            // knows which side the axis rests on; a hand nudge moves exactly what it says.
             var (vm, system) = OapaVm(xCompensation: 3f, yCompensation: 5f);
 
-            (await vm.TryNudgeY(15, CancellationToken.None)).Should().BeTrue();
+            await vm.TryNudgeX(15, CancellationToken.None);
+            await vm.TryNudgeY(15, CancellationToken.None);
             system.RelativeMoves.Clear();
 
-            (await vm.TryNudgeY(-15, CancellationToken.None)).Should().BeTrue();
+            await vm.TryNudgeX(-15, CancellationToken.None);
+            await vm.TryNudgeY(-15, CancellationToken.None);
 
-            // Full mode: a single move of d+B, no out-and-back excursion.
-            system.RelativeMoves.Should().Equal((Axis.YAxis, -20f));
+            system.RelativeMoves.Should().Equal((Axis.XAxis, -15f), (Axis.YAxis, -15f));
         }
 
         [Test]
@@ -132,23 +135,6 @@ namespace NINA.Plugins.PolarAlignment.Test {
             await vm.TryNudgeY(15, CancellationToken.None);
 
             system.RelativeMoves.Should().Equal((Axis.YAxis, 15f));
-        }
-
-        [Test]
-        public async Task MoveY_Absolute_RestoresThePositivePreload_WithTheOvertravelPair() {
-            // The backlash modes govern relative nudges; absolute moves keep the shared
-            // upstream contract on every system: after a negative movement the axis is
-            // brought back under positive preload with an overtravel-and-return pair.
-            var (vm, system) = OapaVm(xCompensation: 3f, yCompensation: 5f);
-
-            await vm.TryNudgeY(15, CancellationToken.None);
-            system.RelativeMoves.Clear();
-
-            vm.TargetPositionY = -100;
-            await vm.MoveY(CancellationToken.None);
-
-            system.AbsoluteMoves.Should().Equal((Axis.YAxis, -100f));
-            system.RelativeMoves.Should().Equal((Axis.YAxis, -5f), (Axis.YAxis, 5f));
         }
 
         [Test]
@@ -173,18 +159,6 @@ namespace NINA.Plugins.PolarAlignment.Test {
             await vm.TryNudgeX(15, CancellationToken.None);
             system.PhysicalX.Should().BeApproximately(15.0, 0.01,
                 "from the restored positive preload the positive move pays no play again");
-        }
-
-        [Test]
-        public async Task TryNudgeX_OnReversal_FoldsTheAzimuthCompensationIntoTheMove() {
-            var (vm, system) = OapaVm(xCompensation: 3f, yCompensation: 5f);
-
-            await vm.TryNudgeX(15, CancellationToken.None);
-            system.RelativeMoves.Clear();
-
-            await vm.TryNudgeX(-15, CancellationToken.None);
-
-            system.RelativeMoves.Should().Equal((Axis.XAxis, -18f));
         }
 
         [Test]
