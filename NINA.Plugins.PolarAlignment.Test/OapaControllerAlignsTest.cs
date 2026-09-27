@@ -42,6 +42,22 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             public string ForwardError(double azimuthArcmin, double altitudeArcmin) {
                 Forwarded.Add((azimuthArcmin, altitudeArcmin));
+                Events.Add(FormattableString.Invariant($"E:{azimuthArcmin},{altitudeArcmin}"));
+                return "ok";
+            }
+
+            /// <summary>What reached the controller, in order: "T:tolerance" and "E:az,alt".</summary>
+            public readonly List<string> Events = new();
+            public readonly List<double> Tolerances = new();
+            public int AlignmentStops;
+
+            public void SyncTolerance(double arcmin) {
+                Tolerances.Add(arcmin);
+                Events.Add(FormattableString.Invariant($"T:{arcmin}"));
+            }
+
+            public string StopAlignment() {
+                AlignmentStops++;
                 return "ok";
             }
 
@@ -108,11 +124,13 @@ namespace NINA.Plugins.PolarAlignment.Test {
         private float savedXMech, savedYMech;
         private int savedXMotor, savedYMotor, savedXMicro;
         private string savedXMode, savedYMode, savedXPlaySource, savedYPlaySource;
+        private double savedTolerance;
 
         [SetUp]
         public void SaveSettings() {
             savedControllerAligns = Properties.Settings.Default.OAPAControllerAligns;
             savedAutomated = Properties.Settings.Default.DoAutomatedAdjustments;
+            savedTolerance = Properties.Settings.Default.AlignmentTolerance;
             savedX = Properties.Settings.Default.OAPAXGearRatio;
             savedY = Properties.Settings.Default.OAPAYGearRatio;
             savedXSource = Properties.Settings.Default.OAPAXGearRatioSource;
@@ -128,6 +146,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         public void RestoreSettings() {
             Properties.Settings.Default.OAPAControllerAligns = savedControllerAligns;
             Properties.Settings.Default.DoAutomatedAdjustments = savedAutomated;
+            Properties.Settings.Default.AlignmentTolerance = savedTolerance;
             Properties.Settings.Default.OAPAXGearRatio = savedX;
             Properties.Settings.Default.OAPAYGearRatio = savedY;
             Properties.Settings.Default.OAPAXGearRatioSource = savedXSource;
@@ -184,16 +203,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         [Test]
         public void TheForwarderListensOnTheTopicTheAlignmentPublishes() {
-            var published = new PolarAlignmentErrorMessage(Guid.NewGuid(), 0, 0, 0);
+            var published = new PolarAlignmentErrorMessage(Guid.NewGuid(), 0, 0, 0, 1);
             OapaErrorForwarder.ErrorTopic.Should().Be(published.Topic);
         }
 
         [Test]
         public async Task TheForwarderHandsOnTheReadingInArcminutes_AzimuthFirst() {
             (double az, double alt)? received = null;
-            var forwarder = new OapaErrorForwarder(null, (az, alt) => received = (az, alt));
+            var forwarder = new OapaErrorForwarder(null, (az, alt, _) => received = (az, alt));
 
-            await forwarder.OnMessageReceived(new PolarAlignmentErrorMessage(Guid.NewGuid(), altitudeError: -0.1, azimuthError: 0.25, totalError: 0.27));
+            await forwarder.OnMessageReceived(new PolarAlignmentErrorMessage(Guid.NewGuid(), altitudeError: -0.1, azimuthError: 0.25, totalError: 0.27, alignmentTolerance: 1));
 
             received.Should().NotBeNull();
             received.Value.az.Should().BeApproximately(15.0, 1e-9);
@@ -203,11 +222,70 @@ namespace NINA.Plugins.PolarAlignment.Test {
         [Test]
         public async Task TheForwarderIgnoresOtherTopics() {
             var calls = 0;
-            var forwarder = new OapaErrorForwarder(null, (_, _) => calls++);
+            var forwarder = new OapaErrorForwarder(null, (_, _, _) => calls++);
 
             await forwarder.OnMessageReceived(new PolarAlignmentProgressMessage(Guid.NewGuid(), new NINA.Core.Model.ApplicationStatus()));
 
             calls.Should().Be(0);
+        }
+
+        [Test]
+        public async Task TheForwarderHandsOnTheInstructionsTolerance_OrNothingWhenTheMessageHasNone() {
+            double? tolerance = -1;
+            var forwarder = new OapaErrorForwarder(null, (_, _, t) => tolerance = t);
+
+            await forwarder.OnMessageReceived(new PolarAlignmentErrorMessage(Guid.NewGuid(), -0.1, 0.25, 0.27, alignmentTolerance: 0.5));
+            tolerance.Should().Be(0.5);
+
+            await forwarder.OnMessageReceived(new BareErrorMessage());
+            tolerance.Should().BeNull("a publisher without the field leaves the choice to the receiver");
+        }
+
+        /// <summary>An error message on the same topic that carries no tolerance.</summary>
+        private sealed class BareErrorMessage : NINA.Plugin.Interfaces.IMessage {
+            public Guid SenderId => Guid.Empty;
+            public string Sender => "test";
+            public DateTimeOffset SentAt => DateTimeOffset.UtcNow;
+            public Guid MessageId => Guid.NewGuid();
+            public DateTimeOffset? Expiration => null;
+            public Guid? CorrelationId => null;
+            public int Version => 1;
+            public IDictionary<string, object> CustomHeaders => new Dictionary<string, object>();
+            public string Topic => OapaErrorForwarder.ErrorTopic;
+            public object Content => new { AzimuthError = 0.25, AltitudeError = -0.1 };
+        }
+
+        [Test]
+        public void TheRunningInstructionsTolerance_ReachesTheControllerAheadOfTheReading() {
+            // Every TPPA instruction carries its own tolerance: the controller has to finish at
+            // the one the running instruction finishes at, not at the global default.
+            Properties.Settings.Default.AlignmentTolerance = 1.0;
+            var controller = new FakeController();
+            var vm = new OapaTestVm { Hardware = controller };
+            vm.ControllerAligns = true;
+
+            vm.OnAlignmentError(30, -20, 0.5);
+            vm.OnAlignmentError(28, -19);  // no tolerance in the message: the global default
+
+            controller.Events.Should().Equal("T:0.5", "E:30,-20", "T:1", "E:28,-19");
+        }
+
+        [Test]
+        public void TurningControllerAlignsOff_StopsTheControllersRun() {
+            // The controller owns the moves: only stopping the readings would leave it finishing
+            // the correction it is in - the other axis, the backlash legs.
+            var controller = new FakeController();
+            var vm = new OapaTestVm { Hardware = controller };
+            vm.ControllerAligns = true;
+            controller.AlignmentStops.Should().Be(0, "turning it on starts nothing by itself");
+
+            vm.ControllerAligns = false;
+            controller.AlignmentStops.Should().Be(1);
+
+            vm.ControllerAligns = true;
+            controller.RunsAlignment = false;
+            vm.ControllerAligns = false;
+            controller.AlignmentStops.Should().Be(1, "firmware before 1.3.0 runs no alignment to stop");
         }
 
         [Test]
@@ -436,6 +514,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var line = await OapaCalibrationFeed.Run(solver, controller, null, CancellationToken.None);
 
             controller.CalibrationOnlyRequests.Should().Be(1, "these readings are field displacements, not a polar error");
+            controller.Tolerances.Should().BeEmpty("a calibration has no alignment tolerance to give");
             line.Should().Contain("state:done").And.Contain("15.02");
             controller.Forwarded.Should().HaveCount(4, "the old result before the run does not end it; its own end does");
             controller.Forwarded[2].az.Should().BeApproximately(30.0, 1e-6);

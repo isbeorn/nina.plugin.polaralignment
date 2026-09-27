@@ -159,30 +159,55 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void TheTolerance_IsSentWhenItChanges_AndOnlyThen_AndAReadingIsOnlyAReading() {
+            using var controller = new FakeController();
+            using var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address);
+            while (controller.Received.TryDequeue(out _)) { }
+
+            system.SyncTolerance(1.0);
+            system.SyncTolerance(1.0);
+            system.SyncTolerance(0.5);
+            system.SyncTolerance(0);  // an instruction without a tolerance: the controller keeps its own
+            system.ForwardError(26, -18);
+
+            controller.Received.Should().Equal("$T=1", "$T=0.5", "$E=26.000,-18.000");
+        }
+
+        [Test]
         [NonParallelizable]
-        public void AToleranceChangedInTppaWhileConnected_GoesAheadOfTheNextReading() {
+        public void TurningControllerAlignsOff_SendsTheStopToTheController() {
             var d = Properties.Settings.Default;
-            var saved = d.AlignmentTolerance;
+            var saved = d.OAPAControllerAligns;
             try {
-                d.AlignmentTolerance = 1.0;
+                d.OAPAControllerAligns = true;
                 using var controller = new FakeController();
                 using var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address);
-                system.ForwardError(30, -20);
+                var vm = new OapaTestVm { Hardware = system };
                 while (controller.Received.TryDequeue(out _)) { }
 
-                system.ForwardError(28, -19);
-                controller.Received.Should().Equal(new[] { "$E=28.000,-19.000" }, "an unchanged tolerance is not sent again");
+                vm.ControllerAligns = false;
 
-                d.AlignmentTolerance = 0.5;
-                system.ForwardError(26, -18);
-                controller.Received.Should().Equal("$E=28.000,-19.000", "$T=0.5", "$E=26.000,-18.000");
+                controller.Received.Should().Equal("$A=0");
             } finally {
-                d.AlignmentTolerance = saved;
+                d.OAPAControllerAligns = saved;
             }
+        }
+
+        [Test]
+        public void FirmwareOlderThan130_IsFlaggedWhenConnecting() {
+            // The shared connection check warns below the minimum; 1.3.0 is where the
+            // controller runs the alignment, so a 1.2.x board is named at connection instead
+            // of when TPPA's first reading goes nowhere.
+            using var controller = new FakeController();
+            using var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address);
+
+            system.GetType().GetProperty("MinimumFirmwareVersion", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .GetValue(system).Should().Be(UniversalPolarAlignmentOAPA.AlignmentFirmwareVersion);
         }
 
         [TestCase("microsteps", "$F=30,15")]
         [TestCase("factor", "$F=20,15")]
+        [TestCase("factorY", "$F=15,20")]
         [TestCase("gear", "$F=14.814815,15")]
         [TestCase("play", "$B=X,F,4,4")]
         [TestCase("mode", "$B=X,S,2,2")]
@@ -210,6 +235,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 switch (change) {
                     case "microsteps": vm.XMicrosteps = 32; break;
                     case "factor": vm.XGearRatio = 20f; break;
+                    case "factorY": vm.YGearRatio = 20f; break;
                     case "gear": vm.XFactorMode = UniversalPolarAlignmentOAPAVM.FactorModeGear; break;   // 200 x 16 x 100 / 21600
                     case "play": vm.XBacklashCompensation = 4f; break;
                     case "mode": vm.XBacklashMode = OapaBacklashMode.Soft; break;

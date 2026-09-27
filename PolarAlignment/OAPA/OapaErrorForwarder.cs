@@ -19,11 +19,12 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// </summary>
         public const string ErrorTopic = "PolarAlignmentPlugin_PolarAlignment_AlignmentError";
 
-        private readonly Action<double, double> onError;
+        private readonly Action<double, double, double?> onError;
 
         /// <param name="messageBroker">May be null: tests and hosts without the plugin broker.</param>
-        /// <param name="onError">Receives azimuth and altitude error in arcminutes.</param>
-        public OapaErrorForwarder(IMessageBroker messageBroker, Action<double, double> onError) {
+        /// <param name="onError">Receives azimuth and altitude error in arcminutes, and the running
+        /// instruction's tolerance in arcminutes when the message carries it.</param>
+        public OapaErrorForwarder(IMessageBroker messageBroker, Action<double, double, double?> onError) {
             this.onError = onError ?? throw new ArgumentNullException(nameof(onError));
             messageBroker?.Subscribe(ErrorTopic, this);
         }
@@ -39,7 +40,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Logger.Warning($"OAPA: alignment error message without the expected fields ({type.Name})");
                 return Task.CompletedTask;
             }
-            onError(azimuthDegrees * 60.0, altitudeDegrees * 60.0);
+            var tolerance = type.GetProperty("AlignmentTolerance")?.GetValue(message.Content) as double?;
+            onError(azimuthDegrees * 60.0, altitudeDegrees * 60.0, tolerance);
             return Task.CompletedTask;
         }
     }

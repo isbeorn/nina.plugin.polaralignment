@@ -171,6 +171,25 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 CoreUtil.SaveSettings(Properties.Settings.Default);
                 RaisePropertyChanged(nameof(ControllerAligns));
                 RaisePropertyChanged(nameof(ControllerAlignsMeaning));
+                if (!value) { StopControllerRun(); }
+            }
+        }
+
+        /// <summary>
+        /// The controller owns the moves: no longer forwarding readings would leave it finishing
+        /// the correction it is in, so turning the option off stops its run as well.
+        /// </summary>
+        private void StopControllerRun() {
+            if (upa?.Connected != true || upa is not IOapaAlignmentController controller || !controller.RunsAlignment) {
+                return;
+            }
+            try {
+                var reply = controller.StopAlignment();
+                Logger.Info($"OAPA controller: alignment turned off, run stopped -> {reply}");
+                ControllerStatus = "alignment off: the controller's run is stopped";
+            } catch (Exception ex) {
+                Logger.Error($"OAPA controller: stopping the run failed: {ex.Message}");
+                ControllerStatus = $"stopping the controller's run failed: {ex.Message}";
             }
         }
 
@@ -209,7 +228,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         }
 
         /// <summary>One TPPA reading, in arcminutes, on its way to the controller.</summary>
-        internal void OnAlignmentError(double azimuthArcmin, double altitudeArcmin) {
+        internal void OnAlignmentError(double azimuthArcmin, double altitudeArcmin, double? toleranceArcmin = null) {
             lastTppaReadingUtc = DateTime.UtcNow;
             if (!ControllerAligns || upa == null || !upa.Connected || upa is not IOapaAlignmentController controller) {
                 return;
@@ -223,6 +242,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 return;
             }
             try {
+                controller.SyncTolerance(toleranceArcmin ?? Properties.Settings.Default.AlignmentTolerance);
                 var reply = controller.ForwardError(azimuthArcmin, altitudeArcmin);
                 var status = controller.AlignmentStatus();
                 Logger.Info($"OAPA controller: reading az {azimuthArcmin:F2}' alt {altitudeArcmin:F2}' -> {reply}; {status}");
@@ -539,6 +559,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             set {
                 if (!AcceptsEditNow(nameof(YGearRatio))) { return; }
                 SetYGearRatio(value, MarkEdit(value, YGearRatio, YGearRatioSource));
+                PushControllerParameters();
             }
         }
 

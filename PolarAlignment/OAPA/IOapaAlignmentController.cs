@@ -13,6 +13,15 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// <summary>Forwards one TPPA error reading, in arcminutes; returns the controller's reply.</summary>
         string ForwardError(double azimuthArcmin, double altitudeArcmin);
 
+        /// <summary>
+        /// Gives the controller the tolerance the running alignment finishes at, in arcminutes,
+        /// when it differs from the one last given.
+        /// </summary>
+        void SyncTolerance(double arcmin);
+
+        /// <summary>Stops the controller's alignment run, and a calibration the plugin feeds.</summary>
+        string StopAlignment();
+
         /// <summary>The controller's one-line loop status ("&lt;L|phase:...|&gt;").</summary>
         string AlignmentStatus();
 
