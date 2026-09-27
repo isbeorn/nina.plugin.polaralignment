@@ -67,15 +67,21 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 var ready = await session.WaitForControllerReadyAsync(token);
                 if (!ready) {
-                    await session.EndAsync(BridgeReason.NoControllerReady,
-                                           false,
-                                           new BridgeSessionEndedPayload { Detail = "No external alignment controller became ready in time." },
-                                           token);
-                    hub.DetachSession(session);
-                    session.Dispose();
-                    Logger.Warning("[Bridge] No controller became ready in time. Falling back to the internal correction loop.");
-                    Notification.ShowWarning($"{hub.ControllerDisplayCapitalized} assigned but not ready. Three point polar alignment continues with its normal correction loop.");
-                    return null;
+                    if (session.HasControllerFault) {
+                        // A fault means the controller cannot drive the run at all (no hardware link on either
+                        // transport, or it gave up): the run is stopped here with the reason it reported.
+                        Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} cannot take the run over: {session.ControllerFaultReason}");
+                        Notification.ShowError(
+                            $"{ControllerDisplayCapitalized} cannot drive the polar alignment." + Environment.NewLine +
+                            (string.IsNullOrWhiteSpace(session.ControllerFaultDetail) ? string.Empty : session.ControllerFaultDetail + Environment.NewLine) +
+                            "Polar alignment is cancelled.");
+                        throw new OperationCanceledException("The controller cannot drive the polar alignment run.");
+                    }
+
+                    // The controller is present but has not confirmed readiness yet. No toast and no fall
+                    // back: the run continues silently, and readiness is checked again at the hand-over
+                    // prompt, where a controller that is still not ready pauses the run and warns.
+                    Logger.Warning("[Bridge] The controller has not confirmed readiness yet. The run continues; readiness is checked again at the hand-over.");
                 }
 
                 // Tell the controller that the reference sweep starts, so its UI does not look stuck.
@@ -100,6 +106,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             // From here on the queue is served, so a cancel or fault from the controller is handled by the
             // loop below (session end plus the reason in a toast) instead of aborting the measurement phase.
             bridgeLoopStarted = true;
+
+            // The reference sweep is finished: the controller is told, so it can bring its hardware up and
+            // report readiness before the hand-over prompt decides whether to warn about it.
+            await session.PublishSessionStateAsync(BridgeState.WaitingForRequest, BridgeReason.MeasurementsFinished, token);
 
             // The operator reads the first polar error before the controller does: the run holds here
             // until Resume, so the reference sweep result is never published to the controller on its own.
@@ -182,14 +192,20 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         await session.EndAsync(reason, false, new BridgeSessionEndedPayload { Detail = note }, token);
 
                         // The reason is what the operator needs to act on, so both the sentence and the raw
-                        // reason go into one toast instead of leaving it in the log only.
+                        // reason go into one toast instead of leaving it in the log only. A reason that means
+                        // the hardware could not be driven is an error, not a plain warning.
+                        var hardwareFailure = IsHardwareFailureReason(reason);
+                        var endMessage = (faulted ? $"{ControllerDisplayCapitalized} stopped the session on a fault." : $"{ControllerDisplayCapitalized} cancelled the session.") + Environment.NewLine +
+                                         DescribeControllerCancel(reason) + Environment.NewLine +
+                                         (string.IsNullOrWhiteSpace(note) ? string.Empty : note + Environment.NewLine) +
+                                         $"Reason: {reason}";
+
                         Notification.CloseAll();
-                        Notification.ShowWarning(
-                            (faulted ? $"{ControllerDisplayCapitalized} stopped the session on a fault." : $"{ControllerDisplayCapitalized} cancelled the session.") + Environment.NewLine +
-                            DescribeControllerCancel(reason) + Environment.NewLine +
-                            (string.IsNullOrWhiteSpace(note) ? string.Empty : note + Environment.NewLine) +
-                            $"Reason: {reason}",
-                            TimeSpan.FromMinutes(1));
+                        if (faulted || hardwareFailure) {
+                            Notification.ShowError(endMessage);
+                        } else {
+                            Notification.ShowWarning(endMessage, TimeSpan.FromMinutes(1));
+                        }
                         return;
                     }
 
@@ -221,17 +237,83 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// measurement is only published to the controller once Resume is pressed.
         /// </summary>
         private async Task WaitForHandoverResumeAsync(BridgeSession session, IProgress<ApplicationStatus> progress, CancellationToken token) {
-            // Older toasts are closed first so this prompt, with the measured error in it, is the one the
-            // operator actually reads.
+            // Older toasts are closed first so the hand-over prompts are the ones the operator really reads.
             Notification.CloseAll();
+
+            // 1) The measured error, and the run holds here: the correction is not handed over before the
+            //    operator has seen the initial polar error.
             Notification.ShowInformation(
-                $"{ControllerDisplayCapitalized} is connected." + Environment.NewLine +
-                "Routine PAUSING" + Environment.NewLine +
+                "Polar alignment error" + Environment.NewLine +
                 BuildErrorSummary() + Environment.NewLine +
-                "Check the initial polar error, then press RESUME to hand the correction over to the controller.",
-                TimeSpan.FromMinutes(1));
+                "Routine PAUSING");
             Pause();
+
+            // 2) The controller was told a moment ago that the sweep is finished, so its hardware may still
+            //    be coming up: it gets a short grace period to bring the link up and report it.
+            var readinessDeadline = DateTime.UtcNow.AddSeconds(10);
+            while (!session.ControllerHardwareConnected && !session.HasControllerFault && DateTime.UtcNow < readinessDeadline) {
+                await Task.Delay(250, token);
+            }
+
+            // 3) A link that is not up is an error. A link that is up is not announced with a success toast -
+            //    only a connected controller whose axes are busy gets the warning below.
+            if (session.HasControllerFault || !session.ControllerHardwareConnected) {
+                var failureDetail = session.HasControllerFault
+                    ? session.ControllerFaultDetail
+                    : $"No link to {ControllerDisplay} over the configured transport or the fallback one.";
+                Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} could not connect to the alignment hardware" +
+                               (session.HasControllerFault ? $": {session.ControllerFaultReason}." : "."));
+
+                await session.EndAsync(BridgeReason.ControllerFault,
+                                       false,
+                                       new BridgeSessionEndedPayload { Detail = failureDetail },
+                                       CancellationToken.None);
+
+                Notification.CloseAll();
+                Notification.ShowError(
+                    $"{ControllerDisplayCapitalized} could not connect to the alignment hardware." + Environment.NewLine +
+                    (string.IsNullOrWhiteSpace(failureDetail) ? string.Empty : failureDetail + Environment.NewLine) +
+                    "Polar alignment is cancelled.");
+                throw new OperationCanceledException("The controller could not connect to the alignment hardware.");
+            }
+
+            // The firmware link is up: that is the success the operator has to see. Readiness is a second,
+            // separate step - a controller that is connected but busy gets a warning, not an error.
+            Notification.ShowSuccess(
+                $"{ControllerDisplayCapitalized} connected to the alignment hardware." + Environment.NewLine +
+                "Press RESUME to hand the correction over to the controller.");
+
+            if (!session.ControllerHardwareReady) {
+                var readinessNote = session.ControllerReadyNote;
+                Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} is not ready for the hand-over" +
+                               (string.IsNullOrWhiteSpace(readinessNote) ? "." : $": {readinessNote}."));
+                Notification.ShowWarning(
+                    $"{ControllerDisplayCapitalized} is not ready for the correction" +
+                    (string.IsNullOrWhiteSpace(readinessNote) ? "." : $": {readinessNote}.") + Environment.NewLine +
+                    "Check the controller before pressing RESUME.");
+            }
+
             await WaitWhilePausedAsync(session, progress, token);
+
+            // The operator may press RESUME while the controller is still busy. The correction needs an idle
+            // controller, so a busy one ends the run instead of letting TPPA capture while the axes move.
+            if (!session.ControllerHardwareReady) {
+                var busyNote = session.ControllerReadyNote;
+                Logger.Warning($"[Bridge] RESUME pressed while {ControllerDisplayCapitalized} was not ready" +
+                               (string.IsNullOrWhiteSpace(busyNote) ? "." : $": {busyNote}."));
+
+                await session.EndAsync(BridgeReason.NoControllerReady,
+                                       false,
+                                       new BridgeSessionEndedPayload { Detail = busyNote },
+                                       CancellationToken.None);
+
+                Notification.CloseAll();
+                Notification.ShowError(
+                    $"{ControllerDisplayCapitalized} is not ready. Session cancelled." + Environment.NewLine +
+                    (string.IsNullOrWhiteSpace(busyNote) ? string.Empty : busyNote + Environment.NewLine) + Environment.NewLine +
+                    "Check the controller, then start the polar alignment again.");
+                throw new OperationCanceledException("The controller was not ready for the correction hand-over.");
+            }
         }
 
         /// <summary>
@@ -276,6 +358,16 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                    $"Azimuth Error: {Math.Round(determination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
                    $"Altitude Error: {Math.Round(determination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
                    $"Total Error: {Math.Round(determination.CurrentMountAxisTotalError.ArcMinutes, 2)}'";
+        }
+
+        /// <summary>
+        /// True when a controller end reason means the correction could not run on the hardware, so the
+        /// operator gets an error instead of a plain warning.
+        /// </summary>
+        private static bool IsHardwareFailureReason(string reason) {
+            return string.Equals(reason, BridgeReason.FirmwareDisconnected, StringComparison.Ordinal)
+                   || string.Equals(reason, BridgeReason.ControllerFault, StringComparison.Ordinal)
+                   || string.Equals(reason, BridgeReason.CaptureFailed, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -416,13 +508,18 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} {(faulted ? "stopped the session on a fault" : "cancelled the session")} while the reference points were still being measured: {reason}" +
                            (string.IsNullOrWhiteSpace(note) ? "." : $" ({note})."));
 
+            var hardwareFailure = IsHardwareFailureReason(reason);
+            var stopMessage = (faulted ? $"{ControllerDisplayCapitalized} stopped the run on a fault." : $"{ControllerDisplayCapitalized} stopped the run.") + Environment.NewLine +
+                              DescribeControllerCancel(reason) + Environment.NewLine +
+                              (string.IsNullOrWhiteSpace(note) ? string.Empty : note + Environment.NewLine) +
+                              $"Reason: {reason}";
+
             Notification.CloseAll();
-            Notification.ShowWarning(
-                (faulted ? $"{ControllerDisplayCapitalized} stopped the run on a fault." : $"{ControllerDisplayCapitalized} stopped the run.") + Environment.NewLine +
-                DescribeControllerCancel(reason) + Environment.NewLine +
-                (string.IsNullOrWhiteSpace(note) ? string.Empty : note + Environment.NewLine) +
-                $"Reason: {reason}",
-                TimeSpan.FromMinutes(1));
+            if (faulted || hardwareFailure) {
+                Notification.ShowError(stopMessage);
+            } else {
+                Notification.ShowWarning(stopMessage, TimeSpan.FromMinutes(1));
+            }
 
             // The bridge loop never runs, so the session is ended here: the controller is told the session is
             // over even though no measurement was published for it.

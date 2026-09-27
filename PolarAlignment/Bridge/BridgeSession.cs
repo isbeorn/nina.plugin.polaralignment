@@ -98,6 +98,17 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private bool explicitOptions;
         private bool disposed;
 
+        /// <summary>Hardware readiness of the last ControllerReady report, and whether one ever arrived.</summary>
+        private bool controllerHardwareReady;
+        private bool controllerReadinessSeen;
+        private bool? controllerHardwareConnected;
+        private string controllerReadyNote;
+
+        /// <summary>Last fault the controller reported, kept so a run can be stopped with the real reason.</summary>
+        private bool controllerFaultSeen;
+        private string controllerFaultReason;
+        private string controllerFaultDetail;
+
         /// <summary>
         /// True while a request that ends the session is waiting in the queue. The paused loop uses it to
         /// keep watching for a controller that gives up or disappears, without consuming the ordinary
@@ -105,6 +116,43 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         /// </summary>
         public bool HasPendingTerminalRequest {
             get { lock (gate) { return terminalRequestPending; } }
+        }
+
+        /// <summary>
+        /// Latest hardware readiness the controller reported: TPPA re-reads it at the hand-over prompt and
+        /// when the operator presses RESUME, so a busy controller is never asked to drive the axes. False
+        /// until the controller has reported at least once.
+        /// </summary>
+        public bool ControllerHardwareReady {
+            get { lock (gate) { return controllerReadinessSeen && controllerHardwareReady; } }
+        }
+
+        /// <summary>Controller note that came with the last readiness report, e.g. "hardware busy (STATUS: MOVING)".</summary>
+        public string ControllerReadyNote {
+            get { lock (gate) { return controllerReadyNote; } }
+        }
+
+        /// <summary>
+        /// True while the controller's hardware link is up, independent of readiness. A controller that does
+        /// not report the flag counts as connected, so an older build never looks offline.
+        /// </summary>
+        public bool ControllerHardwareConnected {
+            get { lock (gate) { return controllerHardwareConnected ?? true; } }
+        }
+
+        /// <summary>True once the controller reported a fault during this session.</summary>
+        public bool HasControllerFault {
+            get { lock (gate) { return controllerFaultSeen; } }
+        }
+
+        /// <summary>Reason of the last controller fault.</summary>
+        public string ControllerFaultReason {
+            get { lock (gate) { return controllerFaultReason; } }
+        }
+
+        /// <summary>Detail of the last controller fault, ready to be shown to the operator.</summary>
+        public string ControllerFaultDetail {
+            get { lock (gate) { return controllerFaultDetail; } }
         }
 
         /// <summary>
@@ -526,13 +574,30 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                     });
                     return;
 
-                case BridgeKind.ControllerReady:
+                case BridgeKind.ControllerReady: {
+                    var readiness = envelope.PayloadAs<BridgeControllerReadyPayload>();
+                    // A controller that does not send the flag at all counts as ready.
+                    bool ready = readiness?.HardwareReady ?? true;
+                    bool changed;
+                    lock (gate) {
+                        changed = !controllerReadinessSeen || controllerHardwareReady != ready;
+                        controllerReadinessSeen = true;
+                        controllerHardwareReady = ready;
+                        controllerHardwareConnected = readiness?.HardwareConnected;
+                        controllerReadyNote = readiness?.Note;
+                    }
+
+                    // The controller republishes readiness whenever its axes go busy or idle again. TPPA
+                    // reads the value from the cache, so only the first report and the changes are queued
+                    // for the loop: a long pause must not fill the queue with readiness repeats.
+                    if (!changed) { return; }
                     if (!TryAccept(envelope.CommandId)) { return; }
                     Enqueue(new BridgeRequest {
                         Kind = BridgeRequestKind.ControllerReady,
                         Envelope = envelope
                     });
                     return;
+                }
 
                 case BridgeKind.BeginAdjustment: {
                     var adjustment = envelope.PayloadAs<BridgeAdjustmentRequestPayload>();
@@ -608,6 +673,11 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                         hardwareStopStatus = string.IsNullOrEmpty(fault?.HardwareStopStatus)
                             ? BridgeHardwareStopStatus.Unknown
                             : fault.HardwareStopStatus;
+
+                        // Kept so the run can be stopped with the reason the controller really gave.
+                        controllerFaultSeen = true;
+                        controllerFaultReason = fault?.Reason;
+                        controllerFaultDetail = fault?.Detail;
                     }
                     Enqueue(new BridgeRequest {
                         Kind = BridgeRequestKind.Cancel,

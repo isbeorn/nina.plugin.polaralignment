@@ -1,5 +1,15 @@
 # Changelog
 
+## Version 2.2.9.0
+
+### Changed — the controller reports its hardware readiness on every `ControllerReady` message and TPPA caches it, so the hand-over prompt and RESUME know whether the axes are idle
+### Changed — the hand-over prompt reports success only when the controller's hardware link is really up (a connected but busy controller gets the success toast plus the warning) and reports an error and cancels the run when the link is not up
+### Changed — the controller is only asked to bring its hardware up when the three reference points are finished (not when the session opens), the hand-over prompt waits briefly for that connection, and a controller that cannot drive the correction stops the run with the reason it reported
+### Changed — a controller that cannot bring its hardware link up (or reports a fault) stops the run with the reason it reported, while a controller that is only busy pauses the run and waits for RESUME
+### Changed — a controller that has not confirmed readiness while TPPA measures the reference points no longer falls back to the normal correction loop with a warning: the run continues silently and readiness is checked at the hand-over
+### Changed — the hand-over prompt is now: the measured error toast and the pause first, then the "controller is connected" toast, and only an extra warning when the controller is not ready (a ready controller shows nothing more and just waits for RESUME)
+### Changed — RESUME while the controller is still not ready now reports an error and cancels the run instead of starting a correction the controller cannot drive
+
 ## Version 2.2.8.0 (Feature-AutoPA-over-brokerBridge)
 
 ### Added — external correction over the NINA message broker: TPPA hands the run over to an external controller (MLAstroRPA) when the operator resumes after the reference sweep, publishes the measured errors, holds the capture windows and honours pause, stop and cancel

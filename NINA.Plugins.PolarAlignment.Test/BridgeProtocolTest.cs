@@ -479,6 +479,47 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public async Task ControllerReady_RemembersReadinessAndQueuesOnlyChanges() {
+            var broker = new FakeMessageBroker();
+            using var session = NewSession(broker);
+            await session.OpenAsync(1.0, false, CancellationToken.None);
+
+            session.HandleEnvelope(Command(BridgeKind.ControllerReady,
+                                           payload: new BridgeControllerReadyPayload {
+                                               HardwareReady = false,
+                                               Note = "hardware busy (STATUS: MOVING)"
+                                           }));
+
+            session.ControllerHardwareReady.Should().BeFalse();
+            session.ControllerReadyNote.Should().Contain("MOVING");
+            (await session.WaitForControllerRequestAsync(CancellationToken.None)).Kind
+                .Should().Be(BridgeRequestKind.ControllerReady);
+
+            // The controller republishes readiness on changes only: a repeated "busy" is cached, not queued.
+            session.HandleEnvelope(Command(BridgeKind.ControllerReady,
+                                           payload: new BridgeControllerReadyPayload { HardwareReady = false }));
+            session.ControllerHardwareReady.Should().BeFalse();
+
+            session.HandleEnvelope(Command(BridgeKind.ControllerReady,
+                                           payload: new BridgeControllerReadyPayload { HardwareReady = true }));
+            session.ControllerHardwareReady.Should().BeTrue();
+            (await session.WaitForControllerRequestAsync(CancellationToken.None)).Kind
+                .Should().Be(BridgeRequestKind.ControllerReady);
+        }
+
+        [Test]
+        public async Task ControllerReadyWithoutHardwareFlag_CountsAsReady() {
+            var broker = new FakeMessageBroker();
+            using var session = NewSession(broker);
+            await session.OpenAsync(1.0, false, CancellationToken.None);
+
+            session.HandleEnvelope(Command(BridgeKind.ControllerReady,
+                                           payload: new BridgeControllerReadyPayload()));
+
+            session.ControllerHardwareReady.Should().BeTrue();
+        }
+
+        [Test]
         public async Task Cancellation_UnblocksTheWaitingLoop() {
             var broker = new FakeMessageBroker();
             using var session = NewSession(broker);

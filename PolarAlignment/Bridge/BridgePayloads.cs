@@ -37,7 +37,20 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
     public sealed class BridgeControllerReadyPayload {
         public string Controller { get; set; }
         public string ControllerVersion { get; set; }
-        public bool HardwareReady { get; set; }
+
+        /// <summary>
+        /// True while the controller's hardware link is up, independent of whether the axes are idle. Null
+        /// (field not sent) counts as connected so an older controller never looks offline.
+        /// </summary>
+        public bool? HardwareConnected { get; set; }
+
+        /// <summary>
+        /// True when the axes are idle so the correction can be handed over, false while they are busy.
+        /// Null (field not sent) counts as ready: a controller that does not report readiness must never
+        /// block the hand-over.
+        /// </summary>
+        public bool? HardwareReady { get; set; }
+
         public string LinkPath { get; set; }
         public string Note { get; set; }
     }
