@@ -255,7 +255,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public void TheParametersPushedOnConnect_CarryFactorsBacklashAndTolerance() {
+        public void TheParametersPushedOnConnect_CarryFactorsBacklashToleranceAndMoveCap() {
             var settings = new Properties.Settings();
             settings.OAPAXGearRatio = 12.5f;
             settings.OAPAYGearRatio = 40f;
@@ -268,12 +268,27 @@ namespace NINA.Plugins.PolarAlignment.Test {
             settings.OAPAYBacklashCompensation = 4f;
             settings.OAPAYBacklashCompensationNegative = -1f;  // never set: same as positive
             settings.AlignmentTolerance = 0.75;
+            settings.OAPAMoveCap = 90f;
 
             UniversalPolarAlignmentOAPA.ControllerParameterCommands(settings).Should().Equal(
                 "$F=12.5,40",
                 "$B=X,U,14.78,10.21",
                 "$B=Y,S,4,4",
-                "$T=0.75");
+                "$T=0.75",
+                "$M=90");
+        }
+
+        [Test]
+        public void TheMoveCap_StaysWithinWhatTheControllerAccepts() {
+            var settings = new Properties.Settings();
+            settings.OAPAMoveCap = 500f;
+            UniversalPolarAlignmentOAPA.ControllerParameterCommands(settings).Should().Contain("$M=120");
+
+            var vm = new OapaTestVm();
+            vm.MoveCap = 0.2f;
+            vm.MoveCap.Should().Be(1f);
+            vm.MoveCap = 250f;
+            vm.MoveCap.Should().Be(120f);
         }
 
         [Test]

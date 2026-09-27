@@ -143,6 +143,9 @@
     <Setting Name="OAPAXFactorMode" Type="System.String" Scope="User">
       <Value Profile="(Default)">Steps/arcmin</Value>
     </Setting>
+    <Setting Name="OAPAMoveCap" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">30</Value>
+    </Setting>
     <Setting Name="OAPAXMechanicalRatio" Type="System.Single" Scope="User">
       <Value Profile="(Default)">0</Value>
     </Setting>

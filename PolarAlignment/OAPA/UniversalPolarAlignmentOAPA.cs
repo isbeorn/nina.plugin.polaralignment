@@ -175,8 +175,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
         /// <summary>
         /// What the controller needs to run the alignment the way this plugin would: the steps
-        /// per arcminute, each axis' backlash and mode, and TPPA's tolerance, so both stop at
-        /// the same error. Volatile on the controller like the driver settings, so pushed on
+        /// per arcminute, each axis' backlash and mode, TPPA's tolerance, so both stop at the
+        /// same error, and the largest single correction. Volatile on the controller like the driver settings, so pushed on
         /// every connection. Skipped on firmware that does not run the alignment.
         ///
         /// The factors are sent only when they were measured or typed in: factory defaults
@@ -197,6 +197,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Backlash('X', settings.OAPAXBacklashMode, settings.OAPAXBacklashCompensation, settings.OAPAXBacklashCompensationNegative),
                 Backlash('Y', settings.OAPAYBacklashMode, settings.OAPAYBacklashCompensation, settings.OAPAYBacklashCompensationNegative),
                 string.Format(c, "$T={0}", settings.AlignmentTolerance),
+                string.Format(c, "$M={0}", ClampMoveCap(settings.OAPAMoveCap)),
             });
             return commands.ToArray();
         }
@@ -209,6 +210,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 SendDriverCommand(command, "push alignment parameters");
             }
         }
+
+        /// <summary>The move cap the controller accepts ($M=), in arcminutes.</summary>
+        internal static float ClampMoveCap(float arcmin) => Math.Clamp(arcmin, 1f, 120f);
 
         /// <summary>A stored value below zero means "never set": the axis is symmetric.</summary>
         private static float NegativeOrSame(float stored, float positive) {

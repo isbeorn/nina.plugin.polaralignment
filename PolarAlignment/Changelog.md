@@ -9,6 +9,7 @@
 - OAPA: Calibrate measures the calibration factor and the backlash of both axes: the controller moves the axes and computes them on TPPA's readings while an alignment runs, or on frames the plugin captures and plate-solves when none does. The values found are kept in the OAPA settings.
 - OAPA: the calibration factor of each axis can also be computed from a known gear ratio, the motor's steps per revolution and the microstepping.
 - OAPA: the controller can be reached over WiFi as well as USB.
+- OAPA: the largest single correction the controller makes (move cap, 1 to 120 arcminutes) is set in the OAPA panel.
 - OAPA: Set Home and Go Home for the current connection session.
 - OAPA: each axis handles its own play according to a backlash mode - the compensation folded into the move, folded in gradually, approached from the engaged side only, or left alone. The controller applies it in the moves of its own alignment, and the calibration recommends it.
 - OAPA: hand moves use an arrow pad - altitude up and down, azimuth left and right, by a chosen step - with STOP in the middle, which halts both axes wherever they are and says so when the halt did not reach the controller instead of looking like a success.

@@ -173,6 +173,23 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
+        /// <summary>
+        /// The largest single correction the controller makes, in arcminutes. A larger cap closes
+        /// a large error in fewer corrections; each is still at most 80% of the measured error.
+        /// </summary>
+        public float MoveCap {
+            get => Properties.Settings.Default.OAPAMoveCap;
+            set {
+                var capped = UniversalPolarAlignmentOAPA.ClampMoveCap(value);
+                if (Properties.Settings.Default.OAPAMoveCap != capped) {
+                    Properties.Settings.Default.OAPAMoveCap = capped;
+                    CoreUtil.SaveSettings(Properties.Settings.Default);
+                    PushControllerParameters();
+                }
+                RaisePropertyChanged(nameof(MoveCap));
+            }
+        }
+
         private string controllerStatus = "";
 
         /// <summary>What the controller reported after the last forwarded reading.</summary>

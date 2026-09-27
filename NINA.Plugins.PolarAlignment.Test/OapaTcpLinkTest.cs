@@ -186,6 +186,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         [TestCase("gear", "$F=14.814815,15")]
         [TestCase("play", "$B=X,F,4,4")]
         [TestCase("mode", "$B=X,S,2,2")]
+        [TestCase("cap", "$M=120")]
         [NonParallelizable]
         public void AValueChangedWhileConnected_ReachesTheController(string change, string expected) {
             // The controller aligns with the values it was given, not with the ones the panel
@@ -194,8 +195,9 @@ namespace NINA.Plugins.PolarAlignment.Test {
             var d = Properties.Settings.Default;
             var saved = (d.OAPAXGearRatio, d.OAPAYGearRatio, d.OAPAXGearRatioSource, d.OAPAYGearRatioSource, d.OAPAXMicrosteps,
                 d.OAPAXFactorMode, d.OAPAXMechanicalRatio, d.OAPAXMotorStepsPerRev,
-                d.OAPAXBacklashCompensation, d.OAPAXBacklashCompensationNegative, d.OAPAXBacklashMode);
+                d.OAPAXBacklashCompensation, d.OAPAXBacklashCompensationNegative, d.OAPAXBacklashMode, d.OAPAMoveCap);
             try {
+                d.OAPAMoveCap = 30f;
                 (d.OAPAXGearRatio, d.OAPAYGearRatio) = (15f, 15f);
                 (d.OAPAXGearRatioSource, d.OAPAYGearRatioSource) = (nameof(OapaParameterSource.Calibrated), nameof(OapaParameterSource.Calibrated));
                 (d.OAPAXMicrosteps, d.OAPAXFactorMode, d.OAPAXMechanicalRatio, d.OAPAXMotorStepsPerRev) = (16, UniversalPolarAlignmentOAPAVM.FactorModeSteps, 100f, 200);
@@ -211,13 +213,14 @@ namespace NINA.Plugins.PolarAlignment.Test {
                     case "gear": vm.XFactorMode = UniversalPolarAlignmentOAPAVM.FactorModeGear; break;   // 200 x 16 x 100 / 21600
                     case "play": vm.XBacklashCompensation = 4f; break;
                     case "mode": vm.XBacklashMode = OapaBacklashMode.Soft; break;
+                    case "cap": vm.MoveCap = 120f; break;
                 }
 
                 controller.Received.Should().Contain(expected);
             } finally {
                 (d.OAPAXGearRatio, d.OAPAYGearRatio, d.OAPAXGearRatioSource, d.OAPAYGearRatioSource, d.OAPAXMicrosteps,
                     d.OAPAXFactorMode, d.OAPAXMechanicalRatio, d.OAPAXMotorStepsPerRev,
-                    d.OAPAXBacklashCompensation, d.OAPAXBacklashCompensationNegative, d.OAPAXBacklashMode) = saved;
+                    d.OAPAXBacklashCompensation, d.OAPAXBacklashCompensationNegative, d.OAPAXBacklashMode, d.OAPAMoveCap) = saved;
             }
         }
     }
