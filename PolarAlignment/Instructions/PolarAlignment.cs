@@ -484,11 +484,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     // Stored in the field, not a local: the cancel path closes this session through
                     // CloseBridgeSessionAsync, which is what asks the controller to stop.
                     bridgeSession = await StartBridgeSessionAsync(progress, localCTS.Token);
-                    if (bridgeSession != null) {
-                        // A STOP on the controller while the reference points are measured has to end the run
-                        // at once - the bridge loop only serves that queue after the first measurement.
-                        WatchControllerStopBeforeHandover(bridgeSession, localCTS);
-                    }
 
                     TPAPAVM.ActivateFirstStep();
 
@@ -613,14 +608,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     if (bridgeSession != null) {
                         await RunBridgeAsync(bridgeSession, progress, localCTS.Token);
-                        if (!controllerLost) { return; }
+                        if (!controllerLost && !bridgeNotNeeded) { return; }
 
-                        // The controller stopped answering mid-session. Close the external session and
-                        // carry on with the normal loop: without a controller TPPA behaves like it always
-                        // did instead of aborting the whole run.
-                        await CloseBridgeSessionAsync(BridgeReason.ExternalLost, requestStop: false);
-                        progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
-                        Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
+                        // Either the controller stopped answering, or the reference sweep already met the
+                        // tolerance: close the session and let TPPA finish the run on its own, exactly like a
+                        // run without a controller.
+                        await CloseBridgeSessionAsync(controllerLost ? BridgeReason.ExternalLost : BridgeReason.Completed, requestStop: false);
+
+                        if (controllerLost) {
+                            progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
+                            Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
+                        }
                     }
 
                     // A single lucky solve must not end the procedure: require consecutive
