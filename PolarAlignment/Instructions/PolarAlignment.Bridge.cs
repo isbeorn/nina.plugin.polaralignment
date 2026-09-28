@@ -21,6 +21,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private bool controllerLost;
 
         /// <summary>
+        /// True when the controller was already gone before the correction was handed over (the assign switch
+        /// was turned off during the reference sweep): the run then continues like a run without a controller,
+        /// with no hand-over prompt and no "controller stopped answering" notice.
+        /// </summary>
+        private bool controllerGoneBeforeHandover;
+
+        /// <summary>
         /// True once <see cref="RunBridgeAsync"/> serves the controller request queue. While it is false the
         /// run is still measuring the three reference points, so a controller stop ends it immediately
         /// instead of waiting for the queue to be drained.
@@ -126,6 +133,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             // The operator reads the first polar error before the controller does: the run holds here
             // until Resume, so the reference sweep result is never published to the controller on its own.
             await WaitForHandoverResumeAsync(session, progress, token);
+
+            if (controllerLost) {
+                // Nobody took the correction over: the caller closes the session and the normal loop runs.
+                return;
+            }
 
             var autoFinishGate = new AutoFinishGate(2);
             var firstMeasurementBelowTolerance = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes) <= AlignmentTolerance;
@@ -249,6 +261,16 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// measurement is only published to the controller once Resume is pressed.
         /// </summary>
         private async Task WaitForHandoverResumeAsync(BridgeSession session, IProgress<ApplicationStatus> progress, CancellationToken token) {
+            if (BridgeHub.Instance?.IsControllerPresent != true) {
+                // The controller was switched off (or went away) during the reference sweep: there is nobody to
+                // hand the correction over to, so the run continues with its normal correction loop - no pause
+                // and no hand-over prompt.
+                Logger.Info("[Bridge] The controller is gone before the hand-over. Continuing with the normal correction loop.");
+                controllerLost = true;
+                controllerGoneBeforeHandover = true;
+                return;
+            }
+
             // Older toasts are closed first so the hand-over prompts are the ones the operator really reads.
             Notification.CloseAll();
 

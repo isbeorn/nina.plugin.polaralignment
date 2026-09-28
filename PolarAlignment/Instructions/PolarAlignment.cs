@@ -617,7 +617,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                         if (controllerLost) {
                             progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
-                            Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
+                            if (!controllerGoneBeforeHandover) {
+                                Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
+                            }
                         }
                     }
 
