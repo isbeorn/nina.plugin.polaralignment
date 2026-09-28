@@ -36,9 +36,11 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// ("&lt;K|state:done|...|&gt;"). Stops after <paramref name="maxFrames"/> frames if the
         /// controller never finishes; throws when a frame cannot be solved, when the controller
         /// does not start, or on cancellation, and the caller stops the controller's calibration then.
+        /// <paramref name="afterFrame"/> runs once each frame's reading has been sent and logged.
         /// </summary>
         public static async Task<string> Run(IOapaCalibrationSolver solver, IOapaAlignmentController controller,
-                                             Action<string> onStatus, CancellationToken token, int maxFrames = 400) {
+                                             Action<string> onStatus, CancellationToken token, int maxFrames = 400,
+                                             Action afterFrame = null) {
             solver.BeginCalibration();
             var reply = controller.RequestCalibrationOnly();
             Logger.Info($"OAPA calibration: calibrate-only requested -> {reply}");
@@ -58,6 +60,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 var state = OapaControllerStatus.Parse(calibration, "K").TryGetValue("state", out var s) ? s : "";
                 onStatus?.Invoke(OapaControllerStatus.Describe(controller.AlignmentStatus()));
                 Logger.Info($"OAPA calibration: frame {frame + 1}, field moved AZ {azimuth:F2}' ALT {altitude:F2}'; {calibration}");
+                afterFrame?.Invoke();
 
                 if (IsRunning(state)) {
                     started = true;

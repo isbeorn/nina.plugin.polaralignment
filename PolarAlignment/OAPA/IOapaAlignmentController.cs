@@ -36,5 +36,11 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
         /// <summary>Stops a calibration in progress.</summary>
         string StopCalibration();
+
+        /// <summary>
+        /// The controller's event log, one event per call ("&lt;G|seq:5|last:7|...|&gt;"): the oldest
+        /// event after <paramref name="afterSequence"/>. Firmware before 1.3.1 does not know it.
+        /// </summary>
+        string BoardEvent(uint afterSequence);
     }
 }

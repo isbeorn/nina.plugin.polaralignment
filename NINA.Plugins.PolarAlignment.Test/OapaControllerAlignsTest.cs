@@ -90,6 +90,15 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 CalibrationStops++;
                 return "ok";
             }
+
+            /// <summary>The board's event log as $G= answers it; firmware before 1.3.1 answers "ok".</summary>
+            public Func<uint, string> Board = _ => "ok";
+            public int EventQueries;
+
+            public string BoardEvent(uint afterSequence) {
+                EventQueries++;
+                return Board(afterSequence);
+            }
         }
 
         /// <summary>Frames whose field moves as the test says; or a solver that fails, or one that waits for the sky.</summary>
@@ -581,11 +590,58 @@ namespace NINA.Plugins.PolarAlignment.Test {
             vm.ControllerAligns = true;
             vm.OnAlignmentError(30, -20);
 
-            await vm.CalibrateOnControllerCommand.ExecuteAsync(null);
+            var calibrating = vm.CalibrateOnControllerCommand.ExecuteAsync(null);
+            vm.OnAlignmentError(29, -20);
+            await calibrating;
 
             controller.CalibrationRequests.Should().Be(1);
             controller.CalibrationOnlyRequests.Should().Be(0);
             solver.Captures.Should().Be(0);
+        }
+
+        [Test]
+        public async Task Calibrate_RightAfterTppaStopped_FallsBackToThePluginsOwnFrames() {
+            // valo_20260928 19:14: Calibrate 12 s after TPPA's last reading asked the controller to
+            // calibrate on TPPA's readings, and none came: the panel waited until pressed again.
+            var controller = new FakeController();
+            controller.CalibrationStatuses.Enqueue("<K|state:baseline|x:-|y:-|xplay:-|yplay:-|reason:b|>");
+            var solver = new FakeSolver();
+            solver.Frames.Enqueue(Field(0.0, 45.0));
+            var vm = new OapaTestVm { Hardware = controller, Solver = solver, TppaAnswerWindow = TimeSpan.FromMilliseconds(200) };
+            vm.ControllerAligns = true;
+            vm.OnAlignmentError(30, -20);
+
+            await vm.CalibrateOnControllerCommand.ExecuteAsync(null);
+
+            controller.CalibrationRequests.Should().Be(1);
+            controller.CalibrationStops.Should().Be(1, "the request nothing feeds is withdrawn first");
+            controller.CalibrationOnlyRequests.Should().Be(1);
+            solver.Captures.Should().BeGreaterThan(0);
+            vm.ControllerStatus.Should().StartWith("calibration done");
+        }
+
+        [Test]
+        public void AfterEachForwardedReading_TheBoardsNewEventsAreRead() {
+            var controller = new FakeController { Board = OapaBoardEventsTest.BoardWith("AZ (X) +0.28' (+4 steps)") };
+            var vm = new OapaTestVm { Hardware = controller };
+            vm.ControllerAligns = true;
+
+            vm.OnAlignmentError(30, -20);
+
+            controller.EventQueries.Should().Be(2, "the one event, then the answer that nothing is newer");
+        }
+
+        [Test]
+        public async Task ACalibrationOnThePluginsOwnFrames_ReadsTheBoardsEventsAfterEachFrame() {
+            var controller = new FakeController { Board = OapaBoardEventsTest.BoardWith() };
+            controller.CalibrationStatuses.Enqueue("<K|state:baseline|x:-|y:-|xplay:-|yplay:-|reason:b|>");
+            var solver = new FakeSolver();
+            solver.Frames.Enqueue(Field(0.0, 45.0));
+            var vm = new OapaTestVm { Hardware = controller, Solver = solver };
+
+            await vm.CalibrateOnControllerCommand.ExecuteAsync(null);
+
+            controller.EventQueries.Should().Be(solver.Captures);
         }
 
         [Test]
@@ -655,9 +711,11 @@ namespace NINA.Plugins.PolarAlignment.Test {
             vm.OnAlignmentError(30, -20);                      // TPPA is measuring
             vm.XGearRatio = 20f;                               // typed in after an earlier calibration
 
-            await vm.CalibrateOnControllerCommand.ExecuteAsync(null);
+            var calibrating = vm.CalibrateOnControllerCommand.ExecuteAsync(null);
             controller.Statuses.Enqueue("<L|phase:moving_x|outcome:none|source:nina|moves:4|az:-2.10|alt:0.40|plan:-1.60,0.00|reason:Continuing corrections.|>");
             vm.OnAlignmentError(28, -19);                      // still aligning; $K? has the earlier 15.02
+            await calibrating;
+            controller.CalibrationStops.Should().Be(0, "TPPA answered: the request stands");
 
             vm.XGearRatio.Should().BeApproximately(20f, 1e-4f);
             vm.XGearRatioSource.Should().Be(OapaParameterSource.Manual);
