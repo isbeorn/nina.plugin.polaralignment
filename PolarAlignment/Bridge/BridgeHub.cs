@@ -20,7 +20,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         /// itself every few seconds while it is connected, so this timeout IS the handshake: no user
         /// setting is needed and TPPA keeps running normally when no controller is around.
         /// </summary>
-        public static readonly TimeSpan ControllerPresenceWindow = TimeSpan.FromSeconds(15);
+        public static readonly TimeSpan ControllerPresenceWindow = TimeSpan.FromSeconds(8);
 
         private readonly IMessageBroker broker;
         private readonly object gate = new object();

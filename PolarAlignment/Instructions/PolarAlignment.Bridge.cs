@@ -73,38 +73,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 progress?.Report(GetStatus($"Waiting for {ControllerDisplay}"));
                 await session.OpenAsync(AlignmentTolerance, TPAPAVM.UseContinuousErrorEstimator, token);
 
-                var ready = await session.WaitForControllerReadyAsync(token);
-                if (!ready) {
-                    if (hub.IsControllerPresent != true) {
-                        // The controller stopped announcing while we waited (the assign switch was turned off,
-                        // or it is gone): no session and no toast - the run continues exactly like a run
-                        // without an external controller.
-                        Logger.Info("[Bridge] The controller is gone. Using the internal correction loop.");
-                        await session.EndAsync(BridgeReason.ExternalLost,
-                                               false,
-                                               new BridgeSessionEndedPayload { Detail = "The controller stopped announcing before the session started." },
-                                               token);
-                        hub.DetachSession(session);
-                        session.Dispose();
-                        return null;
-                    }
-
-                    if (session.HasControllerFault) {
-                        // A fault means the controller cannot drive the run at all (no hardware link on either
-                        // transport, or it gave up): the run is stopped here with the reason it reported.
-                        Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} cannot take the run over: {session.ControllerFaultReason}");
-                        Notification.ShowError(
-                            $"{ControllerDisplayCapitalized} cannot drive the polar alignment." + Environment.NewLine +
-                            (string.IsNullOrWhiteSpace(session.ControllerFaultDetail) ? string.Empty : session.ControllerFaultDetail + Environment.NewLine) +
-                            "Polar alignment is cancelled.");
-                        throw new OperationCanceledException("The controller cannot drive the polar alignment run.");
-                    }
-
-                    // The controller is present but has not confirmed readiness yet. No toast and no fall
-                    // back: the run continues silently, and readiness is checked again at the hand-over
-                    // prompt, where a controller that is still not ready pauses the run and warns.
-                    Logger.Warning("[Bridge] The controller has not confirmed readiness yet. The run continues; readiness is checked again at the hand-over.");
-                }
+                // No readiness wait here: the controller is only asked to connect once the reference sweep is
+                // finished (see the state published below). Waiting for it at session open would only delay
+                // the run, and it would keep a session alive for a controller that was switched off meanwhile.
 
                 // Tell the controller that the reference sweep starts, so its UI does not look stuck.
                 await session.PublishSessionStateAsync(BridgeState.Measuring, BridgeReason.ReferenceSweep, token);
@@ -292,8 +263,17 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             //    a while (a wireless attempt, then a scan of every COM port), so it gets a generous grace
             //    period: while it is still trying, the run waits instead of cancelling the alignment.
             var readinessDeadline = DateTime.UtcNow.AddSeconds(30);
-            while (!session.ControllerHardwareConnected && !session.HasControllerFault && DateTime.UtcNow < readinessDeadline) {
+            while (!session.ControllerHardwareConnected && !session.HasControllerFault
+                   && BridgeHub.Instance?.IsControllerPresent == true && DateTime.UtcNow < readinessDeadline) {
                 await Task.Delay(250, token);
+            }
+
+            if (BridgeHub.Instance?.IsControllerPresent != true) {
+                // The controller was switched off (or went away) while the run was measuring: there is nobody
+                // to hand the correction over to, so the normal correction loop continues.
+                Logger.Info("[Bridge] The controller is gone. Handing the run back to the normal correction loop.");
+                controllerLost = true;
+                return;
             }
 
             // 3) A controller fault is final: it tried and reported that it cannot drive the run. Being slow
