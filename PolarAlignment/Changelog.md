@@ -15,6 +15,7 @@
 - OAPA: each axis handles its own play according to a backlash mode - the compensation folded into the move, folded in gradually, approached from the engaged side only, or left alone. The controller applies it in the moves of its own alignment, and the calibration recommends it.
 - OAPA: hand moves use an arrow pad - altitude up and down, azimuth left and right, by a chosen step - with STOP in the middle, which halts both axes wherever they are and says so when the halt did not reach the controller instead of looking like a success.
 - OAPA: microstepping is selectable per axis and rescales the calibration factor with it, the speed dropdown offers the whole range the firmware accepts, and the panel shows what the selected step rate is in arcminutes per second once a calibration makes it computable.
+- OAPA: with firmware 1.3.1 or later, the controller's own log - each leg of its moves, backlash included, and why a run or a calibration ended - is copied into the N.I.N.A. log.
 
 ## Version 2.2.6.7
 - Fixed UPAS azimuth backlash compensation.

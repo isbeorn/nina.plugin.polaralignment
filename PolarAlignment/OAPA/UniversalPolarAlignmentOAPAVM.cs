@@ -302,6 +302,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 var reply = controller.ForwardError(azimuthArcmin, altitudeArcmin);
                 var status = controller.AlignmentStatus();
                 Logger.Info($"OAPA controller: reading az {azimuthArcmin:F2}' alt {altitudeArcmin:F2}' -> {reply}; {status}");
+                CopyBoardEvents(controller);
                 ControllerStatus = OapaControllerStatus.Describe(status);
                 var phase = OapaControllerStatus.Parse(status).TryGetValue("phase", out var p) ? p : "";
                 if (lastControllerPhase == "calibrating" && phase != "calibrating") {
@@ -311,6 +312,27 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             } catch (Exception ex) {
                 Logger.Error($"OAPA controller: forwarding the reading failed: {ex.Message}");
                 ControllerStatus = $"forwarding failed: {ex.Message}";
+            }
+        }
+
+        private OapaBoardEvents boardEvents;
+        private IOapaAlignmentController boardEventsSource;
+
+        /// <summary>
+        /// Copies what the controller logged since the last copy into N.I.N.A.'s log, "OAPA board:"
+        /// lines. A new connection is a new controller, whose log is read from its start.
+        /// </summary>
+        private void CopyBoardEvents(IOapaAlignmentController controller) {
+            if (!ReferenceEquals(boardEventsSource, controller)) {
+                boardEventsSource = controller;
+                boardEvents = new OapaBoardEvents();
+            }
+            try {
+                foreach (var line in boardEvents.Drain(controller.BoardEvent)) {
+                    Logger.Info($"OAPA board: {line}");
+                }
+            } catch (Exception ex) {
+                Logger.Warning($"OAPA board: reading its event log failed: {ex.Message}");
             }
         }
 
@@ -392,7 +414,8 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             ControllerStatus = "calibrating: capturing the first frame";
             try {
                 var line = await Task.Run(() => OapaCalibrationFeed.Run(calibrationSolver, controller,
-                    status => ControllerStatus = status, calibrationCts.Token)).ConfigureAwait(false);
+                    status => ControllerStatus = status, calibrationCts.Token,
+                    afterFrame: () => CopyBoardEvents(controller))).ConfigureAwait(false);
                 TakeControllerCalibration(controller);
                 var result = OapaControllerStatus.Parse(line, "K");
                 ControllerStatus = result.TryGetValue("state", out var state) && state == "done"

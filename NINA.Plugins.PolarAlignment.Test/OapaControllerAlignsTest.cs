@@ -90,6 +90,15 @@ namespace NINA.Plugins.PolarAlignment.Test {
                 CalibrationStops++;
                 return "ok";
             }
+
+            /// <summary>The board's event log as $G= answers it; firmware before 1.3.1 answers "ok".</summary>
+            public Func<uint, string> Board = _ => "ok";
+            public int EventQueries;
+
+            public string BoardEvent(uint afterSequence) {
+                EventQueries++;
+                return Board(afterSequence);
+            }
         }
 
         /// <summary>Frames whose field moves as the test says; or a solver that fails, or one that waits for the sky.</summary>
@@ -586,6 +595,30 @@ namespace NINA.Plugins.PolarAlignment.Test {
             controller.CalibrationRequests.Should().Be(1);
             controller.CalibrationOnlyRequests.Should().Be(0);
             solver.Captures.Should().Be(0);
+        }
+
+        [Test]
+        public void AfterEachForwardedReading_TheBoardsNewEventsAreRead() {
+            var controller = new FakeController { Board = OapaBoardEventsTest.BoardWith("AZ (X) +0.28' (+4 steps)") };
+            var vm = new OapaTestVm { Hardware = controller };
+            vm.ControllerAligns = true;
+
+            vm.OnAlignmentError(30, -20);
+
+            controller.EventQueries.Should().Be(2, "the one event, then the answer that nothing is newer");
+        }
+
+        [Test]
+        public async Task ACalibrationOnThePluginsOwnFrames_ReadsTheBoardsEventsAfterEachFrame() {
+            var controller = new FakeController { Board = OapaBoardEventsTest.BoardWith() };
+            controller.CalibrationStatuses.Enqueue("<K|state:baseline|x:-|y:-|xplay:-|yplay:-|reason:b|>");
+            var solver = new FakeSolver();
+            solver.Frames.Enqueue(Field(0.0, 45.0));
+            var vm = new OapaTestVm { Hardware = controller, Solver = solver };
+
+            await vm.CalibrateOnControllerCommand.ExecuteAsync(null);
+
+            controller.EventQueries.Should().Be(solver.Captures);
         }
 
         [Test]

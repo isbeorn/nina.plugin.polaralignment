@@ -173,6 +173,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
 
         public string StopCalibration() => ExecuteWireCommand("$C=0")?.Trim();
 
+        public string BoardEvent(uint afterSequence) =>
+            ExecuteWireCommand(string.Format(CultureInfo.InvariantCulture, "$G={0}", afterSequence))?.Trim();
+
         /// <summary>
         /// What the controller needs to run the alignment the way this plugin would: the steps
         /// per arcminute, each axis' backlash and mode, TPPA's tolerance, so both stop at the
