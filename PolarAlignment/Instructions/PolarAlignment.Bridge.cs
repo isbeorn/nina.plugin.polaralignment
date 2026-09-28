@@ -75,6 +75,20 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                 var ready = await session.WaitForControllerReadyAsync(token);
                 if (!ready) {
+                    if (hub.IsControllerPresent != true) {
+                        // The controller stopped announcing while we waited (the assign switch was turned off,
+                        // or it is gone): no session and no toast - the run continues exactly like a run
+                        // without an external controller.
+                        Logger.Info("[Bridge] The controller is gone. Using the internal correction loop.");
+                        await session.EndAsync(BridgeReason.ExternalLost,
+                                               false,
+                                               new BridgeSessionEndedPayload { Detail = "The controller stopped announcing before the session started." },
+                                               token);
+                        hub.DetachSession(session);
+                        session.Dispose();
+                        return null;
+                    }
+
                     if (session.HasControllerFault) {
                         // A fault means the controller cannot drive the run at all (no hardware link on either
                         // transport, or it gave up): the run is stopped here with the reason it reported.
@@ -320,6 +334,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
 
             await WaitWhilePausedAsync(session, progress, token);
+
+            if (controllerLost) {
+                // The controller disappeared while the run was paused: the normal correction loop takes over
+                // instead of failing a run that was never really handed over.
+                Logger.Warning("[Bridge] The controller is gone. Handing the run back to the normal correction loop.");
+                return;
+            }
 
             // The operator may press RESUME while the controller is still busy. The correction needs an idle
             // controller, so a busy one ends the run instead of letting TPPA capture while the axes move.
