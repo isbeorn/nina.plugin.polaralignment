@@ -32,6 +32,15 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// <summary>TPPA readings this recent mean a polar alignment is measuring, and the controller calibrates on them.</summary>
         private static readonly TimeSpan TppaStreamWindow = TimeSpan.FromSeconds(30);
 
+        /// <summary>
+        /// How long a calibration requested on TPPA's readings waits for the next one. TPPA
+        /// measures every few seconds; none by then, it stopped just before the request, and the
+        /// plugin calibrates on its own frames instead.
+        /// </summary>
+        internal TimeSpan TppaAnswerWindow { get; set; } = TimeSpan.FromSeconds(10);
+
+        private int tppaReadings;
+
         public UniversalPolarAlignmentOAPAVM(
             IProfileService profileService,
             IImagingMediator imagingMediator = null,
@@ -285,6 +294,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// <summary>One TPPA reading, in arcminutes, on its way to the controller.</summary>
         internal void OnAlignmentError(double azimuthArcmin, double altitudeArcmin, double? toleranceArcmin = null) {
             lastTppaReadingUtc = DateTime.UtcNow;
+            Interlocked.Increment(ref tppaReadings);
             RecordAlignmentError(azimuthArcmin, altitudeArcmin);
             if (!ControllerAligns || upa == null || !upa.Connected || upa is not IOapaAlignmentController controller) {
                 return;
@@ -391,6 +401,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         private async Task CalibrateOnController() {
             if (upa is not IOapaAlignmentController controller) { return; }
             if (lastTppaReadingUtc.HasValue && DateTime.UtcNow - lastTppaReadingUtc.Value < TppaStreamWindow) {
+                var readingsBefore = Volatile.Read(ref tppaReadings);
                 try {
                     var reply = controller.RequestCalibration();
                     Logger.Info($"OAPA controller: calibration on TPPA's readings requested -> {reply}");
@@ -398,8 +409,18 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 } catch (Exception ex) {
                     Logger.Error($"OAPA controller: requesting a calibration failed: {ex.Message}");
                     ControllerStatus = $"calibration request failed: {ex.Message}";
+                    return;
                 }
-                return;
+                var deadline = DateTime.UtcNow + TppaAnswerWindow;
+                while (Volatile.Read(ref tppaReadings) == readingsBefore && DateTime.UtcNow < deadline) {
+                    await Task.Delay(100);
+                }
+                if (Volatile.Read(ref tppaReadings) != readingsBefore) {
+                    return;
+                }
+                // TPPA stopped just before the request: nothing would ever feed that calibration.
+                Logger.Info($"OAPA controller: no TPPA reading within {TppaAnswerWindow.TotalSeconds:0.#} s of the request; calibrating on the plugin's own frames");
+                StopControllerCalibration(controller);
             }
             if (calibrationSolver == null) {
                 ControllerStatus = "no camera or plate solver available to calibrate";
