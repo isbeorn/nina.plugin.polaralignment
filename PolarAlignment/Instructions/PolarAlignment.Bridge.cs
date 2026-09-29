@@ -219,12 +219,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         // reason go into one toast instead of leaving it in the log only. A reason that means
                         // the hardware could not be driven is an error, not a plain warning.
                         var hardwareFailure = IsHardwareFailureReason(reason);
+                        // The reason takes the place of the old "reported a fault" sentence (it repeated the first
+                        // line), and the controller notes follow it so the operator reads: what happened, why, what to do.
                         var endMessage = (faulted ? $"{ControllerDisplayCapitalized} stopped the session on a fault." : $"{ControllerDisplayCapitalized} cancelled the session.") + Environment.NewLine +
-                                         DescribeControllerCancel(reason) + Environment.NewLine +
-                                         (string.IsNullOrWhiteSpace(note) ? string.Empty : note + Environment.NewLine) +
-                                         $"Reason: {reason}";
+                                         $"Reason: {reason}" +
+                                         (string.IsNullOrWhiteSpace(note) ? string.Empty : Environment.NewLine + note);
 
-                        Notification.CloseAll();
+                        // No CloseAll here: an error has to appear next to whatever the operator is already
+                        // reading, so the older toasts are pushed down instead of being wiped.
                         if (faulted || hardwareFailure) {
                             Notification.ShowError(endMessage);
                         } else {
@@ -274,11 +276,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             // Older toasts are closed first so the hand-over prompts are the ones the operator really reads.
             Notification.CloseAll();
 
-            // 1) The measured error, and the run holds here: the correction is not handed over before the
-            //    operator has seen the initial polar error.
-            Notification.ShowInformation(
-                "Polar alignment error" + Environment.NewLine +
-                BuildErrorSummary() + Environment.NewLine);
+            // 1) The run holds here. No toast is raised for the measured error: the values are already on
+            //    screen in TPPA, and a run without a controller reports nothing while the error is still
+            //    above the tolerance. The RESUME prompt is carried by the toast of step 3.
+            Logger.Info("[Bridge] Reference sweep finished. " + BuildErrorSummary().Replace(Environment.NewLine, " | "));
             Pause();
 
             // 2) The controller was told a moment ago that the sweep is finished. Bringing the link up takes
@@ -309,7 +310,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                        new BridgeSessionEndedPayload { Detail = failureDetail },
                                        CancellationToken.None);
 
-                Notification.CloseAll();
+                // The hand-over prompt already closed the older toasts: this error appears next to the
+                // success/warning of the prompt instead of clearing the screen a second time.
                 Notification.ShowError(
                     $"{ControllerDisplayCapitalized} system is assigned through the broker but could not connect to the alignment hardware." + Environment.NewLine +
                     (string.IsNullOrWhiteSpace(failureDetail) ? string.Empty : failureDetail + Environment.NewLine) +
@@ -322,6 +324,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 // second, separate step - a connected but busy controller gets a warning, not an error.
                 Notification.ShowSuccess(
                     $"{ControllerDisplayCapitalized} connected to the alignment hardware." + Environment.NewLine +
+                    "PAUSING..." + Environment.NewLine +
                     "Press RESUME [ ▶︎ ] to hand the correction over to the controller.");
             }
 
@@ -356,7 +359,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                                        new BridgeSessionEndedPayload { Detail = busyNote },
                                        CancellationToken.None);
 
-                Notification.CloseAll();
                 Notification.ShowError(
                     $"{ControllerDisplayCapitalized} is not ready. Session cancelled." + Environment.NewLine +
                     (string.IsNullOrWhiteSpace(busyNote) ? string.Empty : busyNote + Environment.NewLine) + Environment.NewLine +
@@ -558,12 +560,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                            (string.IsNullOrWhiteSpace(note) ? "." : $" ({note})."));
 
             var hardwareFailure = IsHardwareFailureReason(reason);
+            // Same layout as the cancel toast: first line what happened, then the reason, then the notes.
             var stopMessage = (faulted ? $"{ControllerDisplayCapitalized} stopped the run on a fault." : $"{ControllerDisplayCapitalized} stopped the run.") + Environment.NewLine +
-                              DescribeControllerCancel(reason) + Environment.NewLine +
-                              (string.IsNullOrWhiteSpace(note) ? string.Empty : note + Environment.NewLine) +
-                              $"Reason: {reason}";
+                              $"Reason: {reason}" +
+                              (string.IsNullOrWhiteSpace(note) ? string.Empty : Environment.NewLine + note);
 
-            Notification.CloseAll();
             if (faulted || hardwareFailure) {
                 Notification.ShowError(stopMessage);
             } else {
