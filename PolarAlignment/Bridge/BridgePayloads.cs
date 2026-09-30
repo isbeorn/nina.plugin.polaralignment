@@ -85,6 +85,10 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         public string MeasurementId { get; set; }
         public double? PlannedAzimuthArcMin { get; set; }
         public double? PlannedAltitudeArcMin { get; set; }
+
+        /// <summary>True while the controller is still probing the direction of an axis (null/false = adjusting).</summary>
+        public bool? DetectingDirection { get; set; }
+
         public string Note { get; set; }
     }
 

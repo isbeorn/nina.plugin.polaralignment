@@ -165,7 +165,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     case BridgeRequestKind.AdjustWindow: {
                         var grantedWindowId = await session.GrantWindowAsync(request, token);
                         Logger.Info($"External controller holds capture window {grantedWindowId} for measurement {request.MeasurementId}.");
-                        progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is adjusting{BuildAdjustmentSummary(request.Adjustment)}"));
+                        // The controller tells us whether the move still probes a direction, so the operator can
+                        // see the difference between "proving the direction" and "adjusting".
+                        var adjusting = request.Adjustment?.DetectingDirection == true
+                            ? "is detecting direction"
+                            : "is adjusting";
+                        progress?.Report(GetStatus($"{ControllerDisplayCapitalized} {adjusting}{BuildAdjustmentSummary(request.Adjustment)}"));
                         continue;
                     }
 
@@ -193,7 +198,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                             // Same order as the hand-over prompt: clear the older toasts, then report the result.
                             Notification.CloseAll();
                             Notification.ShowInformation(
-                                "PA COMPLETED!" + Environment.NewLine +
+                                "AUTO PA COMPLETED!" + Environment.NewLine +
                                 "Total Error is below alignment tolerance." + Environment.NewLine +
                                 BuildErrorSummary() + Environment.NewLine +
                                 $"{ControllerDisplayCapitalized} completed the session.",
@@ -430,11 +435,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
             var text = string.Empty;
             if (adjustment.PlannedAzimuthArcMin.HasValue) {
-                text = $"NudgeAz: {Math.Abs(adjustment.PlannedAzimuthArcMin.Value):0.##}'";
+                text = $"NudgeAz: {Math.Abs(adjustment.PlannedAzimuthArcMin.Value):0.00}'";
             }
             if (adjustment.PlannedAltitudeArcMin.HasValue) {
                 if (text.Length > 0) { text += "; "; }
-                text += $"NudgeAlt: {Math.Abs(adjustment.PlannedAltitudeArcMin.Value):0.##}'";
+                text += $"NudgeAlt: {Math.Abs(adjustment.PlannedAltitudeArcMin.Value):0.00}'";
             }
 
             return text.Length == 0 ? string.Empty : ": " + text;
