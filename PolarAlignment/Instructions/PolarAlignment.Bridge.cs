@@ -165,7 +165,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     case BridgeRequestKind.AdjustWindow: {
                         var grantedWindowId = await session.GrantWindowAsync(request, token);
                         Logger.Info($"External controller holds capture window {grantedWindowId} for measurement {request.MeasurementId}.");
-                        progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is adjusting"));
+                        progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is adjusting{BuildAdjustmentSummary(request.Adjustment)}"));
                         continue;
                     }
 
@@ -419,6 +419,25 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             return string.Equals(reason, BridgeReason.FirmwareDisconnected, StringComparison.Ordinal)
                    || string.Equals(reason, BridgeReason.ControllerFault, StringComparison.Ordinal)
                    || string.Equals(reason, BridgeReason.CaptureFailed, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// The move the controller is about to make, for the status text: only the axes it really moves are
+        /// listed (the controller sends no value for an axis it holds), in arcminutes like its own status line.
+        /// </summary>
+        private static string BuildAdjustmentSummary(BridgeAdjustmentRequestPayload adjustment) {
+            if (adjustment == null) { return string.Empty; }
+
+            var text = string.Empty;
+            if (adjustment.PlannedAzimuthArcMin.HasValue) {
+                text = $"NudgeAz: {Math.Abs(adjustment.PlannedAzimuthArcMin.Value):0.##}'";
+            }
+            if (adjustment.PlannedAltitudeArcMin.HasValue) {
+                if (text.Length > 0) { text += "; "; }
+                text += $"NudgeAlt: {Math.Abs(adjustment.PlannedAltitudeArcMin.Value):0.##}'";
+            }
+
+            return text.Length == 0 ? string.Empty : ": " + text;
         }
 
         /// <summary>
