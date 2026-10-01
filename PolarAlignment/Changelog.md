@@ -1,29 +1,27 @@
 # Changelog
 
-## Version 2.2.9.0
-
-### Changed — the controller reports its hardware readiness on every `ControllerReady` message and TPPA caches it, so the hand-over prompt and RESUME know whether the axes are idle
-### Changed — the hand-over prompt reports success only when the controller's hardware link is really up (a connected but busy controller gets the success toast plus the warning) and reports an error and cancels the run when the link is not up
-### Changed — the controller is only asked to bring its hardware up when the three reference points are finished (not when the session opens), the hand-over prompt waits briefly for that connection, and a controller that cannot drive the correction stops the run with the reason it reported
-### Changed — a controller that cannot bring its hardware link up (or reports a fault) stops the run with the reason it reported, while a controller that is only busy pauses the run and waits for RESUME
-### Changed — a controller that has not confirmed readiness while TPPA measures the reference points no longer falls back to the normal correction loop with a warning: the run continues silently and readiness is checked at the hand-over
-### Changed — the hand-over prompt is now: the measured error toast and the pause first, then the "controller is connected" toast, and only an extra warning when the controller is not ready (a ready controller shows nothing more and just waits for RESUME)
-### Changed — RESUME while the controller is still not ready now reports an error and cancels the run instead of starting a correction the controller cannot drive
-
 ## Version 2.2.8.0 (Feature-AutoPA-over-brokerBridge)
 
+### Added — the run pauses right after the reference sweep with the first polar error on TPPA's panel, and the controller receives its first measurement only after RESUME
+### Added — the hand-over prompt holds the run with a pause and reports the controller state: the "connected to the alignment hardware - press RESUME" toast when the link is up, plus a warning that names the controller's own note while the axes are not ready; the measured error stays on TPPA's panel and in the log instead of being raised as a toast of its own
+### Added — the controller is only asked to bring its hardware up when the three reference points are finished (not when the session opens) and the hand-over prompt waits briefly for that connection, so a controller that has not confirmed readiness never falls back to the normal correction loop on its own
+### Added — the controller reports its hardware readiness on every `ControllerReady` message and TPPA caches it, so the hand-over prompt and RESUME know whether the axes are idle
+### Added — a controller that is switched off or stops announcing is treated as no controller: before the hand-over the normal correction loop continues silently, and during the correction the run falls back to that loop instead of waiting for a resume that never comes
+### Added — a controller that cannot bring its hardware link up (or reports a fault) stops the run with the reason it reported, while a controller whose axes are still busy only warns at the prompt and is refused when RESUME is pressed: the run then ends with an error that names the same note
+### Added — a reference sweep that is already inside the alignment tolerance finishes under TPPA's own auto-finish and is never handed over, so the result matches a run without a controller
+### Added — the settle the controller asks for after a move is waited here, with the same progress text our own adjustment systems use, so the operator reads "Settling" in the status bar instead of an unexplained pause
 ### Added — external correction over the NINA message broker: TPPA hands the run over to an external controller (MLAstroRPA) when the operator resumes after the reference sweep, publishes the measured errors, holds the capture windows and honours pause, stop and cancel
   - Before: TPPA always ran its own correction loop. Now: while a controller is present, TPPA publishes every measurement and waits for the controller to ask for the next one, and the operator can still hold the run with pause
   - `Measurement`: the signed arcminutes `AzimuthErrorArcMin`, `AltitudeErrorArcMin`, `TotalErrorArcMin`, plus `MeasurementId, SessionId, WindowId, SampleIndex, IsFirstMeasurement, Status, ToleranceArcMin, ToleranceReached, AutoFinishConditionMet, ConsecutiveBelowTolerance, Northern, ContinuousEstimation, TimestampUtc`.
   - `SessionEnded` (new): `Reason, Achieved, AzimuthErrorArcMin, AltitudeErrorArcMin, TotalErrorArcMin, ToleranceUsedArcMin, SamplesUsed, HardwareStopStatus, Detail`
   - `Capabilities` (new): `ToleranceArcMin, AutoFinishConditionAvailable, HeartbeatMs, SilenceTimeoutMs, ReadyTimeoutMs, SessionTimeoutSec, GraceAfterSilenceMs, StopAckTimeoutMs, ContinuousEstimation`
-  - Added since the first draft: the `PauseRequested` kind with `{ Paused, Reason }`, and the reasons `Paused`, `Resumed`, `BrokerDisabled`, `FirmwareDisconnected`
+  - `BeginAdjustment` carries the planned azimuth and altitude move and the flag that the controller is still detecting the direction of an axis; `RequestMeasurement` carries `WindowId, StationaryAndSettled, SettleSeconds, Reason`
+  - `PauseRequested` with `{ Paused, Reason }` and the reasons `Paused`, `Resumed`, `BrokerDisabled`, `FirmwareDisconnected` are part of the protocol as well
   - Pause and resume are forwarded to the controller, including the automatic pause after the reference sweep: TPPA waits for RESUME before the controller may move the axes
-  - Every controller decision is reported with a toast: the hand-over prompt, the successful finish, a cancel with its reason, and a stop that arrives while the reference points are still being measured
+  - Every controller decision is reported with a toast: the hand-over prompt, the successful finish, a cancel with the reason it reported, and a stop that arrives while the reference points are still being measured; the toasts already on screen are only cleared when one of those is shown, not by every controller message
 ### Fixed — a stop or a fault from the controller now ends the run as soon as it arrives, including while the three reference points are still being measured, with the same session end and toast as a stop during the correction loop; the toast and the log name the reason (stop pressed, broker switched off, firmware link lost)
 ### Fixed — a stop now stops the axes before the session is cancelled and only once: the session used to be kept in a local variable, so the cancel path never sent a stop request, and the move it aborted was reported as a hardware fault on top of that
 ### Fixed — a move that was already planned but not yet sent now follows a pause or a stop: the axes stay still instead of starting after the operator stopped the run
-### Fixed — The run pauses right after the sweep and shows the first polar error; the controller receives its first measurement only after RESUME
 ### Fixed — the error panel keeps the values of the finished run, so the last measurement that confirmed the tolerance stays readable; the dockable no longer recreates the view model when a run ends, and the panel is only renewed when the next run starts
 
 

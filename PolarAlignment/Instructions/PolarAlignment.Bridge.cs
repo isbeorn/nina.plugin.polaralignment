@@ -181,6 +181,15 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         }
                         var windowId = request.WindowId ?? session.CurrentWindowId;
                         session.CloseWindow(request.MeasurementRequest?.Reason ?? BridgeReason.StepFinished);
+
+                        // The controller asks us to let its mechanics settle after a move (backlash release,
+                        // vibration). This is the same wait our own adjustment systems do, so the operator reads
+                        // "Settling" in the status bar instead of an unexplained pause. No move, no wait.
+                        var settleSeconds = request.MeasurementRequest?.SettleSeconds ?? 0;
+                        if (settleSeconds > 0) {
+                            await CoreUtil.Wait(TimeSpan.FromSeconds(settleSeconds), token, progress, "Settling");
+                        }
+
                         var measurement = await CaptureBridgeMeasurementAsync(session, windowId, autoFinishGate, progress, token);
                         await session.PublishMeasurementAsync(measurement, token);
                         continue;

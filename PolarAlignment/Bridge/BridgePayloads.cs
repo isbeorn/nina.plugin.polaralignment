@@ -105,6 +105,14 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
     public sealed class BridgeMeasurementRequestPayload {
         public string WindowId { get; set; }
         public bool StationaryAndSettled { get; set; }
+
+        /// <summary>
+        /// Seconds to wait before capturing, because the mechanics of the controller still settle after it
+        /// reported the move as completed. The controller lets us run this wait so it shows up in the status bar
+        /// ("Settling") like the wait of our own adjustment systems. Null or 0 = capture straight away.
+        /// </summary>
+        public double? SettleSeconds { get; set; }
+
         public string Reason { get; set; }
     }
 
