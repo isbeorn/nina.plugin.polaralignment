@@ -88,6 +88,21 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             hub?.Dispose();
         }
 
+        /// <summary>
+        /// Address TPPA puts in <c>IntendedRecipient</c> of every message it sends to the controller: the
+        /// name the controller announced itself with, so a controller of any vendor is addressed with its
+        /// own name and a controller that filters on the field keeps working. Until a controller has
+        /// identified itself the MLAstro default is used, which keeps a controller that announces no name
+        /// (an older build) working.
+        /// </summary>
+        public string ControllerAddress {
+            get {
+                lock (gate) {
+                    return string.IsNullOrWhiteSpace(controllerName) ? BridgeContract.ControllerRecipient : controllerName;
+                }
+            }
+        }
+
         /// <summary>The session currently owning the capture loop, if any.</summary>
         public BridgeSession Session {
             get { lock (gate) { return session; } }
@@ -95,6 +110,8 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
         public void AttachSession(BridgeSession newSession) {
             lock (gate) { session = newSession; }
+            // The session publishes the measurements itself, so it has to know who to address.
+            newSession.ControllerAddress = ControllerAddress;
         }
 
         public void DetachSession(BridgeSession oldSession) {
@@ -127,6 +144,13 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                     lock (gate) {
                         controllerName = announce.Controller;
                         controllerVersion = announce.ControllerVersion;
+                    }
+
+                    // The announced name is also the address: a controller that identifies itself (or
+                    // renames itself) during a session gets the following messages under that name.
+                    var announcedSession = Session;
+                    if (announcedSession != null) {
+                        announcedSession.ControllerAddress = ControllerAddress;
                     }
                 }
                 return PublishCapabilitiesAsync(CancellationToken.None);
@@ -174,7 +198,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 commandId: Guid.NewGuid().ToString("N"),
                 replyTo: null,
                 sequenceNumber: 0,
-                recipient: BridgeContract.ControllerRecipient,
+                recipient: ControllerAddress,
                 payload: payload);
 
             Logger.Debug("[Bridge] Answered controller capabilities announcement.");

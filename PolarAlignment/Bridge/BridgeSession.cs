@@ -127,6 +127,23 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             get { lock (gate) { return controllerReadinessSeen && controllerHardwareReady; } }
         }
 
+        /// <summary>Backing field of <see cref="ControllerAddress"/>: the address the controller asked for.</summary>
+        private string controllerAddress = BridgeContract.ControllerRecipient;
+
+        /// <summary>Unknown addresses already reported, so a misaddressed controller is written to the log once.</summary>
+        private readonly HashSet<string> unexpectedRecipients = new HashSet<string>();
+
+        /// <summary>
+        /// Address TPPA puts in <c>IntendedRecipient</c> of every message this session publishes: the name
+        /// the controller announced itself with, so a controller of any vendor is addressed with its own
+        /// name. Until a name is known (or when the controller announces none) the MLAstro default is used,
+        /// which keeps an older controller working.
+        /// </summary>
+        public string ControllerAddress {
+            get { lock (gate) { return controllerAddress; } }
+            set { lock (gate) { controllerAddress = string.IsNullOrWhiteSpace(value) ? BridgeContract.ControllerRecipient : value; } }
+        }
+
         /// <summary>Controller note that came with the last readiness report, e.g. "hardware busy (STATUS: MOVING)".</summary>
         public string ControllerReadyNote {
             get { lock (gate) { return controllerReadyNote; } }
@@ -535,6 +552,21 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             }
         }
 
+        /// <summary>
+        /// A message addressed to somebody else is dropped, but the first one per unknown address is
+        /// written to the log: a controller of another vendor that addresses TPPA with its own name
+        /// instead of <c>TPPA</c> would otherwise be ignored without a trace.
+        /// </summary>
+        private void ReportUnexpectedRecipient(BridgeEnvelope envelope) {
+            bool first;
+            lock (gate) {
+                first = unexpectedRecipients.Add(envelope.IntendedRecipient);
+            }
+            if (first) {
+                Logger.Warning($"[Bridge] Ignored a '{envelope.Kind}' message addressed to \"{envelope.IntendedRecipient}\": a controller has to address TPPA as \"{BridgeContract.TppaRecipient}\", or leave IntendedRecipient empty.");
+            }
+        }
+
         /// <summary>Feeds one inbound controller message into the session.</summary>
         public void HandleEnvelope(BridgeEnvelope envelope) {
             if (envelope == null || disposed) { return; }
@@ -546,6 +578,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
             if (!string.IsNullOrEmpty(envelope.IntendedRecipient)
                 && !string.Equals(envelope.IntendedRecipient, BridgeContract.TppaRecipient, StringComparison.OrdinalIgnoreCase)) {
+                ReportUnexpectedRecipient(envelope);
                 return;
             }
 
@@ -782,7 +815,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 commandId: Guid.NewGuid().ToString("N"),
                 replyTo: replyTo,
                 sequenceNumber: Interlocked.Increment(ref sequence),
-                recipient: BridgeContract.ControllerRecipient,
+                recipient: ControllerAddress,
                 payload: payload);
             return broker.Publish(new BridgeEventMessage(envelope));
         }

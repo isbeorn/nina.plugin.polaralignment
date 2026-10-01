@@ -49,14 +49,14 @@ Every message carries:
 | `ReplyTo` | `CommandId` this message answers, when it is a reply. |
 | `SequenceNumber` | Monotonic per sender, for diagnostics. |
 | `Kind` | Message kind, see below. |
-| `IntendedRecipient` | `TPPA` or `MLAstroRPA`. |
+| `IntendedRecipient` | Address of the receiver. TPPA accepts `TPPA` (or an empty field) and drops anything else. TPPA addresses a controller with the name that controller announced in its `Capabilities` announce; a controller that announces no name is addressed as `MLAstroRPA`. Server side: a sender should fill the field, because it is the only thing that tells TPPA which controller a message belongs to. |
 | `Payload` | Kind specific JSON object. |
 
 ## 4. Kinds
 
 | Kind | Direction | Purpose |
 |---|---|---|
-| `Capabilities` (announce) | controller → TPPA | The controller announces itself. TPPA answers even when no session is running. |
+| `Capabilities` (announce) | controller → TPPA | The controller announces itself. The `Controller` value is the address TPPA uses for it from then on. TPPA answers even when no session is running. |
 | `Capabilities` (reply) | TPPA → controller | Interface version, TPPA version, supported kinds, tolerance, heartbeat / silence timeout / ready timeout / session timeout / grace / stop ack timeout, calculation mode, current session. |
 | `SessionState` | TPPA → controller | Heartbeat and state change: `Preparing`, `Measuring`, `WaitingForRequest`, `WindowOpen`, `Verifying`, `Ended`, plus a reason. |
 | `ControllerReady` | controller → TPPA | Hardware connected and axes stationary; TPPA may start the reference sweep. |

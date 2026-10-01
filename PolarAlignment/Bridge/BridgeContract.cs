@@ -23,10 +23,20 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         /// <summary>Topic carrying messages published by the controller (TPPA subscribes).</summary>
         public const string CommandTopic = "PolarAlignmentPlugin_PolarAlignment_ExternalCommand";
 
-        /// <summary>Value used in <c>IntendedRecipient</c> for TPPA addressed messages.</summary>
+        /// <summary>
+        /// Address TPPA answers to: a controller message carries this value in <c>IntendedRecipient</c>, or
+        /// leaves the field empty. TPPA publishes it as its own name in the <c>Capabilities</c> reply, so a
+        /// controller of any vendor reads it instead of hard coding it.
+        /// </summary>
         public const string TppaRecipient = "TPPA";
 
-        /// <summary>Value used in <c>IntendedRecipient</c> for controller addressed messages.</summary>
+        /// <summary>
+        /// Address used in <c>IntendedRecipient</c> while the controller has not announced a name yet. A
+        /// controller announces the name it wants to be addressed by
+        /// (<c>BridgeCapabilitiesAnnouncePayload.Controller</c>) and TPPA uses exactly that value from then
+        /// on, so controllers of different vendors never have to share one address. The MLAstro name is
+        /// only the default for a controller that announces no name at all (an older build).
+        /// </summary>
         public const string ControllerRecipient = "MLAstroRPA";
     }
 

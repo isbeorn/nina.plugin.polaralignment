@@ -540,6 +540,78 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void Session_AddressesTheControllerItWasToldAbout() {
+            var broker = new FakeMessageBroker();
+            using var session = NewSession(broker);
+
+            session.ControllerAddress.Should().Be(BridgeContract.ControllerRecipient);
+
+            session.ControllerAddress = "AcmePolar";
+            session.ControllerAddress.Should().Be("AcmePolar");
+
+            // An empty name falls back to the default instead of publishing an unaddressed message.
+            session.ControllerAddress = null;
+            session.ControllerAddress.Should().Be(BridgeContract.ControllerRecipient);
+        }
+
+        [Test]
+        public async Task Session_PublishesUnderTheAnnouncedControllerAddress() {
+            var broker = new FakeMessageBroker();
+            using var session = NewSession(broker);
+            session.ControllerAddress = "AcmePolar";
+
+            await session.OpenAsync(1.0, false, CancellationToken.None);
+
+            broker.Last(BridgeKind.SessionState).IntendedRecipient.Should().Be("AcmePolar");
+        }
+
+        [Test]
+        public async Task HandleEnvelope_DropsAMessageAddressedToSomebodyElse() {
+            var broker = new FakeMessageBroker();
+            using var session = NewSession(broker);
+            await session.OpenAsync(1.0, false, CancellationToken.None);
+
+            var forAnotherController = Command(BridgeKind.ControllerReady,
+                                               payload: new BridgeControllerReadyPayload { HardwareReady = true });
+            forAnotherController.IntendedRecipient = "AcmePolar";
+            session.HandleEnvelope(forAnotherController);
+
+            session.ControllerHardwareReady.Should().BeFalse();
+
+            // The same message addressed to TPPA is accepted, so an empty field is not required.
+            session.HandleEnvelope(Command(BridgeKind.ControllerReady,
+                                           payload: new BridgeControllerReadyPayload { HardwareReady = true }));
+            session.ControllerHardwareReady.Should().BeTrue();
+        }
+
+        [Test]
+        public async Task Hub_AnswersTheAnnounceUnderTheAnnouncedAddress() {
+            var broker = new FakeMessageBroker();
+            var hub = BridgeHub.EnsureInitialized(broker);
+            try {
+                hub.ControllerAddress.Should().Be(BridgeContract.ControllerRecipient);
+
+                var announce = BridgeEnvelope.Create(BridgeKind.Capabilities,
+                                                                null,
+                                                                "announce-1",
+                                                                null,
+                                                                1,
+                                                                BridgeContract.TppaRecipient,
+                                                                new BridgeCapabilitiesAnnouncePayload {
+                                                                    Controller = "AcmePolar",
+                                                                    ControllerVersion = "9.9.9.9"
+                                                                });
+
+                await hub.OnMessageReceived(new BridgeCommandMessage(announce));
+
+                hub.ControllerAddress.Should().Be("AcmePolar");
+                broker.Last(BridgeKind.Capabilities).IntendedRecipient.Should().Be("AcmePolar");
+            } finally {
+                BridgeHub.Shutdown();
+            }
+        }
+
+        [Test]
         public void EnvelopeRoundTripsThroughJson() {
             var envelope = BridgeEnvelope.Create(BridgeKind.Measurement,
                                                             "session-1",
