@@ -76,6 +76,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         // ignored, leaving the drivers on their 600 mA / 50% firmware defaults.
         public UniversalPolarAlignmentOAPA() : base() {
             ApplyStoredDriverConfiguration();
+            ReadMoveCapLimit();
             ApplyControllerParameters();
         }
 
@@ -83,6 +84,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         // (status probe in the base, then the driver-configuration push), no COM scan.
         protected UniversalPolarAlignmentOAPA(ISerialLink link) : base(link) {
             ApplyStoredDriverConfiguration();
+            ReadMoveCapLimit();
             ApplyControllerParameters();
         }
 
@@ -185,7 +187,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// The factors are sent only when they were measured or typed in: factory defaults
         /// would only mislead the controller, which calibrates by itself when it has none.
         /// </summary>
-        internal static string[] ControllerParameterCommands(Properties.Settings settings) {
+        internal static string[] ControllerParameterCommands(Properties.Settings settings, float moveCapLimit = LegacyMoveCapLimit) {
             var c = CultureInfo.InvariantCulture;
             string Backlash(char axis, string mode, float positive, float negativeOrUnset) {
                 var letter = mode switch { "Off" => 'O', "Soft" => 'S', "Unidirectional" => 'U', _ => 'F' };
@@ -200,7 +202,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 Backlash('X', settings.OAPAXBacklashMode, settings.OAPAXBacklashCompensation, settings.OAPAXBacklashCompensationNegative),
                 Backlash('Y', settings.OAPAYBacklashMode, settings.OAPAYBacklashCompensation, settings.OAPAYBacklashCompensationNegative),
                 string.Format(c, "$T={0}", settings.AlignmentTolerance),
-                string.Format(c, "$M={0}", ClampMoveCap(settings.OAPAMoveCap)),
+                string.Format(c, "$M={0}", Math.Clamp(settings.OAPAMoveCap, 1f, moveCapLimit)),
             });
             return commands.ToArray();
         }
@@ -209,13 +211,53 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             if (!RunsAlignment) {
                 return;
             }
-            foreach (var command in ControllerParameterCommands(Properties.Settings.Default)) {
+            var stored = Properties.Settings.Default.OAPAMoveCap;
+            if (stored > MoveCapLimit) {
+                Logger.Info($"OAPA controller: the move cap of {stored}' is above the {MoveCapLimit}' this controller accepts; {MoveCapLimit}' is sent");
+            }
+            foreach (var command in ControllerParameterCommands(Properties.Settings.Default, MoveCapLimit)) {
                 SendDriverCommand(command, "push alignment parameters");
             }
         }
 
-        /// <summary>The move cap the controller accepts ($M=), in arcminutes.</summary>
-        internal static float ClampMoveCap(float arcmin) => Math.Clamp(arcmin, 1f, 120f);
+        /// <summary>
+        /// The largest move cap the panel takes, in arcminutes. The controller sets its own limit
+        /// and reports it ($M?, firmware 1.3.2+); this one only leaves room for it to grow
+        /// without a plugin release.
+        /// </summary>
+        public const float PluginMoveCapLimit = 300f;
+
+        /// <summary>The limit of firmware that cannot report one (1.3.0, 1.3.1).</summary>
+        public const float LegacyMoveCapLimit = 120f;
+
+        /// <summary>Above this the panel asks before taking a move cap: a correction that large is only safe on a platform that can travel that far.</summary>
+        public const float MoveCapWarnAbove = 120f;
+
+        /// <summary>The largest move cap the connected controller accepts, in arcminutes.</summary>
+        public float MoveCapLimit { get; private set; } = LegacyMoveCapLimit;
+
+        /// <summary>
+        /// The controller's own limit from "&lt;M|max:180|&gt;", within the panel's; anything else -
+        /// firmware before 1.3.2 acknowledges the unknown $M? with "ok" - is the older 120'.
+        /// </summary>
+        internal static float ParseMoveCapLimit(string reply) {
+            return OapaControllerStatus.Parse(reply, "M").TryGetValue("max", out var text)
+                && float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var limit) && limit >= 1f
+                ? Math.Min(limit, PluginMoveCapLimit)
+                : LegacyMoveCapLimit;
+        }
+
+        private void ReadMoveCapLimit() {
+            if (!RunsAlignment) {
+                return;
+            }
+            try {
+                MoveCapLimit = ParseMoveCapLimit(ExecuteWireCommand("$M?")?.Trim());
+                Logger.Info($"OAPA controller: move cap up to {MoveCapLimit}'");
+            } catch (Exception ex) {
+                Logger.Error($"OAPA controller: reading the move cap limit failed, {LegacyMoveCapLimit}' assumed: {ex.Message}");
+            }
+        }
 
         /// <summary>A stored value below zero means "never set": the axis is symmetric.</summary>
         private static float NegativeOrSame(float stored, float positive) {

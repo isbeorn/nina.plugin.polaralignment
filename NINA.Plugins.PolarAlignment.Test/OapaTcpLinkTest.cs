@@ -28,6 +28,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
             public readonly ConcurrentQueue<string> Received = new();
             public volatile bool Silent;
             public volatile bool HangUpOnNextLine;
+            public volatile string Version = "1.3.0";
+            public readonly ConcurrentDictionary<string, string> Replies = new();
             public int Accepted;
 
             public FakeController() {
@@ -59,7 +61,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
                                 return;
                             }
                             if (Silent) { continue; }
-                            var reply = line == "?" ? "<Idle|MPos:0.00,0.00,0.00|V:1.3.0|>\r\nok\r\n" : "ok\r\n";
+                            var reply = line == "?" ? $"<Idle|MPos:0.00,0.00,0.00|V:{Version}|>\r\nok\r\n"
+                                : Replies.TryGetValue(line, out var scripted) ? scripted + "\r\n" : "ok\r\n";
                             var bytes = Encoding.ASCII.GetBytes(reply);
                             stream.Write(bytes, 0, bytes.Length);
                         }
@@ -203,6 +206,29 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             system.GetType().GetProperty("MinimumFirmwareVersion", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                 .GetValue(system).Should().Be(UniversalPolarAlignmentOAPA.AlignmentFirmwareVersion);
+        }
+
+        [Test]
+        [NonParallelizable]
+        public void OnConnect_TheControllersMoveCapLimitIsRead_AndTheCapSentStaysWithinIt() {
+            var d = Properties.Settings.Default;
+            var saved = d.OAPAMoveCap;
+            try {
+                d.OAPAMoveCap = 250f;
+                using var controller = new FakeController { Version = "1.3.2" };
+                controller.Replies["$M?"] = "<M|max:180|>";
+                using (var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address)) {
+                    system.MoveCapLimit.Should().Be(180f);
+                    controller.Received.Should().Contain("$M=180");
+                }
+
+                using var older = new FakeController();   // 1.3.0: "$M?" is an unknown command, answered "ok"
+                using var olderSystem = UniversalPolarAlignmentOAPA.ConnectOverWifi(older.Address);
+                olderSystem.MoveCapLimit.Should().Be(120f);
+                older.Received.Should().Contain("$M=120");
+            } finally {
+                d.OAPAMoveCap = saved;
+            }
         }
 
         [TestCase("microsteps", "$F=30,15")]

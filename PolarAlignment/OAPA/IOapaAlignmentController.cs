@@ -10,6 +10,12 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// <summary>True when the connected firmware can run the alignment.</summary>
         bool RunsAlignment { get; }
 
+        /// <summary>The version the connected firmware reports, or null.</summary>
+        string FirmwareVersion { get; }
+
+        /// <summary>The largest move cap the connected controller accepts, in arcminutes.</summary>
+        float MoveCapLimit { get; }
+
         /// <summary>Forwards one TPPA error reading, in arcminutes; returns the controller's reply.</summary>
         string ForwardError(double azimuthArcmin, double altitudeArcmin);
 
