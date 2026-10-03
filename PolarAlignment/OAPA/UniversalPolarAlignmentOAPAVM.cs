@@ -66,6 +66,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 }
                 if (e.PropertyName == nameof(Connected) || e.PropertyName == nameof(IsNotMoving)) {
                     if (e.PropertyName == nameof(Connected)) {
+                        RaisePropertyChanged(nameof(FirmwareVersionDisplay));
                         HasHome = false;
                         lastControllerPhase = "";
                         warnedOldFirmware = false;
@@ -211,6 +212,12 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         /// <summary>Asks before a move cap above 120' is taken; true to take it.</summary>
         internal Func<string, bool> ConfirmLargeMoveCap = message =>
             MyMessageBox.Show(message, "Move cap", MessageBoxButton.YesNo, MessageBoxResult.No) == MessageBoxResult.Yes;
+
+        /// <summary>The version the connected controller's firmware reports.</summary>
+        public string FirmwareVersionDisplay => upa?.Connected == true && upa is IOapaAlignmentController controller
+            && !string.IsNullOrEmpty(controller.FirmwareVersion)
+            ? $"Firmware {controller.FirmwareVersion}"
+            : "";
 
         /// <summary>
         /// The largest single correction the controller makes, in arcminutes. A larger cap closes

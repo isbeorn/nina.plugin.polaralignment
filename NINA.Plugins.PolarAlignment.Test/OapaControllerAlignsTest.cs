@@ -19,6 +19,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         private sealed class FakeController : IPolarAlignmentSystem, IOapaAlignmentController {
             public readonly List<(double az, double alt)> Forwarded = new();
             public bool RunsAlignment { get; set; } = true;
+            public string FirmwareVersion { get; set; } = "1.3.0";
             public float MoveCapLimit { get; set; } = 120f;
             public bool Connected { get; set; } = true;
             public string Status => "Idle";
@@ -478,7 +479,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
         [Test]
         public void Connected_TheMoveCapStopsAtTheControllersLimit_AndSaysSo() {
             var asked = new List<string>();
-            var controller = new FakeController { MoveCapLimit = 180f };
+            var controller = new FakeController { MoveCapLimit = 180f, FirmwareVersion = "1.3.2" };
             var vm = new OapaTestVm { Hardware = controller, ConfirmLargeMoveCap = message => { asked.Add(message); return true; } };
             vm.MoveCap = 60f;
 
@@ -487,6 +488,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
             vm.MoveCap.Should().Be(180f);
             asked.Should().ContainSingle().Which.Should().Contain("180'", "the warning is about the cap that will apply");
             vm.ControllerStatus.Should().Contain("up to 180'");
+        }
+
+        [Test]
+        public void ThePanelShowsTheFirmwareVersion() {
+            var controller = new FakeController { FirmwareVersion = "1.3.2" };
+            var vm = new OapaTestVm { Hardware = controller };
+            vm.FirmwareVersionDisplay.Should().Be("Firmware 1.3.2");
+
+            controller.Connected = false;
+            vm.FirmwareVersionDisplay.Should().BeEmpty();
         }
 
         [Test]

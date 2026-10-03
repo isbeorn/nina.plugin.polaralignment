@@ -18,6 +18,7 @@
 - OAPA: with firmware 1.3.1 or later, the controller's own log - each leg of its moves, backlash included, and why a run or a calibration ended - is copied into the N.I.N.A. log.
 - OAPA: Calibrate pressed just after a polar alignment stopped measuring waits at most 10 seconds for TPPA's next reading, then calibrates on the plugin's own frames instead of waiting for readings that do not come.
 - OAPA: the move cap goes up to what the controller allows, which it reports itself (180 arcminutes with firmware 1.3.2, 120 before). A move cap above 120 arcminutes is taken only after a confirmation.
+- OAPA: the panel shows the firmware version of the connected controller, next to the link.
 
 ## Version 2.2.6.7
 - Fixed UPAS azimuth backlash compensation.

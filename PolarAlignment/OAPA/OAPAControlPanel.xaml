@@ -18,6 +18,7 @@
         <s:String x:Key="OAPABacklashModeToolTip">How this axis handles its own play. Full compensates the whole measured backlash on every reversal; Soft compensates it gradually; Unidirectional always approaches from the engaged side; Off leaves the play alone. The controller applies it to the moves of its own alignment.</s:String>
         <s:String x:Key="OAPABacklashNegativeToolTip">Backlash entering the negative direction, in arcminutes. On an axis loaded by gravity the two directions rarely cost the same. Left equal to the positive value unless set.</s:String>
         <s:String x:Key="OAPAYBacklashToolTip">Altitude-axis mechanical backlash in arcminutes, entering the positive direction. Sent to the controller, which compensates it in the moves of its own alignment.</s:String>
+        <s:String x:Key="OAPAFirmwareVersionToolTip">The firmware version the connected controller reports, read when it connects.</s:String>
         <s:String x:Key="OAPAConnectionToolTip">How Connect reaches the OAPA controller: USB scans the COM ports, WiFi connects to the address below (firmware 1.3.0 or later).</s:String>
         <s:String x:Key="OAPAWifiAddressToolTip">The controller's address on your network, e.g. 192.168.1.50, or host:port. The port defaults to 2323. Your router's device list shows it, and so does the controller's event log ("joined ... as ...").</s:String>
         <s:String x:Key="OAPAControllerAlignsToolTip">The OAPA controller runs the alignment: every error TPPA measures is sent to it, and it decides every move - axis, size, backlash, settling, when to stop. TPPA never moves an OAPA axis itself: it measures, and still finishes by itself below its alignment tolerance. Off, TPPA only measures and nothing moves by itself. Needs controller firmware 1.3.0 or later.</s:String>
@@ -44,6 +45,8 @@
                     <ComboBox VerticalAlignment="Center" Margin="5" MinWidth="70" ItemsSource="{Binding ConnectionModes}" SelectedItem="{Binding ConnectionMode}" ToolTip="{StaticResource OAPAConnectionToolTip}" />
                     <TextBlock VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAWifiAddressToolTip}" Visibility="{Binding IsWifiConnection, Converter={StaticResource BooleanToVisibilityConverter}}">Address</TextBlock>
                     <TextBox VerticalAlignment="Center" Margin="5" MinWidth="140" Text="{Binding WifiAddress, UpdateSourceTrigger=LostFocus}" ToolTip="{StaticResource OAPAWifiAddressToolTip}" Visibility="{Binding IsWifiConnection, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <!-- What is on the other end of the link: information, not a control. -->
+                    <TextBlock VerticalAlignment="Center" Margin="15,5,5,5" Opacity="0.7" Text="{Binding FirmwareVersionDisplay}" ToolTip="{StaticResource OAPAFirmwareVersionToolTip}" Visibility="{Binding Connected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock VerticalAlignment="Center" Margin="5" ToolTip="{StaticResource OAPAControllerAlignsToolTip}">Controller aligns</TextBlock>
