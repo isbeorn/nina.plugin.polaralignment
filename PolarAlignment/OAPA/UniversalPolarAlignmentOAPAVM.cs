@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NINA.Core.MyMessageBox;
 using NINA.Core.Utility;
 using NINA.Core.Utility.Notification;
 using NINA.Equipment.Interfaces.Mediator;
@@ -207,6 +208,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             ? "ON: the controller runs the alignment - it moves the axes on every error TPPA measures."
             : "OFF: TPPA only measures - nothing moves by itself.";
 
+        /// <summary>Asks before a move cap above 120' is taken; true to take it.</summary>
+        internal Func<string, bool> ConfirmLargeMoveCap = message =>
+            MyMessageBox.Show(message, "Move cap", MessageBoxButton.YesNo, MessageBoxResult.No) == MessageBoxResult.Yes;
+
         /// <summary>
         /// The largest single correction the controller makes, in arcminutes. A larger cap closes
         /// a large error in fewer corrections; each is still at most 80% of the measured error.
@@ -214,7 +219,22 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         public float MoveCap {
             get => Properties.Settings.Default.OAPAMoveCap;
             set {
-                var capped = UniversalPolarAlignmentOAPA.ClampMoveCap(value);
+                // Connected, the controller's own limit applies; otherwise the panel's, and the
+                // controller's is applied when the value is sent.
+                var connected = upa?.Connected == true && upa is IOapaAlignmentController;
+                var limit = connected ? ((IOapaAlignmentController)upa).MoveCapLimit : UniversalPolarAlignmentOAPA.PluginMoveCapLimit;
+                var capped = Math.Clamp(value, 1f, limit);
+                if (connected && value > limit) {
+                    ControllerStatus = $"the controller allows a move cap up to {limit:0}'";
+                }
+                if (Properties.Settings.Default.OAPAMoveCap != capped && capped > UniversalPolarAlignmentOAPA.MoveCapWarnAbove
+                    && !ConfirmLargeMoveCap(
+                        $"A move cap of {capped:0}' lets the controller make single corrections that large. "
+                        + $"Make sure your platform can travel that far in both directions.{Environment.NewLine}{Environment.NewLine}"
+                        + $"Use a move cap of {capped:0}'?")) {
+                    RaisePropertyChanged(nameof(MoveCap));
+                    return;
+                }
                 if (Properties.Settings.Default.OAPAMoveCap != capped) {
                     Properties.Settings.Default.OAPAMoveCap = capped;
                     CoreUtil.SaveSettings(Properties.Settings.Default);
