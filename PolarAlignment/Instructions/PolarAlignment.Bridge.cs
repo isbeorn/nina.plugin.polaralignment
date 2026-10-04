@@ -501,7 +501,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             await messageBroker.Publish(new PolarAlignmentErrorMessage(Guid.NewGuid(),
                                                                       altitudeError: altitudeError.Degree,
                                                                       azimuthError: azimuthError.Degree,
-                                                                      totalError: totalError.Degree));
+                                                                      totalError: totalError.Degree,
+                                                                      alignmentTolerance: AlignmentTolerance));
 
             if (!estimateStable) {
                 Logger.Warning("[Bridge] Publishing an unstable measurement so the controller is not left waiting.");
