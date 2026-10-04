@@ -19,6 +19,8 @@ namespace NINA.Plugins.PolarAlignment.Test {
         private sealed class FakeController : IPolarAlignmentSystem, IOapaAlignmentController {
             public readonly List<(double az, double alt)> Forwarded = new();
             public bool RunsAlignment { get; set; } = true;
+            public string FirmwareVersion { get; set; } = "1.3.0";
+            public float MoveCapLimit { get; set; } = 120f;
             public bool Connected { get; set; } = true;
             public string Status => "Idle";
             public float XPosition1 => 0;
@@ -431,16 +433,71 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public void TheMoveCap_StaysWithinWhatTheControllerAccepts() {
+        public void TheMoveCapSent_StaysWithinWhatTheControllerAccepts() {
+            // The controller says how far it goes ($M?); firmware before 1.3.2 cannot say, and stops at 120'.
             var settings = new Properties.Settings();
-            settings.OAPAMoveCap = 500f;
-            UniversalPolarAlignmentOAPA.ControllerParameterCommands(settings).Should().Contain("$M=120");
+            settings.OAPAMoveCap = 250f;
+            UniversalPolarAlignmentOAPA.ControllerParameterCommands(settings, 180f).Should().Contain("$M=180");
+            UniversalPolarAlignmentOAPA.ControllerParameterCommands(settings, 120f).Should().Contain("$M=120");
+            settings.OAPAMoveCap = 150f;
+            UniversalPolarAlignmentOAPA.ControllerParameterCommands(settings, 180f).Should().Contain("$M=150");
+        }
 
-            var vm = new OapaTestVm();
+        [TestCase("<M|max:180|>", 180f)]
+        [TestCase("<M|max:240|>", 240f)]
+        [TestCase("<M|max:999|>", 300f)]
+        [TestCase("ok", 120f)]
+        [TestCase("error", 120f)]
+        [TestCase(null, 120f)]
+        public void TheControllersMoveCapLimit_IsWhatItReports_Or120ForOlderFirmware(string reply, float expected) {
+            UniversalPolarAlignmentOAPA.ParseMoveCapLimit(reply).Should().Be(expected);
+        }
+
+        [Test]
+        public void Disconnected_TheMoveCapGoesUpTo300_AndAbove120ItAsksFirst() {
+            var asked = new List<string>();
+            var vm = new OapaTestVm { ConfirmLargeMoveCap = message => { asked.Add(message); return true; } };
             vm.MoveCap = 0.2f;
             vm.MoveCap.Should().Be(1f);
+            vm.MoveCap = 100f;
+            asked.Should().BeEmpty("120' and below needs no warning");
             vm.MoveCap = 250f;
-            vm.MoveCap.Should().Be(120f);
+            vm.MoveCap.Should().Be(250f);
+            asked.Should().ContainSingle().Which.Should().Contain("250'");
+            vm.MoveCap = 400f;
+            vm.MoveCap.Should().Be(300f);
+        }
+
+        [Test]
+        public void AMoveCapAbove120_NotConfirmed_KeepsTheOneBefore() {
+            var vm = new OapaTestVm { ConfirmLargeMoveCap = _ => false };
+            vm.MoveCap = 60f;
+            vm.MoveCap = 150f;
+            vm.MoveCap.Should().Be(60f);
+        }
+
+        [Test]
+        public void Connected_TheMoveCapStopsAtTheControllersLimit_AndSaysSo() {
+            var asked = new List<string>();
+            var controller = new FakeController { MoveCapLimit = 180f, FirmwareVersion = "1.3.2" };
+            var vm = new OapaTestVm { Hardware = controller, ConfirmLargeMoveCap = message => { asked.Add(message); return true; } };
+            vm.MoveCap = 60f;
+
+            vm.MoveCap = 250f;
+
+            vm.MoveCap.Should().Be(180f);
+            asked.Should().ContainSingle().Which.Should().Contain("180'", "the warning is about the cap that will apply");
+            vm.ControllerStatus.Should().Contain("up to 180'");
+        }
+
+        [Test]
+        public void ThePanelShowsTheFirmwareVersion() {
+            var controller = new FakeController { FirmwareVersion = "1.3.2" };
+            var vm = new OapaTestVm { Hardware = controller };
+            vm.FirmwareVersionDisplay.Should().Be("Firmware 1.3.2");
+
+            controller.Connected = false;
+            vm.FirmwareVersionDisplay.Should().BeEmpty();
         }
 
         [Test]
