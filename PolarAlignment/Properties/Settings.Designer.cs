@@ -395,6 +395,22 @@ namespace NINA.Plugins.PolarAlignment.Properties {
             }
         }
 
+        /// <summary>
+        /// Broker identity (<see cref="NINA.Plugin.Interfaces.IMessage.SenderId"/>) of the external controller the
+        /// operator selected as the alignment system. Empty while no controller is selected.
+        /// </summary>
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string SelectedBridgeControllerId {
+            get {
+                return ((string)(this["SelectedBridgeControllerId"]));
+            }
+            set {
+                this["SelectedBridgeControllerId"] = value;
+            }
+        }
+
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("1")]

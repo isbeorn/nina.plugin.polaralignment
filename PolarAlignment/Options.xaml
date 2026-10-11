@@ -37,7 +37,7 @@
     <s:String x:Key="UseContinuousErrorEstimatorToolTip">When enabled, TPPA uses the experimental time-aware continuous estimator for live correction error. When disabled, TPPA uses the legacy image-plane calculation.</s:String>
     <s:String x:Key="StopTrackingWhenDoneToolTip">When enabled, TPPA turns sidereal tracking off in its cleanup path after the run ends.</s:String>
     <s:String x:Key="AutoPauseToolTip">When enabled, TPPA pauses itself after each continuous-correction update.</s:String>
-    <s:String x:Key="PolarAlignmentSystemToolTip">Selects which hardware adjustment system TPPA exposes as the active alignment system: None, UPAS, or OAPA.</s:String>
+    <s:String x:Key="PolarAlignmentSystemToolTip">Selects which adjustment system TPPA uses: None, UPAS, OAPA, or an external controller registered on the NINA message broker. An external controller drives the alignment hardware itself and TPPA only measures and reports.</s:String>
     <s:String x:Key="ReverseAzimuthToolTip">Negates azimuth-axis nudge and move commands sent through the selected hardware system.</s:String>
     <s:String x:Key="ReverseAltitudeToolTip">Negates altitude-axis nudge and move commands sent through the selected hardware system.</s:String>
     <s:String x:Key="AzimuthBacklashCompensationToolTip">If non-zero and the azimuth movement direction changes, TPPA sends an extra negative-then-positive relative X move of this size after the main move.</s:String>
@@ -394,23 +394,17 @@
                             Margin="5,5,0,0"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Center"
-                            SelectedValue="{Binding SelectedPolarAlignmentSystem}"
-                            ToolTip="{StaticResource PolarAlignmentSystemToolTip}">
-                            <ComboBox.ItemsSource>
-                                <x:Array Type="{x:Type local:PolarAlignmentSystemType}">
-                                    <local:PolarAlignmentSystemType>None</local:PolarAlignmentSystemType>
-                                    <local:PolarAlignmentSystemType>UPAS</local:PolarAlignmentSystemType>
-                                    <local:PolarAlignmentSystemType>OAPA</local:PolarAlignmentSystemType>
-                                </x:Array>
-                            </ComboBox.ItemsSource>
-                        </ComboBox>
+                            DisplayMemberPath="DisplayName"
+                            ItemsSource="{Binding SystemOptions}"
+                            SelectedItem="{Binding SelectedSystemOption}"
+                            ToolTip="{StaticResource PolarAlignmentSystemToolTip}" />
                         <TextBlock
                             Grid.Row="19"
                             Margin="0,5,0,0"
                             VerticalAlignment="Center"
                             Text="Reverse Azimuth Axis?"
                             ToolTip="{StaticResource ReverseAzimuthToolTip}"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            Visibility="{Binding IsLocalSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <CheckBox
                             Grid.Row="19"
                             Grid.Column="1"
@@ -420,14 +414,14 @@
                             VerticalAlignment="Center"
                             IsChecked="{Binding ActiveSystem.ReverseAzimuth}"
                             ToolTip="{StaticResource ReverseAzimuthToolTip}"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            Visibility="{Binding IsLocalSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <TextBlock
                             Grid.Row="20"
                             Margin="0,5,0,0"
                             VerticalAlignment="Center"
                             Text="Reverse Altitude Axis?"
                             ToolTip="{StaticResource ReverseAltitudeToolTip}"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            Visibility="{Binding IsLocalSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <CheckBox
                             Grid.Row="20"
                             Grid.Column="1"
@@ -437,7 +431,7 @@
                             VerticalAlignment="Center"
                             IsChecked="{Binding ActiveSystem.ReverseAltitude}"
                             ToolTip="{StaticResource ReverseAltitudeToolTip}"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            Visibility="{Binding IsLocalSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <!-- TPPA's own backlash compensation and automated adjustments: UPAS only. The OAPA
                              controller runs its own alignment and compensates its backlash itself; its values
                              are in the OAPA panel, in arcminutes. -->
@@ -518,6 +512,16 @@
                                 FontStyle="Italic"
                                 Text="Make sure to set your gear ratio to achieve 1 arcminute per step for each axis!"
                                 Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
+                        <Grid
+                            Grid.Row="24"
+                            Grid.ColumnSpan="2"
+                            Visibility="{Binding IsExternalSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock
+                                Margin="0,5,0,0"
+                                FontStyle="Italic"
+                                TextWrapping="Wrap"
+                                Text="TPPA only measures and reports the alignment error: the selected controller drives the alignment hardware over the NINA message broker, so the run needs it to stay connected." />
                         </Grid>
                         <Button
                             Grid.Row="25"

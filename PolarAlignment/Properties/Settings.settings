@@ -95,6 +95,9 @@
     <Setting Name="SelectedPolarAlignmentSystem" Type="System.String" Scope="User">
       <Value Profile="(Default)">None</Value>
     </Setting>
+    <Setting Name="SelectedBridgeControllerId" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
     <Setting Name="OAPAXGearRatio" Type="System.Single" Scope="User">
       <Value Profile="(Default)">1</Value>
     </Setting>

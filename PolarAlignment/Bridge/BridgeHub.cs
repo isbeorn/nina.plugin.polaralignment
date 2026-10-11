@@ -3,6 +3,7 @@ using NINA.Core.Utility;
 using NINA.Plugin.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,23 +26,12 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
         private readonly IMessageBroker broker;
         private readonly object gate = new object();
+        private readonly Dictionary<Guid, RegisteredController> registrations = new Dictionary<Guid, RegisteredController>();
         private BridgeSession session;
-        private DateTimeOffset? lastControllerSeenAt;
 
-        /// <summary>
-        /// When the registered controller was last seen. While a run owns the broker this is the timestamp
-        /// that counts, so a second controller cannot keep a session alive after its owner went quiet.
-        /// </summary>
-        private DateTimeOffset? lastOwnerSeenAt;
+        /// <summary>Broker identity of the controller the running session belongs to, if any.</summary>
+        private Guid? ownerId;
 
-        /// <summary>
-        /// Broker identity of the registered controller (<see cref="IMessage.SenderId"/>). It is refreshed
-        /// while no run owns the broker - so the next run binds whoever is present - and frozen once a run
-        /// has taken it over, which is what keeps a second controller from stealing the running session.
-        /// </summary>
-        private Guid? controllerSenderId;
-        private string controllerName;
-        private string controllerVersion;
         private bool disposed;
 
         private BridgeHub(IMessageBroker broker) {
@@ -53,42 +43,131 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         public static BridgeHub Instance { get; private set; }
 
         /// <summary>
-        /// True while the controller TPPA is working with announced itself within the presence window. Before
-        /// a run takes the broker over that is any controller - the mode is detected, not configured - and
-        /// while a run owns the broker it is that run's controller only. The external correction mode only
-        /// turns on while this is true, so a run without a controller behaves exactly like it always did.
+        /// A controller that announced itself on the broker. <see cref="SenderId"/> is the identity that decides
+        /// whether a message belongs to the controller that owns the run, while the announced name is both what
+        /// the operator sees in the system list and the address TPPA publishes to.
         /// </summary>
-        public bool IsControllerPresent {
-            get {
-                lock (gate) {
-                    var seenAt = controllerSenderId.HasValue ? lastOwnerSeenAt : lastControllerSeenAt;
-                    return seenAt.HasValue
-                           && DateTimeOffset.UtcNow - seenAt.Value <= ControllerPresenceWindow;
-                }
-            }
+        public sealed class RegisteredController {
+            public Guid SenderId { get; set; }
+            public string Name { get; set; }
+            public string Version { get; set; }
+            public DateTimeOffset LastSeenAt { get; set; }
+
+            /// <summary>Name and version as one label, e.g. "MLAstroRPA 3.1.3.0".</summary>
+            public string Display => string.IsNullOrWhiteSpace(Name)
+                ? "The external alignment controller"
+                : (string.IsNullOrWhiteSpace(Version) ? Name : $"{Name} {Version}");
         }
 
-        /// <summary>True when the message comes from the controller currently registered on the broker.</summary>
-        private bool IsRegisteredSender(Guid senderId) {
-            lock (gate) {
-                return controllerSenderId.HasValue && senderId != Guid.Empty && senderId == controllerSenderId.Value;
+        /// <summary>
+        /// Controllers seen on the broker inside the presence window, newest first. This is the list the system
+        /// selection shows: a controller that switches its assignment off leaves it again.
+        /// </summary>
+        public IReadOnlyList<RegisteredController> RegisteredControllers {
+            get {
+                lock (gate) {
+                    PruneExpiredControllers();
+                    return registrations.Values.OrderByDescending(controller => controller.LastSeenAt).ToList();
+                }
             }
         }
 
         /// <summary>
-        /// Name and version of the controller that last announced itself, e.g. "MLAstroRPA 2.2.0.0". Every
-        /// status text and notification that talks about the controller uses this, so the operator sees
-        /// which plugin is on the other end instead of a generic wording. A controller that has not
-        /// identified itself yet falls back to the generic wording.
+        /// Raised as soon as a controller registers itself on the broker, so the system selection shows it
+        /// right away instead of on its next refresh. A controller that stops answering is only detectable by
+        /// the presence window, so leaving the list stays a time based check.
         /// </summary>
-        public string ControllerDisplay {
+        public event EventHandler RegisteredControllersChanged;
+
+        /// <summary>Announces a registration without letting a listener run inside the lock.</summary>
+        private void RaiseRegisteredControllersChanged() {
+            var handler = RegisteredControllersChanged;
+            if (handler == null) { return; }
+
+            try {
+                handler(this, EventArgs.Empty);
+            } catch (Exception ex) {
+                Logger.Warning($"[Bridge] A registered-controller listener failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>True while the controller with this broker identity is present.</summary>
+        public bool IsRegistered(Guid? senderId) {
+            if (!senderId.HasValue || senderId.Value == Guid.Empty) { return false; }
+
+            lock (gate) {
+                PruneExpiredControllers();
+                return registrations.ContainsKey(senderId.Value);
+            }
+        }
+
+        /// <summary>
+        /// True while the controller TPPA is working with is present. Before a run takes the broker over that is
+        /// any registered controller; while a run owns it, it is that run's controller only, so a second
+        /// controller cannot keep a session alive after its owner went quiet.
+        /// </summary>
+        public bool IsControllerPresent {
             get {
                 lock (gate) {
-                    if (string.IsNullOrWhiteSpace(controllerName)) { return "the external alignment controller"; }
-                    return string.IsNullOrWhiteSpace(controllerVersion) ? controllerName : $"{controllerName} {controllerVersion}";
+                    PruneExpiredControllers();
+                    return ownerId.HasValue ? registrations.ContainsKey(ownerId.Value) : registrations.Count > 0;
                 }
             }
         }
+
+        /// <summary>
+        /// The controller TPPA is working with: the owner of the running session, otherwise the controller that
+        /// announced itself last, otherwise null when none is registered.
+        /// </summary>
+        private RegisteredController CurrentController() {
+            lock (gate) {
+                PruneExpiredControllers();
+                if (ownerId.HasValue && registrations.TryGetValue(ownerId.Value, out var owner)) { return owner; }
+                return registrations.Values.OrderByDescending(controller => controller.LastSeenAt).FirstOrDefault();
+            }
+        }
+
+        /// <summary>Drops controllers that stopped answering, so the system list follows the broker.</summary>
+        private void PruneExpiredControllers() {
+            var cutoff = DateTimeOffset.UtcNow - ControllerPresenceWindow;
+            foreach (var key in registrations.Where(entry => entry.Value.LastSeenAt < cutoff)
+                                             .Select(entry => entry.Key)
+                                             .ToList()) {
+                registrations.Remove(key);
+            }
+        }
+
+        /// <summary>
+        /// Removes a controller that said goodbye, so it leaves the system list without waiting for the presence
+        /// window. Returns true when a controller was removed.
+        /// </summary>
+        private bool Deregister(Guid senderId) {
+            if (senderId == Guid.Empty) { return false; }
+
+            lock (gate) {
+                return registrations.Remove(senderId);
+            }
+        }
+
+        /// <summary>
+        /// Identity of a controller that fills no <see cref="IMessage.SenderId"/> (an older build): a stable value
+        /// derived from the name it announced, so it still appears in the system selection and can be chosen. A
+        /// message that identifies no sender is never filtered, which is what keeps such a controller working.
+        /// </summary>
+        private static Guid DeriveIdentity(string name) {
+            using (var md5 = System.Security.Cryptography.MD5.Create()) {
+                var hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes("TPPA:controller:" + (name ?? string.Empty)));
+                return new Guid(hash);
+            }
+        }
+
+        /// <summary>
+        /// Name and version of the controller TPPA is working with, e.g. "MLAstroRPA 2.2.0.0". Every status text
+        /// and notification that talks about the controller uses this, so the operator sees which plugin is on
+        /// the other end instead of a generic wording. A controller that has not identified itself yet falls back
+        /// to the generic wording.
+        /// </summary>
+        public string ControllerDisplay => CurrentController()?.Display ?? "the external alignment controller";
 
         /// <summary><see cref="ControllerDisplay"/> written so it can start a sentence.</summary>
         public string ControllerDisplayCapitalized {
@@ -112,17 +191,15 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         }
 
         /// <summary>
-        /// Address TPPA puts in <c>IntendedRecipient</c> of every message it sends to the controller: the
-        /// name the controller announced itself with, so a controller of any vendor is addressed with its
-        /// own name and a controller that filters on the field keeps working. Until a controller has
-        /// identified itself the MLAstro default is used, which keeps a controller that announces no name
-        /// (an older build) working.
+        /// Address TPPA puts in <c>IntendedRecipient</c> of every message it sends to the controller: the name
+        /// that controller announced itself with, so controllers of different vendors never share one address.
+        /// Until a controller has identified itself the MLAstro default is used, which keeps a controller that
+        /// announces no name (an older build) working.
         /// </summary>
         public string ControllerAddress {
             get {
-                lock (gate) {
-                    return string.IsNullOrWhiteSpace(controllerName) ? BridgeContract.ControllerRecipient : controllerName;
-                }
+                var controller = CurrentController();
+                return string.IsNullOrWhiteSpace(controller?.Name) ? BridgeContract.ControllerRecipient : controller.Name;
             }
         }
 
@@ -131,26 +208,36 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             get { lock (gate) { return session; } }
         }
 
+        /// <summary>Broker identity of the controller the running session belongs to, if any.</summary>
+        public Guid? SessionOwnerId {
+            get { lock (gate) { return ownerId; } }
+        }
+
         /// <summary>
-        /// Hands the broker over to a run. The controller registered at this moment becomes the owner of the
-        /// run: its identity and address are copied into the session and are never refreshed afterwards, so
-        /// the run keeps talking to the controller it started with.
+        /// Hands the broker over to a run. The controller the operator selected becomes the owner of the run: its
+        /// identity and announced address are copied into the session and are never refreshed afterwards, so the
+        /// run keeps talking to that controller and nobody else can take it over.
         /// </summary>
-        public void AttachSession(BridgeSession newSession) {
-            Guid? ownerId;
+        public void AttachSession(BridgeSession newSession, Guid? selectedControllerId) {
             string address;
             lock (gate) {
                 session = newSession;
-                ownerId = controllerSenderId;
-                lastOwnerSeenAt = lastControllerSeenAt;
-                address = ControllerAddress;
+                ownerId = selectedControllerId;
+                if (selectedControllerId.HasValue && registrations.TryGetValue(selectedControllerId.Value, out var selected)) {
+                    address = string.IsNullOrWhiteSpace(selected.Name) ? BridgeContract.ControllerRecipient : selected.Name;
+                } else {
+                    address = BridgeContract.ControllerRecipient;
+                }
             }
-            newSession.BindOwner(ownerId, address);
+            newSession.BindOwner(selectedControllerId, address);
         }
 
         public void DetachSession(BridgeSession oldSession) {
             lock (gate) {
-                if (ReferenceEquals(session, oldSession)) { session = null; }
+                if (ReferenceEquals(session, oldSession)) {
+                    session = null;
+                    ownerId = null;
+                }
             }
         }
 
@@ -168,26 +255,58 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 return Task.CompletedTask;
             }
 
+            var announce = string.Equals(envelope.Kind, BridgeKind.Capabilities, StringComparison.Ordinal)
+                ? envelope.PayloadAs<BridgeCapabilitiesAnnouncePayload>()
+                : null;
+
+            var foreignAnnounce = false;
+            var registered = false;
             lock (gate) {
-                lastControllerSeenAt = DateTimeOffset.UtcNow;
+                // A controller that fills no sender id (an older build) is identified by the name it announced,
+                // so it can still appear in the system selection and be chosen by the operator.
+                var identity = message.SenderId != Guid.Empty
+                    ? message.SenderId
+                    : (announce != null ? DeriveIdentity(announce.Controller) : (Guid?)null);
 
-                // Registration: while no run owns the broker the last controller seen is the one the next run
-                // binds. With a run in progress the owner is frozen, so this never changes under it.
-                if (session == null && message.SenderId != Guid.Empty) {
-                    controllerSenderId = message.SenderId;
+                if (identity.HasValue) {
+                    if (!registrations.TryGetValue(identity.Value, out var controller)) {
+                        controller = new RegisteredController { SenderId = identity.Value };
+                        registrations[identity.Value] = controller;
+                        registered = true;
+                    }
+
+                    controller.LastSeenAt = DateTimeOffset.UtcNow;
+                    if (announce != null) {
+                        controller.Name = announce.Controller;
+                        controller.Version = announce.ControllerVersion;
+                    }
+
+                    // The owner of a running session never changes: a second controller that announces itself
+                    // only adds itself to the list the operator selects from.
+                    foreignAnnounce = announce != null && ownerId.HasValue && identity.Value != ownerId.Value;
                 }
+                PruneExpiredControllers();
             }
 
-            if (IsRegisteredSender(message.SenderId)) {
-                lock (gate) { lastOwnerSeenAt = DateTimeOffset.UtcNow; }
+            if (registered) {
+                RaiseRegisteredControllersChanged();
             }
 
-            if (string.Equals(envelope.Kind, BridgeKind.Capabilities, StringComparison.Ordinal)) {
-                var announce = envelope.PayloadAs<BridgeCapabilitiesAnnouncePayload>();
-                if (announce != null) {
-                    RegisterController(message, announce);
-                }
+            if (foreignAnnounce) {
+                Logger.Info($"[Bridge] Another controller announced itself while a run is in progress. The run stays with {ControllerDisplay}.");
+            }
+
+            if (announce != null) {
                 return PublishCapabilitiesAsync(CancellationToken.None);
+            }
+
+            // A controller that switches its broker off says goodbye instead of falling silent: dropping it right
+            // away keeps the system list honest, whether a run is in progress or not.
+            if (string.Equals(envelope.Kind, BridgeKind.Cancel, StringComparison.Ordinal)
+                && string.Equals(envelope.PayloadAs<BridgeCancelPayload>()?.Reason, BridgeReason.BrokerDisabled, StringComparison.Ordinal)
+                && Deregister(message.SenderId)) {
+                Logger.Info("[Bridge] The controller switched its broker off and left the alignment system list.");
+                RaiseRegisteredControllersChanged();
             }
 
             var activeSession = Session;
@@ -211,30 +330,6 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
         /// <summary>Senders already reported for a foreign message, so each of them is written to the log once.</summary>
         private readonly HashSet<Guid> unexpectedSenders = new HashSet<Guid>();
-
-        /// <summary>
-        /// Registers an announced controller. While the broker is free the announced name becomes the address
-        /// TPPA answers to and the next run binds that controller. An announcement that arrives while a run
-        /// owns the broker only proves the controller is still alive: the owner itself is never reassigned,
-        /// which is what keeps a second controller from taking a running session over.
-        /// </summary>
-        private void RegisterController(IMessage message, BridgeCapabilitiesAnnouncePayload announce) {
-            var reported = false;
-            lock (gate) {
-                if (session != null) {
-                    reported = controllerSenderId.HasValue && message.SenderId != Guid.Empty
-                               && message.SenderId != controllerSenderId.Value
-                               && unexpectedSenders.Add(message.SenderId);
-                } else {
-                    controllerName = announce.Controller;
-                    controllerVersion = announce.ControllerVersion;
-                }
-            }
-
-            if (reported) {
-                Logger.Warning($"[Bridge] Ignored an announcement from another controller while a run is in progress: {ControllerDisplay} owns it.");
-            }
-        }
 
         /// <summary>
         /// Reports a message from a controller that does not own the running session, so the log explains why

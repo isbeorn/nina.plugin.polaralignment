@@ -46,28 +46,39 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             BridgeHub.Instance?.ControllerDisplayCapitalized ?? "The external alignment controller";
 
         /// <summary>
-        /// Creates and opens the external correction session when a controller is connected. The mode is
-        /// detected, not configured: a controller announces itself every few seconds while it is
-        /// enabled, so the presence of those announcements is the handshake. Returns null whenever TPPA
-        /// has to run its normal correction loop.
+        /// Creates and opens the external correction session when the operator selected an external controller as
+        /// the alignment system. Nothing is detected on its own: a controller that answers on the broker only
+        /// appears in the system list, and TPPA talks to it only while it is the selected system. Returns null
+        /// whenever TPPA has to run its normal correction loop.
         /// </summary>
         private async Task<BridgeSession> StartBridgeSessionAsync(IProgress<ApplicationStatus> progress, CancellationToken token) {
             var hub = BridgeHub.Instance;
             if (hub == null) { return null; }
 
-            if (!hub.IsControllerPresent) {
-                Logger.Info("[Bridge] No external alignment controller is connected. Using the internal correction loop.");
+            if (Properties.Settings.Default.SelectedPolarAlignmentSystem != nameof(PolarAlignmentSystemType.External)) {
+                Logger.Info("[Bridge] The external correction system is not the selected alignment system. Using the internal correction loop.");
+                return null;
+            }
+
+            // The selection carries the broker identity of the controller, because an announced name is not unique.
+            var controllerId = Guid.TryParse(Properties.Settings.Default.SelectedBridgeControllerId, out var parsedId)
+                ? parsedId
+                : (Guid?)null;
+
+            if (!hub.IsRegistered(controllerId)) {
+                Logger.Warning("[Bridge] The selected external controller is not registered on the broker, so no external session is started.");
+                Notification.ShowWarning("The external alignment system is selected, but its controller is not connected to the message broker. The normal correction loop runs instead.");
                 return null;
             }
 
             if (AlignmentTolerance <= 0) {
-                Logger.Warning("[Bridge] A controller is connected but the alignment tolerance is zero, so no external session is started.");
-                Notification.ShowWarning($"{hub.ControllerDisplayCapitalized} is connected, but the alignment tolerance is zero. The external correction mode needs a tolerance above zero, so the normal correction loop runs instead.");
+                Logger.Warning("[Bridge] The external correction system is selected but the alignment tolerance is zero, so no external session is started.");
+                Notification.ShowWarning($"{hub.ControllerDisplayCapitalized} is selected as the alignment system, but the alignment tolerance is zero. The external correction mode needs a tolerance above zero, so the normal correction loop runs instead.");
                 return null;
             }
 
             var session = new BridgeSession(messageBroker);
-            hub.AttachSession(session);
+            hub.AttachSession(session, controllerId);
             try {
                 progress?.Report(GetStatus($"Waiting for {ControllerDisplay}"));
                 await session.OpenAsync(AlignmentTolerance, TPAPAVM.UseContinuousErrorEstimator, token);

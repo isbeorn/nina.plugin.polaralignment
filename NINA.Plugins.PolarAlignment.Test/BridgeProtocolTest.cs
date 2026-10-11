@@ -678,7 +678,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
                 using var session = NewSession(broker);
                 await session.OpenAsync(1.0, false, CancellationToken.None);
-                hub.AttachSession(session);
+                hub.AttachSession(session, owner);
 
                 // A second controller announcing itself must not take the running session over.
                 await hub.OnMessageReceived(new ControllerMessage(Announce("RivalPolar"), Guid.NewGuid()));
@@ -701,7 +701,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
                 using var session = NewSession(broker);
                 await session.OpenAsync(1.0, false, CancellationToken.None);
-                hub.AttachSession(session);
+                hub.AttachSession(session, owner);
 
                 var readiness = Command(BridgeKind.ControllerReady,
                                         payload: new BridgeControllerReadyPayload { HardwareReady = true });
@@ -714,6 +714,54 @@ namespace NINA.Plugins.PolarAlignment.Test {
                     Command(BridgeKind.ControllerReady, payload: new BridgeControllerReadyPayload { HardwareReady = true }),
                     owner));
                 session.ControllerHardwareReady.Should().BeTrue();
+            } finally {
+                BridgeHub.Shutdown();
+            }
+        }
+
+        [Test]
+        public async Task Hub_ListsEveryRegisteredControllerForTheSystemSelection() {
+            var broker = new FakeMessageBroker();
+            var hub = BridgeHub.EnsureInitialized(broker);
+            var selected = Guid.NewGuid();
+            try {
+                await hub.OnMessageReceived(new ControllerMessage(Announce("AcmePolar"), selected));
+                await hub.OnMessageReceived(new ControllerMessage(Announce("RivalPolar"), Guid.NewGuid()));
+
+                hub.RegisteredControllers.Should().HaveCount(2);
+                hub.IsRegistered(selected).Should().BeTrue();
+                hub.IsRegistered(Guid.NewGuid()).Should().BeFalse();
+
+                using var session = NewSession(broker);
+                await session.OpenAsync(1.0, false, CancellationToken.None);
+                hub.AttachSession(session, selected);
+
+                // The run works with the controller the operator selected, while both stay in the list.
+                hub.SessionOwnerId.Should().Be(selected);
+                hub.ControllerAddress.Should().Be("AcmePolar");
+                session.OwnerId.Should().Be(selected);
+                hub.RegisteredControllers.Should().HaveCount(2);
+            } finally {
+                BridgeHub.Shutdown();
+            }
+        }
+
+        [Test]
+        public async Task Hub_DropsAControllerThatSwitchesItsBrokerOff() {
+            var broker = new FakeMessageBroker();
+            var hub = BridgeHub.EnsureInitialized(broker);
+            var controller = Guid.NewGuid();
+            try {
+                await hub.OnMessageReceived(new ControllerMessage(Announce("AcmePolar"), controller));
+                hub.IsRegistered(controller).Should().BeTrue();
+
+                // Switching the broker off says goodbye, so the list does not have to wait for the presence window.
+                await hub.OnMessageReceived(new ControllerMessage(
+                    Command(BridgeKind.Cancel, payload: new BridgeCancelPayload { Reason = BridgeReason.BrokerDisabled }),
+                    controller));
+
+                hub.IsRegistered(controller).Should().BeFalse();
+                hub.RegisteredControllers.Should().BeEmpty();
             } finally {
                 BridgeHub.Shutdown();
             }
