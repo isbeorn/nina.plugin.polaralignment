@@ -1,5 +1,17 @@
 # Changelog
 
+## Version 2.2.8.1 (Feature-AutoPA-over-brokerBridge)
+
+### Added — the external controller is now an alignment system the operator selects: the Polar Alignment System list shows every controller that is registered on the NINA message broker next to None, UPAS and OAPA, and external correction only runs while that entry is selected, so TPPA never connects to a controller on its own
+### Added — a controller that announces itself appears in the list at once, and the operator is told once when it appears and once when it leaves, always before the list itself changes; a controller that stops answering leaves after the presence window, and the entry that was selected clears the selection with it
+### Added — a controller that switches its broker off says goodbye (Cancel with the reason BrokerDisabled), which takes it out of the system list at once instead of waiting for the presence window
+### Fixed — the controller that owns a run is bound when the run starts (its broker identity and announced address) and is never replaced, so a second controller announcing itself can no longer take the running session over, and messages from any other controller are dropped with a single log line
+### Fixed — a controller that goes quiet while the operator holds the run or while the external correction is active now cancels the run with its reason instead of falling back to TPPA's own correction loop, because silence does not prove that the alignment hardware stopped
+### Fixed — a stop or a fault from the controller ends the run while the three reference points are still being measured: the listener that aborts those captures is registered again after it had been left unwired
+### Fixed — the hand-over no longer pauses unconditionally: it follows TPPA's own "Auto pause" setting, so an unattended run hands the correction over as soon as the controller reports its hardware as ready
+### Fixed — the Debug build no longer kills NINA: the taskkill and process-wait steps are gone, and NINA is closed by the operator before a Debug build
+### Changed — the bridge keeps one hand-over outcome and one failure path for a controller that stops answering, so the flags that described a vanished controller, a started loop and a sweep that needed no correction are gone, and the write-only capture-window bookkeeping was removed
+
 ## Version 2.2.8.0 (Feature-AutoPA-over-brokerBridge)
 
 ### Added — the hand-over prompt holds the run with a pause and reports the controller state: the "connected to the alignment hardware - press RESUME" toast when the link is up, plus a warning that names the controller's own note while the axes are not ready; the measured error stays on TPPA's panel and in the log instead of being raised as a toast of its own
