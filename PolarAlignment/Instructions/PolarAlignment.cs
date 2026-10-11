@@ -485,6 +485,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     // CloseBridgeSessionAsync, which is what asks the controller to stop.
                     bridgeSession = await StartBridgeSessionAsync(progress, localCTS.Token);
 
+                    // While the three reference points are measured the request queue is not served, so a stop
+                    // or a fault from the controller has to abort those captures through the run token.
+                    WatchControllerStopBeforeHandover(bridgeSession, localCTS);
+
                     TPAPAVM.ActivateFirstStep();
 
                     if (!ManualMode) {
@@ -606,21 +610,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     await TPAPAVM.UseImageCenterAsReference(localCTS.Token);
 
-                    if (bridgeSession != null) {
-                        await RunBridgeAsync(bridgeSession, progress, localCTS.Token);
-                        if (!controllerLost && !bridgeNotNeeded) { return; }
-
-                        // Either the controller stopped answering, or the reference sweep already met the
-                        // tolerance: close the session and let TPPA finish the run on its own, exactly like a
-                        // run without a controller.
-                        await CloseBridgeSessionAsync(controllerLost ? BridgeReason.ExternalLost : BridgeReason.Completed, requestStop: false);
-
-                        if (controllerLost) {
-                            progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
-                            if (!controllerGoneBeforeHandover) {
-                                Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
-                            }
-                        }
+                    if (bridgeSession != null && !await RunBridgeAsync(bridgeSession, progress, localCTS.Token)) {
+                        // The external step ran and the run is over, whatever ended it: a finished session, a
+                        // cancel from the controller, or a controller that went quiet while it drove the axes.
+                        // When it returns true the awaited step never started, so the run continues below with
+                        // TPPA's own correction loop, exactly like a run without a controller.
+                        return;
                     }
 
                     // A single lucky solve must not end the procedure: require consecutive
