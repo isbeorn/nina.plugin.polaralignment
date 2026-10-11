@@ -1,4 +1,5 @@
 using NINA.Core.Utility;
+using NINA.Core.Utility.Notification;
 using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
@@ -35,10 +36,10 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
-        // The firmware reports its version in the status frame (V: field) starting with 1.1.0.
-        // The minimum is the one that runs the alignment, so the shared connection check names
-        // an older board when it connects, not when TPPA's first reading goes nowhere.
-        protected override string MinimumFirmwareVersion => AlignmentFirmwareVersion;
+        // The shared check on the firmware number is off: it runs before $P? is read, and a
+        // third-party device numbers its firmware its own way. Whether a device is warned about
+        // follows the protocol it reports (ProtocolWarning), right after connecting.
+        protected override string MinimumFirmwareVersion => null;
         protected override string FirmwareReferenceUrl => "https://github.com/michelebergo/oapa-firmware";
 
         private float xGearRatio = Properties.Settings.Default.OAPAXGearRatio;
@@ -76,6 +77,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         // ignored, leaving the drivers on their 600 mA / 50% firmware defaults.
         public UniversalPolarAlignmentOAPA() : base() {
             ApplyStoredDriverConfiguration();
+            ReadProtocolVersion();
             ReadMoveCapLimit();
             ApplyControllerParameters();
         }
@@ -84,6 +86,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
         // (status probe in the base, then the driver-configuration push), no COM scan.
         protected UniversalPolarAlignmentOAPA(ISerialLink link) : base(link) {
             ApplyStoredDriverConfiguration();
+            ReadProtocolVersion();
             ReadMoveCapLimit();
             ApplyControllerParameters();
         }
@@ -132,13 +135,53 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 settings.OAPAYMicrosteps));
         }
 
-        /// <summary>The firmware that runs the alignment itself answers the bridge commands.</summary>
-        public const string AlignmentFirmwareVersion = "1.3.0";
+        /// <summary>The OAPA firmware that reports the protocol version; older firmware is named at connection.</summary>
+        public const string AlignmentFirmwareVersion = "1.3.3";
 
-        public bool RunsAlignment => FirmwareAtLeast(FirmwareVersion, AlignmentFirmwareVersion);
+        /// <summary>The protocol version (PROTOCOL.md in oapa-firmware) a device must report to be driven for alignment.</summary>
+        public const int AlignmentProtocolVersion = 1;
 
-        internal static bool FirmwareAtLeast(string reported, string minimum) =>
-            Version.TryParse(reported, out var version) && version >= Version.Parse(minimum);
+        /// <summary>
+        /// The protocol version the device reports ($P?), 0 when it does not. What a device can
+        /// do is decided by this, not by a firmware version, so any device can implement the
+        /// protocol.
+        /// </summary>
+        public int ProtocolVersion { get; private set; }
+
+        public bool RunsAlignment => ProtocolVersion >= AlignmentProtocolVersion;
+
+        /// <summary>
+        /// What the user is told about a device that cannot be driven for alignment, or null when
+        /// it can. Any version of any firmware is fine once the device reports the protocol.
+        /// </summary>
+        internal static string ProtocolWarning(int protocolVersion) => protocolVersion >= AlignmentProtocolVersion
+            ? null
+            : $"the controller does not report the OAPA protocol, so nothing aligns; hand moves work. An OAPA board needs firmware {AlignmentFirmwareVersion} or later.";
+
+        /// <summary>
+        /// The version from "&lt;P|protocol:1|&gt;"; anything else - firmware before 1.3.3
+        /// acknowledges the unknown $P? with "ok" - is 0.
+        /// </summary>
+        internal static int ParseProtocolVersion(string reply) {
+            return OapaControllerStatus.Parse(reply, "P").TryGetValue("protocol", out var text)
+                && int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var version)
+                ? version
+                : 0;
+        }
+
+        private void ReadProtocolVersion() {
+            try {
+                ProtocolVersion = ParseProtocolVersion(ExecuteWireCommand("$P?")?.Trim());
+                Logger.Info($"OAPA System firmware version: {FirmwareVersion ?? "not reported"}, protocol version {ProtocolVersion}");
+                var warning = ProtocolWarning(ProtocolVersion);
+                if (warning != null) {
+                    Logger.Warning($"OAPA System: {warning} The reference firmware is available at {FirmwareReferenceUrl}");
+                    Notification.ShowWarning($"OAPA System: {warning}");
+                }
+            } catch (Exception ex) {
+                Logger.Error($"OAPA controller: reading the protocol version failed: {ex.Message}");
+            }
+        }
 
         public string ForwardError(double azimuthArcmin, double altitudeArcmin) =>
             ExecuteWireCommand(string.Format(CultureInfo.InvariantCulture, "$E={0:F3},{1:F3}", azimuthArcmin, altitudeArcmin))?.Trim();
@@ -323,7 +366,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             SendDriverCommand(OapaDriverCommands.Microsteps(axis, microsteps), $"set {axis} microsteps");
         }
 
-        [GeneratedRegex(@"<(?<status>\w+)\|MPos:(?<x>[+-]?\d+(\.\d+)?),(?<y>[+-]?\d+(\.\d+)?),(?<z>[+-]?\d+(\.\d+)?)(?:\|T:(?<target>[+-]?\d+),R:(?<running>[01]),E:(?<endstop>[01]),S:(?<speed>[+-]?\d+(\.\d+)?))?(?:\|V:(?<version>\d+(?:\.\d+){0,2}))?\|>")]
+        [GeneratedRegex(@"<(?<status>\w+)\|MPos:(?<x>[+-]?\d+(\.\d+)?),(?<y>[+-]?\d+(\.\d+)?),(?<z>[+-]?\d+(\.\d+)?)(?:\|T:(?<target>[+-]?\d+),R:(?<running>[01]),E:(?<endstop>[01]),S:(?<speed>[+-]?\d+(\.\d+)?))?(?:\|V:(?<version>[^|<>]+))?\|>")]
         private static partial Regex StatusRegex();
     }
 }

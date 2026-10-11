@@ -373,7 +373,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             vm.OnAlignmentError(15.0, -6.0);
 
             controller.Forwarded.Should().BeEmpty();
-            vm.ControllerStatus.Should().Contain("1.3.0");
+            vm.ControllerStatus.Should().Contain(UniversalPolarAlignmentOAPA.AlignmentFirmwareVersion);
         }
 
         [Test]
@@ -792,16 +792,6 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("*did not start*");
             solver.Captures.Should().BeLessThanOrEqualTo(3);
-        }
-
-        [TestCase("1.3.0", true)]
-        [TestCase("1.10.0", true)]
-        [TestCase("1.2.3", false)]
-        [TestCase("1.2.2", false)]
-        [TestCase(null, false)]
-        [TestCase("", false)]
-        public void OnlyFirmware130AndLaterRunsTheAlignment(string version, bool expected) {
-            UniversalPolarAlignmentOAPA.FirmwareAtLeast(version, "1.3.0").Should().Be(expected);
         }
 
         [TestCase("<L|phase:waiting|outcome:none|source:nina|moves:0|az:-|alt:-|plan:0.00,0.00|reason:Waiting for an error measurement|>",
