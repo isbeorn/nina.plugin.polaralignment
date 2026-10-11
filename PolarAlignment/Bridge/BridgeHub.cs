@@ -14,7 +14,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
     /// Always-on external-correction endpoint of the plugin. It owns the single subscription to the
     /// command topic so a controller announcing itself is answered even before the user starts a
     /// session, and it routes session-scoped messages into the active
-    /// <see cref="BridgeSession"/>.
+    /// <see cref="BridgeControllerRun"/>.
     /// </summary>
     public sealed class BridgeHub : ISubscriber, IDisposable {
         /// <summary>
@@ -27,7 +27,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private readonly IMessageBroker broker;
         private readonly object gate = new object();
         private readonly Dictionary<Guid, RegisteredController> registrations = new Dictionary<Guid, RegisteredController>();
-        private BridgeSession session;
+        private BridgeControllerRun session;
 
         /// <summary>Broker identity of the controller the running session belongs to, if any.</summary>
         private Guid? ownerId;
@@ -203,8 +203,8 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             }
         }
 
-        /// <summary>The session currently owning the capture loop, if any.</summary>
-        public BridgeSession Session {
+        /// <summary>The external correction run currently owning the capture loop, if any.</summary>
+        public BridgeControllerRun Session {
             get { lock (gate) { return session; } }
         }
 
@@ -215,10 +215,10 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
         /// <summary>
         /// Hands the broker over to a run. The controller the operator selected becomes the owner of the run: its
-        /// identity and announced address are copied into the session and are never refreshed afterwards, so the
-        /// run keeps talking to that controller and nobody else can take it over.
+        /// identity and announced address are copied into the run and are never refreshed afterwards, so the run
+        /// keeps talking to that controller and nobody else can take it over.
         /// </summary>
-        public void AttachSession(BridgeSession newSession, Guid? selectedControllerId) {
+        public void AttachSession(BridgeControllerRun newSession, Guid? selectedControllerId) {
             string address;
             lock (gate) {
                 session = newSession;
@@ -232,7 +232,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             newSession.BindOwner(selectedControllerId, address);
         }
 
-        public void DetachSession(BridgeSession oldSession) {
+        public void DetachSession(BridgeControllerRun oldSession) {
             lock (gate) {
                 if (ReferenceEquals(session, oldSession)) {
                     session = null;

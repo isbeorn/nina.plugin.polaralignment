@@ -131,19 +131,6 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         public const string Fault = "fault";
     }
 
-    /// <summary>Kind of the next controller-side event a waiting TPPA loop has to act on.</summary>
-    public enum BridgeRequestKind {
-        ControllerReady,
-        AdjustWindow,
-        RequestMeasurement,
-        RequestCompletion,
-        Cancel,
-        WindowExpired,
-        ExternalLost,
-        SessionTimeout,
-        StopAcknowledged
-    }
-
     /// <summary>
     /// Wire envelope. The JSON of this object is the <see cref="IMessage.Content"/> of every message
     /// on both external topics, so the two plugins never have to share a CLR type.

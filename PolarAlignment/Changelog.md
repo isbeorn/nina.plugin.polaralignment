@@ -11,6 +11,7 @@
 ### Fixed — the hand-over no longer pauses unconditionally: it follows TPPA's own "Auto pause" setting, so an unattended run hands the correction over as soon as the controller reports its hardware as ready
 ### Fixed — the Debug build no longer kills NINA: the taskkill and process-wait steps are gone, and NINA is closed by the operator before a Debug build
 ### Changed — the bridge keeps one hand-over outcome and one failure path for a controller that stops answering, so the flags that described a vanished controller, a started loop and a sweep that needed no correction are gone, and the write-only capture-window bookkeeping was removed
+### Changed — the external correction step is one run scoped helper: it owns the controller that was bound to the run, the single controller answer that is being awaited and the one failure path, so a cancel, a fault or a silence now cancels the run itself instead of being watched by a second state machine, and the collector that aborted the reference captures is no longer needed
 
 ## Version 2.2.8.0 (Feature-AutoPA-over-brokerBridge)
 

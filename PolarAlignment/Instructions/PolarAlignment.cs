@@ -483,11 +483,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     // Stored in the field, not a local: the cancel path closes this session through
                     // CloseBridgeSessionAsync, which is what asks the controller to stop.
-                    bridgeSession = await StartBridgeSessionAsync(progress, localCTS.Token);
-
-                    // While the three reference points are measured the request queue is not served, so a stop
-                    // or a fault from the controller has to abort those captures through the run token.
-                    WatchControllerStopBeforeHandover(bridgeSession, localCTS);
+                    // The run helper is created with the token source of the alignment run itself, so a controller
+                    // that cancels, faults or stops answering cancels that token and aborts whatever TPPA is doing
+                    // at that moment - reference frames, adjustment or verification - through one failure path.
+                    bridgeSession = await StartBridgeSessionAsync(progress, localCTS);
 
                     TPAPAVM.ActivateFirstStep();
 
