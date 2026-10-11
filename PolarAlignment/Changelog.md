@@ -19,6 +19,7 @@
 - OAPA: Calibrate pressed just after a polar alignment stopped measuring waits at most 10 seconds for TPPA's next reading, then calibrates on the plugin's own frames instead of waiting for readings that do not come.
 - OAPA: the move cap goes up to what the controller allows, which it reports itself (180 arcminutes with firmware 1.3.2, 120 before). A move cap above 120 arcminutes is taken only after a confirmation.
 - OAPA: the panel shows the firmware version of the connected controller, next to the link.
+- OAPA: while the controller moves the axes, the polar alignment is paused and resumed when the move ends, so no exposure or solve is spent on frames taken during a move.
 - OAPA: the controller is driven for alignment when it reports the protocol version (firmware 1.3.3 or later, or any device that implements the OAPA protocol), instead of from its firmware version number. A device's own firmware version is shown as it reports it, in any format, and only a device without the protocol is warned about.
 
 ## Version 2.2.6.7
