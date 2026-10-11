@@ -99,6 +99,43 @@ namespace NINA.Plugins.PolarAlignment.Test {
             };
         }
 
+        /// <summary>
+        /// Controller message with a sender of its own, so a test can play two controllers on the broker.
+        /// The plugin's own message classes always report the TPPA plugin id.
+        /// </summary>
+        private sealed class ControllerMessage : IMessage {
+            private readonly string json;
+
+            public ControllerMessage(BridgeEnvelope envelope, Guid senderId) {
+                json = envelope.ToJson();
+                SenderId = senderId;
+            }
+
+            public Guid SenderId { get; }
+            public string Sender => "test-controller";
+            public DateTimeOffset SentAt => DateTime.UtcNow;
+            public Guid MessageId => Guid.NewGuid();
+            public DateTimeOffset? Expiration => null;
+            public Guid? CorrelationId => null;
+            public int Version => BridgeContract.InterfaceVersion;
+            public IDictionary<string, object> CustomHeaders => new Dictionary<string, object>();
+            public string Topic => BridgeContract.CommandTopic;
+            public object Content => json;
+        }
+
+        private static BridgeEnvelope Announce(string controller, string version = "1.0.0") {
+            return BridgeEnvelope.Create(BridgeKind.Capabilities,
+                                                     null,
+                                                     Guid.NewGuid().ToString("N"),
+                                                     null,
+                                                     1,
+                                                     BridgeContract.TppaRecipient,
+                                                     new BridgeCapabilitiesAnnouncePayload {
+                                                         Controller = controller,
+                                                         ControllerVersion = version
+                                                     });
+        }
+
         [Test]
         public async Task Open_PublishesPreparingSessionState() {
             var broker = new FakeMessageBroker();
@@ -606,6 +643,77 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
                 hub.ControllerAddress.Should().Be("AcmePolar");
                 broker.Last(BridgeKind.Capabilities).IntendedRecipient.Should().Be("AcmePolar");
+            } finally {
+                BridgeHub.Shutdown();
+            }
+        }
+
+        [Test]
+        public void Session_OnlyAcceptsTheControllerThatOwnsTheRun() {
+            var broker = new FakeMessageBroker();
+            using var session = NewSession(broker);
+            var owner = Guid.NewGuid();
+
+            // Nothing is filtered while the controller does not identify its messages.
+            session.AcceptsSender(Guid.NewGuid()).Should().BeTrue();
+
+            session.BindOwner(owner, "AcmePolar");
+
+            session.OwnerId.Should().Be(owner);
+            session.ControllerAddress.Should().Be("AcmePolar");
+            session.AcceptsSender(owner).Should().BeTrue();
+            session.AcceptsSender(Guid.NewGuid()).Should().BeFalse();
+
+            // A controller that sends no sender id keeps working, so an older build is not locked out.
+            session.AcceptsSender(Guid.Empty).Should().BeTrue();
+        }
+
+        [Test]
+        public async Task Hub_KeepsTheRunOwnerWhenAnotherControllerAnnounces() {
+            var broker = new FakeMessageBroker();
+            var hub = BridgeHub.EnsureInitialized(broker);
+            var owner = Guid.NewGuid();
+            try {
+                await hub.OnMessageReceived(new ControllerMessage(Announce("AcmePolar"), owner));
+
+                using var session = NewSession(broker);
+                await session.OpenAsync(1.0, false, CancellationToken.None);
+                hub.AttachSession(session);
+
+                // A second controller announcing itself must not take the running session over.
+                await hub.OnMessageReceived(new ControllerMessage(Announce("RivalPolar"), Guid.NewGuid()));
+
+                hub.ControllerAddress.Should().Be("AcmePolar");
+                session.ControllerAddress.Should().Be("AcmePolar");
+                session.OwnerId.Should().Be(owner);
+            } finally {
+                BridgeHub.Shutdown();
+            }
+        }
+
+        [Test]
+        public async Task Hub_IgnoresMessagesFromAControllerThatDoesNotOwnTheRun() {
+            var broker = new FakeMessageBroker();
+            var hub = BridgeHub.EnsureInitialized(broker);
+            var owner = Guid.NewGuid();
+            try {
+                await hub.OnMessageReceived(new ControllerMessage(Announce("AcmePolar"), owner));
+
+                using var session = NewSession(broker);
+                await session.OpenAsync(1.0, false, CancellationToken.None);
+                hub.AttachSession(session);
+
+                var readiness = Command(BridgeKind.ControllerReady,
+                                        payload: new BridgeControllerReadyPayload { HardwareReady = true });
+
+                await hub.OnMessageReceived(new ControllerMessage(readiness, Guid.NewGuid()));
+                session.ControllerHardwareReady.Should().BeFalse();
+
+                // The owner's own report still reaches the run.
+                await hub.OnMessageReceived(new ControllerMessage(
+                    Command(BridgeKind.ControllerReady, payload: new BridgeControllerReadyPayload { HardwareReady = true }),
+                    owner));
+                session.ControllerHardwareReady.Should().BeTrue();
             } finally {
                 BridgeHub.Shutdown();
             }

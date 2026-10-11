@@ -69,7 +69,6 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private readonly Queue<BridgeRequest> pending = new Queue<BridgeRequest>();
         private readonly SemaphoreSlim signal = new SemaphoreSlim(0);
         private readonly Dictionary<string, string> grantedWindowByCommandId = new Dictionary<string, string>();
-        private readonly HashSet<string> servedMeasurementRequests = new HashSet<string>();
         private readonly HashSet<string> processedCommandIds = new HashSet<string>();
 
         private readonly DateTimeOffset startedAt;
@@ -86,7 +85,6 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private string stateReason;
         private DateTimeOffset? windowOpenedAt;
         private DateTimeOffset? windowSilenceDeadline;
-        private DateTimeOffset? windowMaxDeadline;
         private string windowId;
         private string windowMeasurementId;
         private TimeSpan accumulatedWindowTime;
@@ -134,6 +132,14 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private readonly HashSet<string> unexpectedRecipients = new HashSet<string>();
 
         /// <summary>
+        /// Broker identity of the controller that owns this run, taken from <see cref="IMessage.SenderId"/> and
+        /// frozen when the session is attached: a second controller that announces itself later can neither
+        /// address nor drive this run. Null when the controller does not identify its messages (an older
+        /// build), in which case no message is filtered.
+        /// </summary>
+        public Guid? OwnerId { get; private set; }
+
+        /// <summary>
         /// Address TPPA puts in <c>IntendedRecipient</c> of every message this session publishes: the name
         /// the controller announced itself with, so a controller of any vendor is addressed with its own
         /// name. Until a name is known (or when the controller announces none) the MLAstro default is used,
@@ -142,6 +148,28 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         public string ControllerAddress {
             get { lock (gate) { return controllerAddress; } }
             set { lock (gate) { controllerAddress = string.IsNullOrWhiteSpace(value) ? BridgeContract.ControllerRecipient : value; } }
+        }
+
+        /// <summary>
+        /// Binds the controller that owns this run, once, when the run takes the broker over. From then on
+        /// the owner never changes, so an announcement of another controller only refreshes availability.
+        /// </summary>
+        public void BindOwner(Guid? ownerId, string address) {
+            lock (gate) {
+                OwnerId = ownerId == Guid.Empty ? null : ownerId;
+                controllerAddress = string.IsNullOrWhiteSpace(address) ? BridgeContract.ControllerRecipient : address;
+            }
+        }
+
+        /// <summary>
+        /// True when the message belongs to the controller that owns this run. A message that identifies no
+        /// sender (<see cref="Guid.Empty"/>) is never filtered, so a controller of an older build that does
+        /// not set <see cref="IMessage.SenderId"/> keeps working.
+        /// </summary>
+        public bool AcceptsSender(Guid senderId) {
+            lock (gate) {
+                return !OwnerId.HasValue || senderId == Guid.Empty || senderId == OwnerId.Value;
+            }
         }
 
         /// <summary>Controller note that came with the last readiness report, e.g. "hardware busy (STATUS: MOVING)".</summary>
@@ -390,7 +418,6 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 windowMeasurementId = grant.MeasurementId;
                 windowOpenedAt = DateTimeOffset.UtcNow;
                 windowSilenceDeadline = DateTimeOffset.UtcNow.AddMilliseconds(Options.SilenceTimeoutMs);
-                windowMaxDeadline = Options.SessionTimeoutSec > 0 ? DateTimeOffset.UtcNow + sessionRemaining : (DateTimeOffset?)null;
                 lostAfterSilenceDeadline = null;
                 state = BridgeState.WindowOpen;
                 stateReason = null;
@@ -426,7 +453,6 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 windowMeasurementId = null;
                 windowOpenedAt = null;
                 windowSilenceDeadline = null;
-                windowMaxDeadline = null;
                 lostAfterSilenceDeadline = null;
                 state = BridgeState.Measuring;
                 stateReason = reason;
@@ -658,9 +684,6 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                         // "Close the window and capture now" is a protocol rule, so the session applies
                         // it as soon as the request arrives instead of leaving it to the caller loop.
                         CloseWindow(payload?.Reason ?? BridgeReason.StepFinished);
-                        lock (gate) {
-                            servedMeasurementRequests.Add(envelope.CommandId);
-                        }
                     }
                     Enqueue(new BridgeRequest {
                         Kind = BridgeRequestKind.RequestMeasurement,

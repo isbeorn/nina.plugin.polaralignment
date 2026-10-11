@@ -2,6 +2,7 @@
 using NINA.Core.Utility;
 using NINA.Plugin.Interfaces;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,19 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private readonly object gate = new object();
         private BridgeSession session;
         private DateTimeOffset? lastControllerSeenAt;
+
+        /// <summary>
+        /// When the registered controller was last seen. While a run owns the broker this is the timestamp
+        /// that counts, so a second controller cannot keep a session alive after its owner went quiet.
+        /// </summary>
+        private DateTimeOffset? lastOwnerSeenAt;
+
+        /// <summary>
+        /// Broker identity of the registered controller (<see cref="IMessage.SenderId"/>). It is refreshed
+        /// while no run owns the broker - so the next run binds whoever is present - and frozen once a run
+        /// has taken it over, which is what keeps a second controller from stealing the running session.
+        /// </summary>
+        private Guid? controllerSenderId;
         private string controllerName;
         private string controllerVersion;
         private bool disposed;
@@ -39,16 +53,25 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         public static BridgeHub Instance { get; private set; }
 
         /// <summary>
-        /// True while a controller announced itself within the presence window. The external correction
-        /// mode only turns on while this is true, so a run without a controller behaves exactly like it
-        /// always did. Any controller message counts, not just an announcement.
+        /// True while the controller TPPA is working with announced itself within the presence window. Before
+        /// a run takes the broker over that is any controller - the mode is detected, not configured - and
+        /// while a run owns the broker it is that run's controller only. The external correction mode only
+        /// turns on while this is true, so a run without a controller behaves exactly like it always did.
         /// </summary>
         public bool IsControllerPresent {
             get {
                 lock (gate) {
-                    return lastControllerSeenAt.HasValue
-                           && DateTimeOffset.UtcNow - lastControllerSeenAt.Value <= ControllerPresenceWindow;
+                    var seenAt = controllerSenderId.HasValue ? lastOwnerSeenAt : lastControllerSeenAt;
+                    return seenAt.HasValue
+                           && DateTimeOffset.UtcNow - seenAt.Value <= ControllerPresenceWindow;
                 }
+            }
+        }
+
+        /// <summary>True when the message comes from the controller currently registered on the broker.</summary>
+        private bool IsRegisteredSender(Guid senderId) {
+            lock (gate) {
+                return controllerSenderId.HasValue && senderId != Guid.Empty && senderId == controllerSenderId.Value;
             }
         }
 
@@ -108,10 +131,21 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             get { lock (gate) { return session; } }
         }
 
+        /// <summary>
+        /// Hands the broker over to a run. The controller registered at this moment becomes the owner of the
+        /// run: its identity and address are copied into the session and are never refreshed afterwards, so
+        /// the run keeps talking to the controller it started with.
+        /// </summary>
         public void AttachSession(BridgeSession newSession) {
-            lock (gate) { session = newSession; }
-            // The session publishes the measurements itself, so it has to know who to address.
-            newSession.ControllerAddress = ControllerAddress;
+            Guid? ownerId;
+            string address;
+            lock (gate) {
+                session = newSession;
+                ownerId = controllerSenderId;
+                lastOwnerSeenAt = lastControllerSeenAt;
+                address = ControllerAddress;
+            }
+            newSession.BindOwner(ownerId, address);
         }
 
         public void DetachSession(BridgeSession oldSession) {
@@ -136,22 +170,22 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
             lock (gate) {
                 lastControllerSeenAt = DateTimeOffset.UtcNow;
+
+                // Registration: while no run owns the broker the last controller seen is the one the next run
+                // binds. With a run in progress the owner is frozen, so this never changes under it.
+                if (session == null && message.SenderId != Guid.Empty) {
+                    controllerSenderId = message.SenderId;
+                }
+            }
+
+            if (IsRegisteredSender(message.SenderId)) {
+                lock (gate) { lastOwnerSeenAt = DateTimeOffset.UtcNow; }
             }
 
             if (string.Equals(envelope.Kind, BridgeKind.Capabilities, StringComparison.Ordinal)) {
                 var announce = envelope.PayloadAs<BridgeCapabilitiesAnnouncePayload>();
                 if (announce != null) {
-                    lock (gate) {
-                        controllerName = announce.Controller;
-                        controllerVersion = announce.ControllerVersion;
-                    }
-
-                    // The announced name is also the address: a controller that identifies itself (or
-                    // renames itself) during a session gets the following messages under that name.
-                    var announcedSession = Session;
-                    if (announcedSession != null) {
-                        announcedSession.ControllerAddress = ControllerAddress;
-                    }
+                    RegisterController(message, announce);
                 }
                 return PublishCapabilitiesAsync(CancellationToken.None);
             }
@@ -162,10 +196,55 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 return Task.CompletedTask;
             }
 
+            // The run belongs to the controller it started with: a message from anybody else is reported once
+            // and dropped, so a second controller can neither measure for nor cancel somebody else's run.
+            if (!activeSession.AcceptsSender(message.SenderId)) {
+                ReportForeignController(message, envelope);
+                return Task.CompletedTask;
+            }
+
             // Queue the message and return immediately: the broker awaits this call, and the
             // alignment loop may be busy for minutes inside a capture or a move.
             activeSession.HandleEnvelope(envelope);
             return Task.CompletedTask;
+        }
+
+        /// <summary>Senders already reported for a foreign message, so each of them is written to the log once.</summary>
+        private readonly HashSet<Guid> unexpectedSenders = new HashSet<Guid>();
+
+        /// <summary>
+        /// Registers an announced controller. While the broker is free the announced name becomes the address
+        /// TPPA answers to and the next run binds that controller. An announcement that arrives while a run
+        /// owns the broker only proves the controller is still alive: the owner itself is never reassigned,
+        /// which is what keeps a second controller from taking a running session over.
+        /// </summary>
+        private void RegisterController(IMessage message, BridgeCapabilitiesAnnouncePayload announce) {
+            var reported = false;
+            lock (gate) {
+                if (session != null) {
+                    reported = controllerSenderId.HasValue && message.SenderId != Guid.Empty
+                               && message.SenderId != controllerSenderId.Value
+                               && unexpectedSenders.Add(message.SenderId);
+                } else {
+                    controllerName = announce.Controller;
+                    controllerVersion = announce.ControllerVersion;
+                }
+            }
+
+            if (reported) {
+                Logger.Warning($"[Bridge] Ignored an announcement from another controller while a run is in progress: {ControllerDisplay} owns it.");
+            }
+        }
+
+        /// <summary>
+        /// Reports a message from a controller that does not own the running session, so the log explains why
+        /// a second controller has no effect instead of leaving the operator with a silence timeout.
+        /// </summary>
+        private void ReportForeignController(IMessage message, BridgeEnvelope envelope) {
+            lock (gate) {
+                if (!unexpectedSenders.Add(message.SenderId)) { return; }
+            }
+            Logger.Warning($"[Bridge] Ignored a '{envelope.Kind}' message from a controller that does not own the running session.");
         }
 
         public Task PublishCapabilitiesAsync(CancellationToken token) {

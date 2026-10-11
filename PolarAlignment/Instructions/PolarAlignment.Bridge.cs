@@ -249,10 +249,21 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         return;
                     }
 
-                    case BridgeRequestKind.ExternalLost:
-                        Logger.Warning("[Bridge] External controller stopped answering. Handing the run back to the normal correction loop.");
-                        controllerLost = true;
-                        return;
+                    case BridgeRequestKind.ExternalLost: {
+                        // The controller drives the alignment hardware and its correction step is already
+                        // active: silence does not prove that its axes stopped, so the run is cancelled
+                        // instead of falling back to TPPA's own capture loop.
+                        Logger.Warning("[Bridge] External controller stopped answering while the correction was active. Cancelling the run.");
+                        await session.EndAsync(BridgeReason.ExternalLost,
+                                               false,
+                                               new BridgeSessionEndedPayload { Detail = "The controller stopped answering." },
+                                               CancellationToken.None);
+
+                        Notification.ShowError(
+                            $"{ControllerDisplayCapitalized} stopped answering." + Environment.NewLine +
+                            "Polar alignment is cancelled: the controller drives the alignment hardware and cannot confirm that it stopped.");
+                        throw new OperationCanceledException("The external controller stopped answering.");
+                    }
 
                     case BridgeRequestKind.SessionTimeout:
                         Logger.Warning("[Bridge] Session safety time limit reached. Asking the controller to stop.");
@@ -272,9 +283,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
 
         /// <summary>
-        /// Pauses the run right after the reference sweep so the operator can read the initial polar
-        /// error before the external controller takes over. The session is already open, but the first
-        /// measurement is only published to the controller once Resume is pressed.
+        /// Hand-over point after the reference sweep. The session is already open, but the first measurement
+        /// is only published to the controller once the run leaves this method: when TPPA is asked to pause
+        /// after each update the operator reads the initial polar error and presses Resume, otherwise the
+        /// correction is handed over as soon as the controller reports its hardware as ready.
         /// </summary>
         private async Task WaitForHandoverResumeAsync(BridgeSession session, IProgress<ApplicationStatus> progress, CancellationToken token) {
             if (BridgeHub.Instance?.IsControllerPresent != true) {
@@ -287,20 +299,29 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 return;
             }
 
-            // Older toasts are closed first so the hand-over prompts are the ones the operator really reads.
-            Notification.CloseAll();
+            // The hold is the operator's choice: "Auto pause" is TPPA's own "pause after each
+            // continuous-correction update", so a run that asks for pauses keeps the hand-over prompt and an
+            // unattended run hands the correction over by itself.
+            var pauseForHandover = Properties.Settings.Default.AutoPause;
+            if (pauseForHandover) {
+                // Older toasts are closed first so the hand-over prompts are the ones the operator really reads.
+                Notification.CloseAll();
 
-            // 1) The run holds here. No toast is raised for the measured error: the values are already on
-            //    screen in TPPA, and a run without a controller reports nothing while the error is still
-            //    above the tolerance. The RESUME prompt is carried by the toast of step 3.
-            Logger.Info("[Bridge] Reference sweep finished. " + BuildErrorSummary().Replace(Environment.NewLine, " | "));
-            Pause();
+                // 1) The run holds here. No toast is raised for the measured error: the values are already on
+                //    screen in TPPA, and a run without a controller reports nothing while the error is still
+                //    above the tolerance. The RESUME prompt is carried by the toast of step 3.
+                Logger.Info("[Bridge] Reference sweep finished. " + BuildErrorSummary().Replace(Environment.NewLine, " | "));
+                Pause();
+            }
 
             // 2) The controller was told a moment ago that the sweep is finished. Bringing the link up takes
             //    a while (a wireless attempt, then a scan of every COM port), so it gets a generous grace
-            //    period: while it is still trying, the run waits instead of cancelling the alignment.
+            //    period: while it is still trying, the run waits instead of cancelling the alignment. A run
+            //    without the operator hold also waits here for the axes to be idle, because it captures as
+            //    soon as this method returns.
             var readinessDeadline = DateTime.UtcNow.AddSeconds(30);
-            while (!session.ControllerHardwareConnected && !session.HasControllerFault
+            while (!session.HasControllerFault
+                   && (!session.ControllerHardwareConnected || (!pauseForHandover && !session.ControllerHardwareReady))
                    && BridgeHub.Instance?.IsControllerPresent == true && DateTime.UtcNow < readinessDeadline) {
                 await Task.Delay(250, token);
             }
@@ -338,8 +359,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 // second, separate step - a connected but busy controller gets a warning, not an error.
                 Notification.ShowSuccess(
                     $"{ControllerDisplayCapitalized} connected to the alignment hardware." + Environment.NewLine +
-                    "PAUSING..." + Environment.NewLine +
-                    "Press RESUME [ ▶︎ ] to hand the correction over to the controller.");
+                    (pauseForHandover
+                        ? "PAUSING..." + Environment.NewLine +
+                          "Press RESUME [ ▶︎ ] to hand the correction over to the controller."
+                        : "Handing the correction over to the controller."));
             }
 
             if (!session.ControllerHardwareConnected || !session.ControllerHardwareReady) {
@@ -349,7 +372,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 Notification.ShowWarning(
                     $"{ControllerDisplayCapitalized} is not ready for the correction" +
                     (string.IsNullOrWhiteSpace(readinessNote) ? "." : $": {readinessNote}.") + Environment.NewLine +
-                    "Check the controller before pressing RESUME.");
+                    (pauseForHandover
+                        ? "Check the controller before pressing RESUME."
+                        : "Check the controller."));
             }
 
             await WaitWhilePausedAsync(session, progress, token);
