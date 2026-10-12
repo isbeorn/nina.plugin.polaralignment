@@ -81,7 +81,9 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
         private static BridgeMeasurementPayload Measurement() {
             return new BridgeMeasurementPayload {
-                MeasurementId = Guid.NewGuid().ToString("N"),
+                // A fixed id, because the run only accepts a move or an answer that names the measurement it handed
+                // over: the tests announce "m1" like a controller that echoes the id it was given.
+                MeasurementId = "m1",
                 Status = BridgeMeasurementStatus.Valid,
                 AzimuthErrorArcMin = 5,
                 AltitudeErrorArcMin = 3,
@@ -621,6 +623,37 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public async Task PauseWhileTheControllerHoldsTheWindow_EndsTheInteractionSoTheRunIsResumable() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var wait = run.PublishMeasurementAndWaitAsync(Measurement(), runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 1);
+
+            // The controller answered by announcing its move, which opens the capture window, and it keeps that window
+            // alive: this is the state a long move leaves the run in.
+            run.HandleEnvelope(Command(BridgeKind.BeginAdjustment,
+                                       new BridgeAdjustmentRequestPayload { MeasurementId = "m1", PlannedAzimuthArcMin = 5 }));
+            await WaitUntilAsync(() => run.CurrentWindowId != null);
+
+            // The operator pauses now. The controller holds its answer until the resume, so the run must not wait for it:
+            // without the release the operator would have nothing to resume and the run would sit in the external step.
+            run.ReleaseInteractionForPause();
+
+            var ask = await wait;
+            ask.Kind.Should().Be(BridgeControllerAskKind.AdjustmentFinished);
+            ask.Reason.Should().Be(BridgeReason.Paused);
+            run.CurrentWindowId.Should().BeNull("the capture window is closed, because no move happens inside it");
+            runTokens.IsCancellationRequested.Should().BeFalse("a pause is not an end of the run");
+
+            // The answer the controller was holding went with the interaction, so it cannot complete anything now.
+            run.HandleEnvelope(Command(BridgeKind.RequestCompletion, new BridgeCompletionRequestPayload { Reason = BridgeReason.CompletionRequested }));
+            runTokens.IsCancellationRequested.Should().BeFalse();
+        }
+
+        [Test]
         public async Task EachMeasurementWaitsForItsOwnAnswer() {
             var broker = new FakeMessageBroker();
             var runTokens = new CancellationTokenSource();
@@ -645,6 +678,154 @@ namespace NINA.Plugins.PolarAlignment.Test {
             run.HandleEnvelope(Command(BridgeKind.RequestCompletion, new BridgeCompletionRequestPayload { Reason = BridgeReason.CompletionRequested }));
 
             (await second).Kind.Should().Be(BridgeControllerAskKind.VerificationRequested);
+        }
+
+        [Test]
+        public async Task BeginAdjustment_ForAStaleMeasurement_IsRefused() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var measurement = Measurement();
+            var wait = run.PublishMeasurementAndWaitAsync(measurement, runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 1);
+
+            // A move announced for another measurement (an older hand-over) must not open a window.
+            run.HandleEnvelope(Command(BridgeKind.BeginAdjustment, new BridgeAdjustmentRequestPayload { MeasurementId = "an-older-measurement" }));
+            await Task.Delay(200);
+
+            broker.Count(BridgeKind.AdjustmentGranted).Should().Be(0, "a move for a measurement that is not pending has to be refused");
+            run.CurrentWindowId.Should().BeNull();
+
+            // The move of the measurement that is really pending is accepted.
+            run.HandleEnvelope(Command(BridgeKind.BeginAdjustment, new BridgeAdjustmentRequestPayload { MeasurementId = measurement.MeasurementId }));
+            await WaitUntilAsync(() => run.CurrentWindowId != null);
+
+            broker.Count(BridgeKind.AdjustmentGranted).Should().Be(1);
+            run.HandleEnvelope(Command(BridgeKind.RequestMeasurement, new BridgeMeasurementRequestPayload { WindowId = run.CurrentWindowId }));
+            (await wait).Kind.Should().Be(BridgeControllerAskKind.AdjustmentFinished);
+        }
+
+        [Test]
+        public async Task BeginAdjustment_WithoutAPendingMeasurement_IsRefused() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            // Nothing was handed over yet, so there is no interaction a move could belong to.
+            run.HandleEnvelope(Command(BridgeKind.BeginAdjustment, new BridgeAdjustmentRequestPayload { MeasurementId = "m1", PlannedAzimuthArcMin = 3 }));
+            await Task.Delay(200);
+
+            broker.Count(BridgeKind.AdjustmentGranted).Should().Be(0);
+            run.CurrentWindowId.Should().BeNull();
+            runTokens.IsCancellationRequested.Should().BeFalse();
+        }
+
+        [Test]
+        public async Task BeginAdjustment_OnAnUnusableMeasurement_IsRefused() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var unusable = Measurement();
+            unusable.Status = BridgeMeasurementStatus.Unstable;
+            var wait = run.PublishMeasurementAndWaitAsync(unusable, runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 1);
+
+            // A correction may not be planned from a measurement the run could not trust.
+            run.HandleEnvelope(Command(BridgeKind.BeginAdjustment, new BridgeAdjustmentRequestPayload { MeasurementId = unusable.MeasurementId }));
+            await Task.Delay(200);
+
+            broker.Count(BridgeKind.AdjustmentGranted).Should().Be(0, "an unusable measurement may not be answered with a move");
+            run.CurrentWindowId.Should().BeNull();
+
+            // The controller asks for a new measurement instead, which is the answer that is expected here.
+            run.HandleEnvelope(Command(BridgeKind.RequestMeasurement, new BridgeMeasurementRequestPayload { Reason = BridgeReason.VerifyOnly }));
+            (await wait).Kind.Should().Be(BridgeControllerAskKind.AdjustmentFinished);
+        }
+
+        [Test]
+        public async Task BeginAdjustment_RepeatedWhileTheWindowIsOpen_RepeatsTheSameGrant() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var measurement = Measurement();
+            var wait = run.PublishMeasurementAndWaitAsync(measurement, runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 1);
+
+            var begin = Command(BridgeKind.BeginAdjustment, new BridgeAdjustmentRequestPayload { MeasurementId = measurement.MeasurementId, PlannedAltitudeArcMin = 4 });
+            run.HandleEnvelope(begin);
+            await WaitUntilAsync(() => run.CurrentWindowId != null);
+
+            var firstWindowId = run.CurrentWindowId;
+            run.HandleEnvelope(begin);
+            await Task.Delay(200);
+
+            // Same announcement again: the same window is granted once more instead of opening a second one.
+            broker.Count(BridgeKind.AdjustmentGranted).Should().Be(2);
+            broker.Last(BridgeKind.AdjustmentGranted).PayloadAs<BridgeAdjustmentGrantPayload>().WindowId.Should().Be(firstWindowId);
+            run.CurrentWindowId.Should().Be(firstWindowId);
+
+            run.HandleEnvelope(Command(BridgeKind.RequestMeasurement, new BridgeMeasurementRequestPayload { WindowId = firstWindowId }));
+            (await wait).Kind.Should().Be(BridgeControllerAskKind.AdjustmentFinished);
+        }
+
+        [Test]
+        public async Task RequestMeasurement_ForAnotherWindow_IsRefusedWhileThisOneIsOpen() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var measurement = Measurement();
+            var wait = run.PublishMeasurementAndWaitAsync(measurement, runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 1);
+            run.HandleEnvelope(Command(BridgeKind.BeginAdjustment, new BridgeAdjustmentRequestPayload { MeasurementId = measurement.MeasurementId }));
+            await WaitUntilAsync(() => run.CurrentWindowId != null);
+            var openWindowId = run.CurrentWindowId;
+
+            // An answer that names a window this run does not hold belongs to a window that was already closed.
+            run.HandleEnvelope(Command(BridgeKind.RequestMeasurement, new BridgeMeasurementRequestPayload { WindowId = "a-closed-window" }));
+
+            var answered = false;
+            _ = wait.ContinueWith(_ => answered = true);
+            await Task.Delay(200);
+
+            answered.Should().BeFalse("a stale answer must not complete the pending interaction");
+            run.CurrentWindowId.Should().Be(openWindowId);
+
+            // The answer of the window that is really open still completes it.
+            run.HandleEnvelope(Command(BridgeKind.RequestMeasurement, new BridgeMeasurementRequestPayload { WindowId = openWindowId }));
+            (await wait).Kind.Should().Be(BridgeControllerAskKind.AdjustmentFinished);
+        }
+
+        [Test]
+        public async Task WaitForHardwareReadyAsync_ReturnsWhenTheControllerReportsReadiness() {
+            var broker = new FakeMessageBroker();
+            using var run = NewRun(broker, new CancellationTokenSource());
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var wait = run.WaitForHardwareReadyAsync(TimeSpan.FromMilliseconds(1500), CancellationToken.None);
+            await Task.Delay(100);
+            run.HandleEnvelope(Command(BridgeKind.ControllerReady, new BridgeControllerReadyPayload { HardwareConnected = true, HardwareReady = true, Note = "idle" }));
+
+            (await wait).Should().BeTrue();
+        }
+
+        [Test]
+        public async Task WaitForHardwareReadyAsync_TimesOutWhenNothingIsReported() {
+            var broker = new FakeMessageBroker();
+            using var run = NewRun(broker, new CancellationTokenSource());
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            // A controller that keeps its axes busy must not hold the run: the wait reports that it did not become
+            // ready in time and the caller carries on (the answer deadline of the measurement takes over).
+            (await run.WaitForHardwareReadyAsync(TimeSpan.FromMilliseconds(250), CancellationToken.None)).Should().BeFalse();
         }
 
         [Test]

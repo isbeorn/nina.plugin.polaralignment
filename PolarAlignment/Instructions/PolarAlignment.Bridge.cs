@@ -130,6 +130,48 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
 
         /// <summary>
+        /// Checks that the controller reports its hardware as idle right before the three reference frames are captured,
+        /// which is what the review asks for. It only warns: a controller that deliberately connects its hardware after
+        /// the sweep (as MLAstroRPA does) would stall every run if the captures were blocked here.
+        /// </summary>
+        private void WarnIfControllerIsNotReadyBeforeReferenceSweep() {
+            var session = bridgeSession;
+            if (session == null || !session.IsActive) { return; }
+
+            if (session.ControllerHardwareConnected && session.ControllerHardwareReady) {
+                Logger.Info($"[Bridge] {ControllerDisplayCapitalized} reports its hardware as ready before the reference sweep.");
+                return;
+            }
+
+            var note = session.ControllerReadyNote;
+            var detail = string.IsNullOrWhiteSpace(note) ? string.Empty : $": {note}";
+
+            if (session.ControllerHardwareConnected) {
+                // The link is up but the axes are not idle: that is the case the operator has to act on.
+                Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} is connected but not ready before the reference sweep{detail}. The three reference points are captured anyway.");
+                Notification.ShowWarning(
+                    $"{ControllerDisplayCapitalized} is connected but reports that its axes are not idle before the reference sweep{detail}." + Environment.NewLine +
+                    "The three reference points are captured anyway, and the correction waits for the controller afterwards.");
+                return;
+            }
+
+            // No link yet: not an error, because a controller may bring its hardware up after the sweep.
+            Logger.Info($"[Bridge] {ControllerDisplayCapitalized} has not reported readiness before the reference sweep{detail}. The three reference points are captured, and the correction waits for the hardware afterwards.");
+        }
+
+        /// <summary>
+        /// Waits for the controller to report readiness again after the run was paused, because it stopped its axes
+        /// for the pause. A controller that stays busy only gets a warning: the answer deadline of the next
+        /// measurement takes over from here, so a pause can never hang the run.
+        /// </summary>
+        private async Task RequireControllerReadyAfterPauseAsync(BridgeControllerRun session, CancellationToken token) {
+            var ready = await session.WaitForHardwareReadyAsync(TimeSpan.FromMilliseconds(session.Options.ReadyTimeoutMs), token);
+            if (ready) { return; }
+
+            Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} did not report readiness after the resume; the next measurement is handed over anyway and its answer deadline applies.");
+        }
+
+        /// <summary>
         /// Ends a run whose result the controller confirmed: the achieved errors go out with the session end and
         /// the operator reads the same wording TPPA uses when it finishes on its own.
         /// </summary>

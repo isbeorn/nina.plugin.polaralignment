@@ -372,6 +372,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public void Pause() {
             if (pauseTS != null) {
                 pauseTS.IsPaused = true;
+                // The run has to read as paused the moment the operator asks for it, not only once the loop reaches its
+                // next pause check: a pause that arrives while the run waits for the controller is resumed with the
+                // button this flag drives, so without it there would be nothing left to press.
+                IsPaused = true;
                 RaisePropertyChanged(nameof(IsPaused));
             }
             NotifyBridgeOfPause(paused: true);
@@ -379,6 +383,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         public void Resume() {
             if (pauseTS != null) {
                 pauseTS.IsPaused = false;
+                IsPaused = false;
                 RaisePropertyChanged(nameof(IsPaused));
             }
             NotifyBridgeOfPause(paused: false);
@@ -398,6 +403,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     await session.PublishPauseRequestAsync(paused,
                                                           paused ? BridgeReason.Paused : BridgeReason.Resumed,
                                                           CancellationToken.None);
+
+                    if (paused) {
+                        // A controller that was handed a measurement holds its answer until the resume, so waiting for
+                        // that answer would leave the run inside the external step with nothing left to resume. The
+                        // interaction is ended here instead, and the loop stands at its own pause check.
+                        session.ReleaseInteractionForPause();
+                    }
                 } catch (Exception ex) {
                     Logger.Warning($"[Bridge] Failed to tell the controller about the pause: {ex.Message}");
                 }
@@ -511,6 +523,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     if (telescopeMediator.GetInfo().Connected && domeMediator.GetInfo().Connected) {
                         await domeMediator.WaitForDomeSynchronization(token);
                     }
+
+                    // The review asks for the alignment hardware to be confirmed idle before the three reference
+                    // frames: an external controller that is still busy is reported here (warning only, see the
+                    // helper), because blocking the captures would stall a controller that connects after the sweep.
+                    WarnIfControllerIsNotReadyBeforeReferenceSweep();
 
                     var solve1 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
                     var refractionParameter = RefractionParameters.GetRefractionParameters(weatherDataMediator.GetInfo());
@@ -667,6 +684,13 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         }
 
                         if (bridgeSession != null) {
+                            // Re-check the pause right before the step runs: a pause that arrived while the image was
+                            // solved must not let a move happen that the operator did not ask for. The controller
+                            // stopped its axes for the pause, so it has to be ready again before the next measurement.
+                            if (await WaitIfPaused(localCTS.Token, progress)) {
+                                await RequireControllerReadyAfterPauseAsync(bridgeSession, localCTS.Token);
+                            }
+
                             // The awaited external step: this loop's own measurement is handed to the controller,
                             // which answers it exactly once. The correction is never done here - the controller
                             // owns the alignment hardware, so the loop waits for it instead of moving the axes.
@@ -716,6 +740,8 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         // still so the confirmation solve measures the same state. An external
                         // controller moves the axes by itself, so nothing is moved here.
                         if (bridgeSession == null && autoFinishGate.Consecutive == 0) {
+                            // A pause that arrived while the image was solved must not be overrun by a move either.
+                            await WaitIfPaused(localCTS.Token, progress);
                             await TPAPAVM.MoveCloser(progress, localCTS.Token);
                         }
 
@@ -751,14 +777,23 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
         }
 
-        private async Task WaitIfPaused(CancellationToken token, IProgress<ApplicationStatus> progress) {
-            if (IsPausing) {
-                IsPaused = true;
-                progress?.Report(GetStatus("Paused"));
+        /// <summary>
+        /// Holds the run while the operator paused it. Returns true when it really stood still, so the caller knows
+        /// that the axes were stopped - an external controller has to report readiness again before the next move.
+        /// </summary>
+        private async Task<bool> WaitIfPaused(CancellationToken token, IProgress<ApplicationStatus> progress) {
+            if (!IsPausing) { return false; }
+
+            IsPaused = true;
+            progress?.Report(GetStatus("Paused"));
+            try {
                 await pauseTS.Token.WaitWhilePausedAsync(token);
-                progress?.Report(GetStatus(string.Empty));
+            } finally {
                 IsPaused = false;
+                progress?.Report(GetStatus(string.Empty));
             }
+
+            return true;
         }
 
         public bool Northern {

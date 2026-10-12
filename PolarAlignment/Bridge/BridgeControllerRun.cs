@@ -62,6 +62,12 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private string stateReason;
         private int samplesTaken;
         private string lastMeasurementId;
+
+        /// <summary>
+        /// True when the measurement that was published last was usable. An unusable one may not be answered with a
+        /// move, because the correction would be planned from a measurement the run could not trust.
+        /// </summary>
+        private bool lastMeasurementUsable;
         private string windowId;
         private string windowMeasurementId;
         private DateTimeOffset windowOpenedAt;
@@ -75,6 +81,27 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         /// silence watchdog of the capture window but are not an answer.
         /// </summary>
         private DateTimeOffset? answerDeadline;
+
+        /// <summary>The single interaction this run is waiting for.</summary>
+        private enum PendingInteraction {
+            None,
+
+            /// <summary>A measurement was published and the controller has to answer it.</summary>
+            Adjustment,
+
+            /// <summary>
+            /// The controller holds a capture window for the measurement it was handed and has to report the move as
+            /// finished or ask for completion.
+            /// </summary>
+            Completion
+        }
+
+        /// <summary>
+        /// What this run is waiting for, so a controller message that belongs to another moment - a move for a
+        /// measurement that is over, a window that was already closed - is refused instead of completing an
+        /// interaction the loop never opened.
+        /// </summary>
+        private PendingInteraction pendingInteraction = PendingInteraction.None;
         private bool stopRequested;
         private bool stopAcknowledged;
         private string hardwareStopStatus;
@@ -292,6 +319,51 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         }
 
         /// <summary>
+        /// Ends the interaction that is waiting for the controller's answer because the operator paused the run. The
+        /// controller holds that answer until the resume, so waiting for it would keep the run inside the external step
+        /// while the operator has nothing left to resume: the loop is released here and stands at its own pause check
+        /// instead. Nothing is sent to the controller - it was told about the pause already - and the capture window is
+        /// closed, because no move is going to happen inside it.
+        /// </summary>
+        public void ReleaseInteractionForPause() {
+            BridgeControllerAsk ask;
+            lock (gate) {
+                if (pendingInteraction == PendingInteraction.None) { return; }
+
+                // The measurement was not corrected and the loop measures again after the resume, so the ask carries
+                // neither a window nor a settle time.
+                ask = new BridgeControllerAsk {
+                    Kind = BridgeControllerAskKind.AdjustmentFinished,
+                    MeasurementId = lastMeasurementId,
+                    Reason = BridgeReason.Paused
+                };
+            }
+
+            Logger.Info("[Bridge] Paused while the controller was answering: the interaction is ended so the run can stand at the pause.");
+            CloseWindow(BridgeReason.Paused);
+            CompletePending(ask);
+        }
+
+        /// <summary>
+        /// Waits until the controller reports its hardware as ready again, which is what the loop does after the
+        /// operator resumed a paused run: the controller stopped its axes for the pause, so the next measurement must
+        /// not be handed over while it is still busy. Returns false when readiness did not come back in time - the run
+        /// then continues anyway, because the answer deadline of the measurement takes over from here.
+        /// </summary>
+        public async Task<bool> WaitForHardwareReadyAsync(TimeSpan timeout, CancellationToken token) {
+            if (ControllerHardwareReady) { return true; }
+
+            var deadline = DateTimeOffset.UtcNow + timeout;
+            while (DateTimeOffset.UtcNow < deadline) {
+                if (ControllerHardwareReady) { return true; }
+                if (ended || HasControllerFault) { return false; }
+                await Task.Delay(250, token).ConfigureAwait(false);
+            }
+
+            return ControllerHardwareReady;
+        }
+
+        /// <summary>
         /// Takes one inbound controller message. Readiness and keep-alive only refresh what the loop reads at its
         /// decision points; the messages that answer the pending interaction complete it, and a cancel or a fault
         /// runs the one failure path.
@@ -345,10 +417,11 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
                 case BridgeKind.BeginAdjustment: {
                     // The controller announces a move on the measurement it was handed. TPPA answers with the
-                    // window it may hold while moving; the interaction itself stays pending until the move is
-                    // reported finished.
+                    // window it may hold while moving, but only when the announcement belongs to the measurement
+                    // this run is waiting on; the interaction itself stays pending until the move is reported
+                    // finished.
                     var adjustment = envelope.PayloadAs<BridgeAdjustmentRequestPayload>();
-                    _ = GrantWindowAsync(adjustment).ContinueWith(task => {
+                    _ = HandleAdjustmentAnnouncementAsync(adjustment).ContinueWith(task => {
                         if (task.Exception != null) {
                             Logger.Error($"[Bridge] Failed to grant a capture window: {task.Exception.GetBaseException().Message}");
                         }
@@ -358,6 +431,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
                 case BridgeKind.RequestMeasurement: {
                     var request = envelope.PayloadAs<BridgeMeasurementRequestPayload>();
+                    if (!AcceptsAnswer(request?.WindowId, BridgeKind.RequestMeasurement)) { return; }
                     CloseWindow(request?.Reason ?? BridgeReason.StepFinished);
                     CompletePending(new BridgeControllerAsk {
                         Kind = BridgeControllerAskKind.AdjustmentFinished,
@@ -372,6 +446,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
                 case BridgeKind.RequestCompletion: {
                     var completion = envelope.PayloadAs<BridgeCompletionRequestPayload>();
+                    if (!AcceptsAnswer(completion?.WindowId, BridgeKind.RequestCompletion)) { return; }
                     CloseWindow(BridgeReason.CompletionRequested);
                     CompletePending(new BridgeControllerAsk {
                         Kind = BridgeControllerAskKind.VerificationRequested,
@@ -409,6 +484,73 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                     Logger.Warning($"[Bridge] Unsupported controller message kind '{envelope.Kind}'.");
                     return;
             }
+        }
+
+        /// <summary>
+        /// Takes the announcement of a move. It is only accepted for the measurement this run handed over and only
+        /// while that interaction is pending - either the announcement itself is the answer, or the window of that
+        /// same measurement is still open and the announcement is a repeat, which is answered with the same grant.
+        /// Everything else is refused with a log line instead of opening a window the loop never asked for.
+        /// </summary>
+        private async Task HandleAdjustmentAnnouncementAsync(BridgeAdjustmentRequestPayload adjustment) {
+            var measurementId = adjustment?.MeasurementId;
+
+            string currentMeasurementId;
+            string openWindowId;
+            PendingInteraction pending;
+            bool endedNow;
+            bool measurementUsable;
+            lock (gate) {
+                currentMeasurementId = lastMeasurementId;
+                openWindowId = windowId;
+                pending = pendingInteraction;
+                endedNow = ended;
+                measurementUsable = lastMeasurementUsable;
+            }
+
+            // A controller of an older build sends no measurement id, so an empty one is not treated as a mismatch.
+            var forCurrentMeasurement = string.IsNullOrEmpty(measurementId)
+                                        || string.Equals(measurementId, currentMeasurementId, StringComparison.Ordinal);
+
+            if (endedNow || !forCurrentMeasurement || !measurementUsable || (openWindowId == null && pending != PendingInteraction.Adjustment)) {
+                Logger.Warning($"[Bridge] Refused a '{BridgeKind.BeginAdjustment}' for measurement {measurementId ?? "(none)"}: this run is waiting for measurement " +
+                               $"{currentMeasurementId ?? "(none)"}, that measurement {(!measurementUsable ? "is not usable" : "is usable")} and " +
+                               (openWindowId == null ? "no capture window is open." : $"window {openWindowId} is open."));
+                return;
+            }
+
+            await GrantWindowAsync(adjustment, openWindowId).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// True when an answer may complete the pending interaction. A completion that names a window other than the
+        /// one this run holds is stale - it belongs to a window that is already closed - and an answer that arrives
+        /// while nothing is pending is ignored, because the loop is not waiting for it.
+        /// </summary>
+        private bool AcceptsAnswer(string windowIdInAnswer, string kind) {
+            string openWindowId;
+            PendingInteraction pending;
+            bool endedNow;
+            lock (gate) {
+                openWindowId = windowId;
+                pending = pendingInteraction;
+                endedNow = ended;
+            }
+
+            if (endedNow) { return false; }
+
+            if (!string.IsNullOrEmpty(windowIdInAnswer) && openWindowId != null
+                && !string.Equals(windowIdInAnswer, openWindowId, StringComparison.Ordinal)) {
+                Logger.Warning($"[Bridge] Refused a '{kind}' for window {windowIdInAnswer}: this run holds window {openWindowId}.");
+                return false;
+            }
+
+            if (pending == PendingInteraction.None) {
+                Logger.Info($"[Bridge] Ignored a '{kind}': no measurement is pending in this run, so there is nothing to answer.");
+                return false;
+            }
+
+            return true;
         }
 
         public void Dispose() {
@@ -509,9 +651,11 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
         private void CompletePending(BridgeControllerAsk ask) {
             lock (gate) {
-                // The interaction is over, so the deadline that guarded it must not end the next one early.
+                // The interaction is over, so the deadline that guarded it must not end the next one early, and a
+                // message that belongs to it must not be taken for an answer to the next measurement.
                 answerDeadline = null;
                 lostAfterSilenceDeadline = null;
+                pendingInteraction = PendingInteraction.None;
             }
 
             pending.TrySetResult(ask);
@@ -600,12 +744,15 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             lock (gate) {
                 samplesTaken++;
                 lastMeasurementId = payload.MeasurementId;
+                lastMeasurementUsable = string.Equals(payload.Status, BridgeMeasurementStatus.Valid, StringComparison.Ordinal);
                 state = BridgeState.WaitingForRequest;
                 stateReason = null;
                 // The controller has nothing in its hands yet, so the answer has to arrive within the silence
                 // timeout; once it announces a move it holds a capture window and the window deadlines take over.
                 answerDeadline = DateTimeOffset.UtcNow.AddMilliseconds(Options.SilenceTimeoutMs);
                 lostAfterSilenceDeadline = null;
+                // From here on exactly this measurement has to be answered: a move announced for an older one is stale.
+                pendingInteraction = PendingInteraction.Adjustment;
             }
 
             payload.SessionId = SessionId;
@@ -616,31 +763,40 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             await PublishAsync(BridgeKind.Measurement, payload, token).ConfigureAwait(false);
         }
 
-        /// <summary>Grants the capture window for the adjustment the controller announced.</summary>
-        private async Task GrantWindowAsync(BridgeAdjustmentRequestPayload adjustment) {
+        /// <summary>
+        /// Grants the capture window for the adjustment the controller announced. With <paramref name="existingWindowId"/>
+        /// the grant of a window that is already open is repeated for a controller that repeated its announcement:
+        /// no second window is opened and the adjustment is not announced again.
+        /// </summary>
+        private async Task GrantWindowAsync(BridgeAdjustmentRequestPayload adjustment, string existingWindowId = null) {
+            var now = DateTimeOffset.UtcNow;
             var sessionRemaining = TimeSpan.FromSeconds(Options.SessionTimeoutSec) - RealRunningElapsed;
             var grant = new BridgeAdjustmentGrantPayload {
-                WindowId = Guid.NewGuid().ToString("N"),
+                WindowId = existingWindowId ?? Guid.NewGuid().ToString("N"),
                 MeasurementId = adjustment?.MeasurementId,
                 MaxWindowMs = (long)Math.Max(0, sessionRemaining.TotalMilliseconds),
                 SilenceTimeoutMs = Options.SilenceTimeoutMs,
-                GrantedAtUtc = DateTimeOffset.UtcNow
+                GrantedAtUtc = now
             };
 
-            lock (gate) {
-                windowId = grant.WindowId;
-                windowMeasurementId = grant.MeasurementId;
-                windowOpenedAt = DateTimeOffset.UtcNow;
-                windowSilenceDeadline = DateTimeOffset.UtcNow.AddMilliseconds(Options.SilenceTimeoutMs);
-                lostAfterSilenceDeadline = null;
-                // The controller answered by announcing its move: from here on the capture window it holds is what
-                // the run watches, because a long move is kept alive with keep-alives instead of an answer.
-                answerDeadline = null;
-                state = BridgeState.WindowOpen;
-                stateReason = null;
+            if (existingWindowId == null) {
+                lock (gate) {
+                    windowId = grant.WindowId;
+                    windowMeasurementId = grant.MeasurementId;
+                    windowOpenedAt = now;
+                    windowSilenceDeadline = now.AddMilliseconds(Options.SilenceTimeoutMs);
+                    lostAfterSilenceDeadline = null;
+                    // The controller answered by announcing its move: from here on the capture window it holds is what
+                    // the run watches, because a long move is kept alive with keep-alives instead of an answer.
+                    answerDeadline = null;
+                    pendingInteraction = PendingInteraction.Completion;
+                    state = BridgeState.WindowOpen;
+                    stateReason = null;
+                }
+
+                RaiseAdjustmentAnnounced(adjustment);
             }
 
-            RaiseAdjustmentAnnounced(adjustment);
             await PublishAsync(BridgeKind.AdjustmentGranted, grant, CancellationToken.None).ConfigureAwait(false);
         }
 
