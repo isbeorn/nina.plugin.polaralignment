@@ -609,27 +609,35 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     await TPAPAVM.UseImageCenterAsReference(localCTS.Token);
 
-                    if (bridgeSession != null && !await RunBridgeAsync(bridgeSession, progress, localCTS.Token)) {
-                        // The external step ran and the run is over, whatever ended it: a finished session, a
-                        // cancel from the controller, or a controller that went quiet while it drove the axes.
-                        // When it returns true the awaited step never started, so the run continues below with
-                        // TPPA's own correction loop, exactly like a run without a controller.
-                        return;
+                    if (bridgeSession != null && !await PrepareExternalStepAsync(bridgeSession, progress, localCTS.Token)) {
+                        // The controller left before the correction started, so the awaited external step never
+                        // ran: the run continues with TPPA's own correction loop, exactly like a run without a
+                        // controller, and the session is closed without asking the controller to stop.
+                        await CloseBridgeSessionAsync(BridgeReason.ExternalLost, requestStop: false);
                     }
 
                     // A single lucky solve must not end the procedure: require consecutive
                     // confirmations below tolerance before auto-finishing.
                     var autoFinishGate = new AutoFinishGate(2);
+                    // The first measurement published to an external controller is the result of this loop
+                    // itself, so the controller starts from the same numbers the operator sees.
+                    var bridgeFirstMeasurement = bridgeSession != null;
+                    var bridgeWindowId = (string)null;
 
                     var sw = Stopwatch.StartNew();
                     do {
                         await WaitIfPaused(localCTS.Token, progress);
 
                         var continuousSolve = await Solve(TPAPAVM, 0, progress, localCTS.Token);
+                        var totalErrorMinutes = double.NaN;
+                        var gateMet = false;
+                        var measurementStatus = BridgeMeasurementStatus.CaptureFailed;
+
                         if (continuousSolve.Success) {
                             var estimateStable = await TPAPAVM.UpdateDetails(continuousSolve, progress, localCTS.Token);
 
                             if (estimateStable) {
+                                measurementStatus = BridgeMeasurementStatus.Valid;
                                 await messageBroker.Publish(
                                     new PolarAlignmentErrorMessage(
                                         correlatedGuid,
@@ -642,40 +650,73 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                                 Logger.Info($"Calculated Error: Az: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError}, Alt: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError}, Tot: {TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError}");
 
-                                var totalErrorMinutes = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
-                                if (autoFinishGate.Register(totalErrorMinutes <= AlignmentTolerance)) {
+                                totalErrorMinutes = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
+                                gateMet = autoFinishGate.Register(totalErrorMinutes <= AlignmentTolerance);
+                                if (gateMet) {
                                     Logger.Info($"Total Error is below alignment tolerance ({AlignmentTolerance}') for {autoFinishGate.Consecutive} consecutive solves. " +
                                         $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'. " +
                                         $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'. " +
-                                        $"Total Error: {Math.Round(totalErrorMinutes, 2)}'. " +
-                                        $"Automatically finishing polar alignment.");
-                                    Notification.ShowInformation(
-                                        $"Total Error is below alignment tolerance.{Environment.NewLine}" +
-                                        $"Tolerance: {AlignmentTolerance}'{Environment.NewLine}" +
-                                        $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
-                                        $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
-                                        $"Total Error: {Math.Round(totalErrorMinutes, 2)}'{Environment.NewLine}" +
-                                        $"Automatically finishing polar alignment.",
-                                        TimeSpan.FromMinutes(1));
-                                    localCTS.Cancel();
+                                        $"Total Error: {Math.Round(totalErrorMinutes, 2)}'.");
                                 } else if (autoFinishGate.Consecutive > 0) {
                                     Logger.Info($"Total Error {Math.Round(totalErrorMinutes, 2)}' is below alignment tolerance ({AlignmentTolerance}'), awaiting confirmation solve ({autoFinishGate.Consecutive}/{autoFinishGate.RequiredConsecutive}).");
                                 }
-                                if (sw.Elapsed > TimeSpan.FromMinutes(5)) {
-                                    Logger.Info("Correction phase exceeded 5 minutes");
-                                    Notification.ShowInformation($"Polar alignment correction phase has been running for multiple minutes.{Environment.NewLine}Consider restarting the process to improve precision");
-                                    sw.Stop();
-                                    sw.Reset();
-                                }
-                                localCTS.Token.ThrowIfCancellationRequested();
-                                // While a below-tolerance result awaits confirmation, hold the motors
-                                // still so the confirmation solve measures the same state.
-                                if (autoFinishGate.Consecutive == 0) {
-                                    await TPAPAVM.MoveCloser(progress, localCTS.Token);
-                                }
                             } else {
+                                measurementStatus = BridgeMeasurementStatus.Unstable;
                                 Logger.Warning("Skipping error publication and automated correction because the continuous estimate was unstable.");
                             }
+                        }
+
+                        if (bridgeSession != null) {
+                            // The awaited external step: this loop's own measurement is handed to the controller,
+                            // which answers it exactly once. The correction is never done here - the controller
+                            // owns the alignment hardware, so the loop waits for it instead of moving the axes.
+                            var measurement = BuildBridgeMeasurement(windowId: bridgeWindowId,
+                                                                     status: measurementStatus,
+                                                                     autoFinishConditionMet: gateMet,
+                                                                     consecutiveBelowTolerance: autoFinishGate.Consecutive);
+                            measurement.IsFirstMeasurement = bridgeFirstMeasurement;
+                            bridgeFirstMeasurement = false;
+
+                            var ask = await RunExternalStepAsync(bridgeSession, measurement, progress, localCTS.Token);
+                            bridgeWindowId = ask.WindowId;
+
+                            if (ask.Kind == BridgeControllerAskKind.VerificationRequested) {
+                                if (gateMet) {
+                                    // The controller asked for the result and the gate confirms the same state
+                                    // twice in a row: this is the single completion policy of a bridge run. The
+                                    // session is ended here, so the run leaves the alignment like a finished
+                                    // alignment instead of a cancelled one.
+                                    await FinishBridgeSessionAsync(bridgeSession, measurement);
+                                    return;
+                                } else {
+                                    Logger.Info($"[Bridge] The controller asked to verify, but the tolerance is not confirmed twice in a row yet ({Math.Round(measurement.TotalErrorArcMin, 2)}' vs tolerance {AlignmentTolerance}'). The next measurement answers it.");
+                                }
+                            }
+                        } else if (gateMet) {
+                            Logger.Info("Automatically finishing polar alignment.");
+                            Notification.ShowInformation(
+                                $"Total Error is below alignment tolerance.{Environment.NewLine}" +
+                                $"Tolerance: {AlignmentTolerance}'{Environment.NewLine}" +
+                                $"Altitude Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes, 2)}'{Environment.NewLine}" +
+                                $"Azimuth Error: {Math.Round(TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes, 2)}'{Environment.NewLine}" +
+                                $"Total Error: {Math.Round(totalErrorMinutes, 2)}'{Environment.NewLine}" +
+                                $"Automatically finishing polar alignment.",
+                                TimeSpan.FromMinutes(1));
+                            localCTS.Cancel();
+                        }
+
+                        if (sw.Elapsed > TimeSpan.FromMinutes(5)) {
+                            Logger.Info("Correction phase exceeded 5 minutes");
+                            Notification.ShowInformation($"Polar alignment correction phase has been running for multiple minutes.{Environment.NewLine}Consider restarting the process to improve precision");
+                            sw.Stop();
+                            sw.Reset();
+                        }
+                        localCTS.Token.ThrowIfCancellationRequested();
+                        // While a below-tolerance result awaits confirmation, hold the motors
+                        // still so the confirmation solve measures the same state. An external
+                        // controller moves the axes by itself, so nothing is moved here.
+                        if (bridgeSession == null && autoFinishGate.Consecutive == 0) {
+                            await TPAPAVM.MoveCloser(progress, localCTS.Token);
                         }
 
                         if (Properties.Settings.Default.AutoPause) {

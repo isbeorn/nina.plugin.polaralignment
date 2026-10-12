@@ -18,13 +18,133 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         private string bridgeSessionEndReason = BridgeReason.UserStop;
 
         /// <summary>
-        /// Result of the hand-over point: the controller took the correction over, or there was nobody to hand
-        /// it over to, in which case the run keeps TPPA's own correction loop. This single outcome replaces the
-        /// flags that used to describe a vanished controller and a sweep that needed no correction.
+        /// Connects the external step the way the other alignment systems are connected before the correction
+        /// loop starts: the session is already open, the controller is told that the reference sweep is finished
+        /// and its hardware readiness is awaited. The correction itself is then driven by the same correction
+        /// loop as any other alignment system, so this replaces the hand-over prompt of the older design.
         /// </summary>
-        private enum HandOverOutcome {
-            HandedOver,
-            NoController
+        /// <returns>
+        /// False when the controller left, so the caller continues with TPPA's own correction loop. True when the
+        /// controller owns the correction from here on.
+        /// </returns>
+        private async Task<bool> PrepareExternalStepAsync(BridgeControllerRun session, IProgress<ApplicationStatus> progress, CancellationToken token) {
+            var hub = BridgeHub.Instance;
+            if (hub?.IsControllerPresent != true) {
+                // The controller was switched off (or went away) during the reference sweep: there is nobody to
+                // hand the correction over to, so the run continues with its normal correction loop.
+                Logger.Info("[Bridge] The controller is gone before the correction. Continuing with the normal correction loop.");
+                return false;
+            }
+
+            // The reference sweep is finished: the controller is told, so it can bring its hardware up and report
+            // readiness while the axes are still untouched.
+            await session.PublishSessionStateAsync(BridgeState.WaitingForRequest, BridgeReason.MeasurementsFinished, token);
+
+            // The operator has to read that the run is waiting for the hardware link, not still calculating the error:
+            // bringing the link up takes a while (a wireless attempt, then a scan of every COM port).
+            progress?.Report(GetStatus($"Waiting for {ControllerDisplay} to connect the alignment hardware"));
+
+            // Bringing the link up takes a while (a wireless attempt, then a scan of every COM port), so it gets a
+            // generous grace period: while the controller is still trying, the run waits instead of cancelling the
+            // alignment, because the axes are not touched until the controller answers the first measurement.
+            var readinessDeadline = DateTime.UtcNow.AddSeconds(30);
+            while (!session.HasControllerFault
+                   && (!session.ControllerHardwareConnected || !session.ControllerHardwareReady)
+                   && hub.IsControllerPresent && DateTime.UtcNow < readinessDeadline) {
+                await Task.Delay(250, token);
+            }
+
+            progress?.Report(GetStatus(string.Empty));
+
+            if (!hub.IsControllerPresent) {
+                // The controller was switched off (or went away) while it was connecting: the normal correction
+                // loop continues, and the operator is told why the hand-over is gone.
+                Logger.Info("[Bridge] The controller is gone. Handing the run back to the normal correction loop.");
+                progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
+                Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
+                return false;
+            }
+
+            // A controller fault is final: it tried and reported that it cannot drive the run. Being slow to
+            // connect is not a fault - that case is the warning below.
+            if (session.HasControllerFault) {
+                var failureDetail = session.ControllerFaultDetail;
+                Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} could not connect to the alignment hardware: {session.ControllerFaultReason}.");
+
+                await session.EndAsync(BridgeReason.ControllerFault,
+                                       false,
+                                       new BridgeSessionEndedPayload { Detail = failureDetail },
+                                       CancellationToken.None);
+
+                Notification.ShowError(
+                    $"{ControllerDisplayCapitalized} system is assigned through the broker but could not connect to the alignment hardware." + Environment.NewLine +
+                    (string.IsNullOrWhiteSpace(failureDetail) ? string.Empty : failureDetail + Environment.NewLine) +
+                    "Polar alignment is cancelled.");
+                throw new OperationCanceledException("The controller could not connect to the alignment hardware.");
+            }
+
+            if (session.ControllerHardwareConnected) {
+                // The firmware link is up: that is the success the operator has to see. Readiness is a second,
+                // separate step - a connected but busy controller gets a warning, not an error.
+                Notification.ShowSuccess(
+                    $"{ControllerDisplayCapitalized} connected to the alignment hardware." + Environment.NewLine +
+                    "Handing the correction over to the controller.");
+            }
+
+            if (!session.ControllerHardwareConnected || !session.ControllerHardwareReady) {
+                var readinessNote = session.ControllerReadyNote;
+                Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} is not ready for the correction" +
+                               (string.IsNullOrWhiteSpace(readinessNote) ? "." : $": {readinessNote}."));
+                Notification.ShowWarning(
+                    $"{ControllerDisplayCapitalized} is not ready for the correction" +
+                    (string.IsNullOrWhiteSpace(readinessNote) ? "." : $": {readinessNote}.") + Environment.NewLine +
+                    "Check the controller.");
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// The awaited external step of one correction loop iteration: the measurement that loop just produced is
+        /// published to the controller and its single answer decides what the loop does next. A cancel, a fault or
+        /// a controller that stops answering throws here, so the loop never invents an end of its own.
+        /// </summary>
+        private async Task<BridgeControllerAsk> RunExternalStepAsync(BridgeControllerRun session,
+                                                                            BridgeMeasurementPayload measurement,
+                                                                            IProgress<ApplicationStatus> progress,
+                                                                            CancellationToken token) {
+            // The measurement is the controller's turn now: the status says so instead of leaving the last capture
+            // text on screen while the controller plans, connects its hardware or holds a move.
+            progress?.Report(GetStatus($"Waiting for {ControllerDisplay}"));
+
+            var ask = await session.PublishMeasurementAndWaitAsync(measurement, token);
+
+            if (ask.Kind == BridgeControllerAskKind.AdjustmentFinished && ask.SettleSeconds > 0) {
+                // The controller finished a move: let its mechanics settle for as long as it asked (backlash
+                // release, vibration). This is the same wait our own adjustment systems do, so the operator reads
+                // "Settling" in the status bar instead of an unexplained pause.
+                await CoreUtil.Wait(TimeSpan.FromSeconds(ask.SettleSeconds), token, progress, "Settling");
+            }
+
+            return ask;
+        }
+
+        /// <summary>
+        /// Ends a run whose result the controller confirmed: the achieved errors go out with the session end and
+        /// the operator reads the same wording TPPA uses when it finishes on its own.
+        /// </summary>
+        private async Task FinishBridgeSessionAsync(BridgeControllerRun session, BridgeMeasurementPayload measurement) {
+            await session.EndAsync(BridgeReason.Completed, true, BuildSessionEndedDetail(measurement), CancellationToken.None);
+
+            Logger.Info($"[Bridge] {ControllerDisplayCapitalized} confirmed the alignment within tolerance {AlignmentTolerance}'. Session completed.");
+            // Older toasts are closed first, so the result is the one the operator really reads.
+            Notification.CloseAll();
+            Notification.ShowInformation(
+                "AUTO PA COMPLETED!" + Environment.NewLine +
+                "Total Error is below alignment tolerance." + Environment.NewLine +
+                BuildErrorSummary() + Environment.NewLine +
+                $"{ControllerDisplayCapitalized} completed the session.",
+                TimeSpan.FromMinutes(1));
         }
 
         /// <summary>
@@ -93,271 +213,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 throw;
             }
         }
-        /// <summary>
-        /// External correction step. Every capture waits for the external controller and TPPA never
-        /// finishes because of the measured error: it only publishes the tolerance flags and ends the
-        /// session when the controller asks for completion, cancels or stops answering.
-        /// </summary>
-        /// <returns>
-        /// True when the external step never took over - the reference sweep was already inside the tolerance,
-        /// or the controller left before the hand-over - so the caller continues with TPPA's own correction
-        /// loop. False when the step ran, which means the run is over.
-        /// </returns>
-        private async Task<bool> RunBridgeAsync(BridgeControllerRun session,
-                                                      IProgress<ApplicationStatus> progress,
-                                                      CancellationToken token) {
-            // From here on the controller's answers are awaited one by one, so a cancel, a fault or a controller
-            // that goes quiet ends the run through the run token instead of aborting a phase of its own.
-
-            // The three reference points are already inside the tolerance: this run finishes under TPPA's own
-            // auto-finish, exactly like a run without a controller. Nothing is handed over and the controller
-            // is never asked to bring its hardware up.
-            var sweepTotalError = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes);
-            if (sweepTotalError <= AlignmentTolerance) {
-                Logger.Info($"[Bridge] The reference sweep is already within tolerance ({Math.Round(sweepTotalError, 2)}' <= {AlignmentTolerance}'). Finishing without handing the correction over.");
-
-                await session.EndAsync(BridgeReason.Completed,
-                                       true,
-                                       new BridgeSessionEndedPayload {
-                                           AzimuthErrorArcMin = TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError.ArcMinutes,
-                                           AltitudeErrorArcMin = TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError.ArcMinutes,
-                                           TotalErrorArcMin = TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes
-                                       },
-                                       token);
-                return true;
-            }
-
-            // The reference sweep is finished: the controller is told, so it can bring its hardware up and
-            // report readiness before the hand-over prompt decides whether to warn about it.
-            await session.PublishSessionStateAsync(BridgeState.WaitingForRequest, BridgeReason.MeasurementsFinished, token);
-
-            // The operator reads the first polar error before the controller does: the run holds here
-            // until Resume, so the reference sweep result is never published to the controller on its own.
-            var handOver = await WaitForHandoverResumeAsync(session, progress, token);
-            if (handOver == HandOverOutcome.NoController) {
-                // Nobody took the correction over, so the awaited external step never started: the run
-                // continues exactly like a run without a controller.
-                await CloseBridgeSessionAsync(BridgeReason.ExternalLost, requestStop: false);
-                return true;
-            }
-
-            var autoFinishGate = new AutoFinishGate(2);
-            var firstMeasurementBelowTolerance = Math.Abs(TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError.ArcMinutes) <= AlignmentTolerance;
-            var autoFinishConditionMet = autoFinishGate.Register(firstMeasurementBelowTolerance);
-            var measurement = BuildBridgeMeasurement(windowId: null,
-                                                     status: BridgeMeasurementStatus.Valid,
-                                                     autoFinishConditionMet: autoFinishConditionMet,
-                                                     consecutiveBelowTolerance: autoFinishGate.Consecutive);
-            measurement.IsFirstMeasurement = true;
-
-            while (!token.IsCancellationRequested) {
-                // While the operator holds the run, TPPA neither captures nor answers the controller, but it keeps
-                // watching the broker: a controller that disappears while the run is held ends the run through the
-                // failure path of the run helper, which cancels the token this loop waits on.
-                if (await WaitWhilePausedAsync(progress, token)) {
-                    session.CancelForLostController();
-                    token.ThrowIfCancellationRequested();
-                }
-
-                // The measurement is handed over and the controller answers it exactly once: it either finished the
-                // move it planned or it wants the result verified. A cancel, a fault or a controller that goes quiet
-                // ends the run inside that wait, through the single failure path of the run helper.
-                var ask = await session.PublishMeasurementAndWaitAsync(measurement, token);
-
-                if (ask.Kind == BridgeControllerAskKind.VerificationRequested) {
-                    progress?.Report(GetStatus("Verifying final polar alignment"));
-                    var verification = await CaptureBridgeMeasurementAsync(session, ask.WindowId, autoFinishGate, progress, token);
-                    if (verification.Status == BridgeMeasurementStatus.Valid
-                        && autoFinishGate.Consecutive >= autoFinishGate.RequiredConsecutive) {
-                        await session.EndAsync(BridgeReason.Completed, true, BuildSessionEndedDetail(verification), token);
-                        Logger.Info($"[Bridge] Alignment confirmed within tolerance {AlignmentTolerance}'. Session completed.");
-                        // Same order as the hand-over prompt: clear the older toasts, then report the result.
-                        Notification.CloseAll();
-                        Notification.ShowInformation(
-                            "AUTO PA COMPLETED!" + Environment.NewLine +
-                            "Total Error is below alignment tolerance." + Environment.NewLine +
-                            BuildErrorSummary() + Environment.NewLine +
-                            $"{ControllerDisplayCapitalized} completed the session.",
-                            TimeSpan.FromMinutes(1));
-                        return false;
-                    }
-
-                    Logger.Info($"[Bridge] Completion request not confirmed ({Math.Round(verification.TotalErrorArcMin, 2)}' vs tolerance {AlignmentTolerance}'). Continuing the session.");
-                    measurement = verification;
-                    continue;
-                }
-
-                // The controller finished a move: let its mechanics settle for as long as it asked (backlash
-                // release, vibration) and measure again. This is the same wait our own adjustment systems do, so
-                // the operator reads "Settling" in the status bar instead of an unexplained pause.
-                if (ask.SettleSeconds > 0) {
-                    await CoreUtil.Wait(TimeSpan.FromSeconds(ask.SettleSeconds), token, progress, "Settling");
-                }
-
-                measurement = await CaptureBridgeMeasurementAsync(session, ask.WindowId, autoFinishGate, progress, token);
-            }
-
-            token.ThrowIfCancellationRequested();
-            return false;
-        }
-
-        /// <summary>
-        /// Hand-over point after the reference sweep. The session is already open, but the first measurement
-        /// is only published to the controller once the run leaves this method: when TPPA is asked to pause
-        /// after each update the operator reads the initial polar error and presses Resume, otherwise the
-        /// correction is handed over as soon as the controller reports its hardware as ready.
-        /// </summary>
-        /// <returns>
-        /// <see cref="HandOverOutcome.NoController"/> when the controller left before or during the hand-over,
-        /// so the awaited external step never started.
-        /// </returns>
-        private async Task<HandOverOutcome> WaitForHandoverResumeAsync(BridgeControllerRun session, IProgress<ApplicationStatus> progress, CancellationToken token) {
-            if (BridgeHub.Instance?.IsControllerPresent != true) {
-                // The controller was switched off (or went away) during the reference sweep: there is nobody to
-                // hand the correction over to, so the run continues with its normal correction loop - no pause
-                // and no hand-over prompt.
-                Logger.Info("[Bridge] The controller is gone before the hand-over. Continuing with the normal correction loop.");
-                return HandOverOutcome.NoController;
-            }
-
-            // The hold is the operator's choice: "Auto pause" is TPPA's own "pause after each
-            // continuous-correction update", so a run that asks for pauses keeps the hand-over prompt and an
-            // unattended run hands the correction over by itself.
-            var pauseForHandover = Properties.Settings.Default.AutoPause;
-            if (pauseForHandover) {
-                // Older toasts are closed first so the hand-over prompts are the ones the operator really reads.
-                Notification.CloseAll();
-
-                // 1) The run holds here. No toast is raised for the measured error: the values are already on
-                //    screen in TPPA, and a run without a controller reports nothing while the error is still
-                //    above the tolerance. The RESUME prompt is carried by the toast of step 3.
-                Logger.Info("[Bridge] Reference sweep finished. " + BuildErrorSummary().Replace(Environment.NewLine, " | "));
-                Pause();
-            }
-
-            // 2) The controller was told a moment ago that the sweep is finished. Bringing the link up takes
-            //    a while (a wireless attempt, then a scan of every COM port), so it gets a generous grace
-            //    period: while it is still trying, the run waits instead of cancelling the alignment. A run
-            //    without the operator hold also waits here for the axes to be idle, because it captures as
-            //    soon as this method returns.
-            var readinessDeadline = DateTime.UtcNow.AddSeconds(30);
-            while (!session.HasControllerFault
-                   && (!session.ControllerHardwareConnected || (!pauseForHandover && !session.ControllerHardwareReady))
-                   && BridgeHub.Instance?.IsControllerPresent == true && DateTime.UtcNow < readinessDeadline) {
-                await Task.Delay(250, token);
-            }
-
-            if (BridgeHub.Instance?.IsControllerPresent != true) {
-                // The controller was switched off (or went away) after the hand-over point was reached: the
-                // normal correction loop continues, and the operator is told why the prompt is gone.
-                Logger.Info("[Bridge] The controller is gone. Handing the run back to the normal correction loop.");
-                progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
-                Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
-                return HandOverOutcome.NoController;
-            }
-
-            // 3) A controller fault is final: it tried and reported that it cannot drive the run. Being slow
-            //    to connect is not a fault - that case is handled by the warning below and the RESUME re-check.
-            if (session.HasControllerFault) {
-                var failureDetail = session.ControllerFaultDetail;
-                Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} could not connect to the alignment hardware: {session.ControllerFaultReason}.");
-
-                await session.EndAsync(BridgeReason.ControllerFault,
-                                       false,
-                                       new BridgeSessionEndedPayload { Detail = failureDetail },
-                                       CancellationToken.None);
-
-                // The hand-over prompt already closed the older toasts: this error appears next to the
-                // success/warning of the prompt instead of clearing the screen a second time.
-                Notification.ShowError(
-                    $"{ControllerDisplayCapitalized} system is assigned through the broker but could not connect to the alignment hardware." + Environment.NewLine +
-                    (string.IsNullOrWhiteSpace(failureDetail) ? string.Empty : failureDetail + Environment.NewLine) +
-                    "Polar alignment is cancelled.");
-                throw new OperationCanceledException("The controller could not connect to the alignment hardware.");
-            }
-
-            if (session.ControllerHardwareConnected) {
-                // The firmware link is up: that is the success the operator has to see. Readiness is a
-                // second, separate step - a connected but busy controller gets a warning, not an error.
-                Notification.ShowSuccess(
-                    $"{ControllerDisplayCapitalized} connected to the alignment hardware." + Environment.NewLine +
-                    (pauseForHandover
-                        ? "PAUSING..." + Environment.NewLine +
-                          "Press RESUME [ ▶︎ ] to hand the correction over to the controller."
-                        : "Handing the correction over to the controller."));
-            }
-
-            if (!session.ControllerHardwareConnected || !session.ControllerHardwareReady) {
-                var readinessNote = session.ControllerReadyNote;
-                Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} is not ready for the hand-over" +
-                               (string.IsNullOrWhiteSpace(readinessNote) ? "." : $": {readinessNote}."));
-                Notification.ShowWarning(
-                    $"{ControllerDisplayCapitalized} is not ready for the correction" +
-                    (string.IsNullOrWhiteSpace(readinessNote) ? "." : $": {readinessNote}.") + Environment.NewLine +
-                    (pauseForHandover
-                        ? "Check the controller before pressing RESUME."
-                        : "Check the controller."));
-            }
-
-            if (await WaitWhilePausedAsync(progress, token)) {
-                // The controller disappeared while the run was paused, still before the hand-over: the normal
-                // correction loop takes over instead of failing a run that was never really handed over.
-                Logger.Warning("[Bridge] The controller is gone. Handing the run back to the normal correction loop.");
-                progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
-                Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
-                return HandOverOutcome.NoController;
-            }
-
-            // The operator may press RESUME while the controller is still busy. The correction needs an idle
-            // controller, so a busy one ends the run instead of letting TPPA capture while the axes move.
-            if (!session.ControllerHardwareReady) {
-                var busyNote = session.ControllerReadyNote;
-                Logger.Warning($"[Bridge] RESUME pressed while {ControllerDisplayCapitalized} was not ready" +
-                               (string.IsNullOrWhiteSpace(busyNote) ? "." : $": {busyNote}."));
-
-                await session.EndAsync(BridgeReason.NoControllerReady,
-                                       false,
-                                       new BridgeSessionEndedPayload { Detail = busyNote },
-                                       CancellationToken.None);
-
-                Notification.ShowError(
-                    $"{ControllerDisplayCapitalized} is not ready. Session cancelled." + Environment.NewLine +
-                    (string.IsNullOrWhiteSpace(busyNote) ? string.Empty : busyNote + Environment.NewLine) + Environment.NewLine +
-                    "Check the controller, then start the polar alignment again.");
-                throw new OperationCanceledException("The controller was not ready for the correction hand-over.");
-            }
-
-            return HandOverOutcome.HandedOver;
-        }
-
-        /// <summary>
-        /// Holds the loop while the operator paused the run - during the hand-over prompt and between two captures -
-        /// and keeps watching the broker: it returns true when the controller that owns the run disappeared, which
-        /// the hand-over answers by continuing with TPPA's own correction loop. A cancel or a fault from the
-        /// controller is handled by the run helper, which cancels the run token this wait holds on.
-        /// </summary>
-        private async Task<bool> WaitWhilePausedAsync(IProgress<ApplicationStatus> progress, CancellationToken token) {
-            if (!IsPausing) { return false; }
-
-            IsPaused = true;
-            progress?.Report(GetStatus("Paused"));
-            try {
-                while (!token.IsCancellationRequested && IsPausing) {
-                    if (BridgeHub.Instance?.IsControllerPresent != true) {
-                        Logger.Warning("[Bridge] The controller is gone while the run was paused.");
-                        return true;
-                    }
-
-                    await Task.Delay(150, token);
-                }
-            } finally {
-                IsPaused = false;
-                progress?.Report(GetStatus(string.Empty));
-            }
-
-            return false;
-        }
-
         /// <summary>The move the controller announced, in the wording the operator reads in the status bar.</summary>
         private static string DescribeAdjustment(BridgeAdjustmentRequestPayload adjustment) =>
             adjustment?.DetectingDirection == true ? "is detecting direction" : "is adjusting";
@@ -427,44 +282,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 default:
                     return $"The {ControllerDisplayCapitalized} controller ended the session.";
             }
-        }
-
-        private async Task<BridgeMeasurementPayload> CaptureBridgeMeasurementAsync(BridgeControllerRun session,
-                                                                                       string windowId,
-                                                                                       AutoFinishGate autoFinishGate,
-                                                                                       IProgress<ApplicationStatus> progress,
-                                                                                       CancellationToken token) {
-            var solve = await Solve(TPAPAVM, 0, progress, token);
-            if (!solve.Success) {
-                return BuildBridgeMeasurement(windowId, BridgeMeasurementStatus.CaptureFailed, false, autoFinishGate.Consecutive);
-            }
-
-            var estimateStable = await TPAPAVM.UpdateDetails(solve, progress, token);
-
-            var azimuthError = TPAPAVM.PolarErrorDetermination.CurrentMountAxisAzimuthError;
-            var altitudeError = TPAPAVM.PolarErrorDetermination.CurrentMountAxisAltitudeError;
-            var totalError = TPAPAVM.PolarErrorDetermination.CurrentMountAxisTotalError;
-            Logger.Info($"Calculated Error: Az: {azimuthError}, Alt: {altitudeError}, Tot: {totalError}");
-
-            // The legacy error message stays published so other subscribers keep working.
-            await messageBroker.Publish(new PolarAlignmentErrorMessage(Guid.NewGuid(),
-                                                                      altitudeError: altitudeError.Degree,
-                                                                      azimuthError: azimuthError.Degree,
-                                                                      totalError: totalError.Degree,
-                                                                      alignmentTolerance: AlignmentTolerance));
-
-            if (!estimateStable) {
-                Logger.Warning("[Bridge] Publishing an unstable measurement so the controller is not left waiting.");
-                return BuildBridgeMeasurement(windowId, BridgeMeasurementStatus.Unstable, false, autoFinishGate.Consecutive);
-            }
-
-            var belowTolerance = Math.Abs(totalError.ArcMinutes) <= AlignmentTolerance;
-            var autoFinishConditionMet = autoFinishGate.Register(belowTolerance);
-            if (autoFinishConditionMet) {
-                Logger.Info($"Total Error is below alignment tolerance ({AlignmentTolerance}') for {autoFinishGate.Consecutive} consecutive solves. The external controller decides when to finish.");
-            }
-
-            return BuildBridgeMeasurement(windowId, BridgeMeasurementStatus.Valid, autoFinishConditionMet, autoFinishGate.Consecutive);
         }
 
         /// <summary>

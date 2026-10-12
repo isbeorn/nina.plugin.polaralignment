@@ -50,7 +50,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private readonly CancellationTokenSource runTokens;
         private readonly Timer heartbeatTimer;
 
-        private readonly TaskCompletionSource<BridgeControllerAsk> pending =
+        private TaskCompletionSource<BridgeControllerAsk> pending =
             new TaskCompletionSource<BridgeControllerAsk>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private Guid? ownerId;
@@ -67,6 +67,14 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         private DateTimeOffset windowOpenedAt;
         private DateTimeOffset? windowSilenceDeadline;
         private DateTimeOffset? lostAfterSilenceDeadline;
+
+        /// <summary>
+        /// Time the controller has to answer the measurement that was just published. A wait that the controller
+        /// holds nothing for needs a deadline of its own: a controller that keeps chatting (readiness, keep-alives)
+        /// without answering would otherwise keep the run waiting for ever, because those messages refresh the
+        /// silence watchdog of the capture window but are not an answer.
+        /// </summary>
+        private DateTimeOffset? answerDeadline;
         private bool stopRequested;
         private bool stopAcknowledged;
         private string hardwareStopStatus;
@@ -118,8 +126,11 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         /// </summary>
         public bool ControllerHardwareReady { get { lock (gate) { return controllerReadinessSeen && controllerHardwareReady; } } }
 
-        /// <summary>True while the controller reports its hardware link as up. Unknown counts as connected.</summary>
-        public bool ControllerHardwareConnected { get { lock (gate) { return controllerHardwareConnected ?? true; } } }
+        /// <summary>
+        /// Whether the controller reported its link to the alignment hardware. A controller that never reported
+        /// readiness counts as not connected, so the run waits for the answer instead of skipping that wait.
+        /// </summary>
+        public bool ControllerHardwareConnected { get { lock (gate) { return controllerReadinessSeen && (controllerHardwareConnected ?? controllerHardwareReady); } } }
 
         public string ControllerReadyNote { get { lock (gate) { return controllerReadyNote; } } }
 
@@ -164,7 +175,12 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             }
 
             heartbeatTimer.Change(Options.HeartbeatMs, Options.HeartbeatMs);
-            await PublishSessionStateAsync(BridgeState.Measuring, BridgeReason.ReferenceSweep, token).ConfigureAwait(false);
+
+            // The controller adopts the session id and resets its state from this message, so "Preparing" has to go out
+            // before anything else: without it a controller keeps the id of its previous session, and this run then
+            // ignores every readiness (and every other message) it sends as "another session". The sweep state follows
+            // from the alignment loop.
+            await PublishSessionStateAsync(BridgeState.Preparing, null, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -173,6 +189,13 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         /// controller, or a controller that stops answering, ends the run through the one failure path.
         /// </summary>
         public async Task<BridgeControllerAsk> PublishMeasurementAndWaitAsync(BridgeMeasurementPayload payload, CancellationToken token) {
+            // Every interaction gets a waiter of its own. A finished one must never be awaited again: the answer of
+            // the previous measurement would then be handed out as the answer of this one, which makes the loop
+            // capture over and over and never see the controller ask for completion.
+            lock (gate) {
+                pending = new TaskCompletionSource<BridgeControllerAsk>(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+
             await PublishMeasurementAsync(payload, token).ConfigureAwait(false);
 
             var ask = await WaitForAskAsync(token).ConfigureAwait(false);
@@ -409,8 +432,9 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         }
 
         /// <summary>
-        /// Waits for the controller's answer. TPPA-side deadlines are part of the same wait: a capture window that
-        /// goes silent ends the run after the grace period, and the safety limit of the session ends it too.
+        /// Waits for the controller's answer. TPPA-side deadlines are part of the same wait: a measurement that is
+        /// never answered ends the run after the silence timeout, a capture window that goes silent ends it after
+        /// the grace period, and the safety limit of the session ends it too.
         /// </summary>
         private async Task<BridgeControllerAsk> WaitForAskAsync(CancellationToken token) {
             while (true) {
@@ -460,6 +484,15 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                     } else {
                         wait = windowSilenceDeadline.Value - now;
                     }
+                } else if (answerDeadline.HasValue) {
+                    if (now >= answerDeadline.Value) {
+                        // The controller was handed a measurement and never answered it. Readiness and keep-alive
+                        // messages are not an answer, and silence does not prove that its axes stopped, so the run
+                        // ends here instead of waiting for an answer that may never come.
+                        expiredReason = BridgeReason.SilenceTimeout;
+                        return TimeSpan.Zero;
+                    }
+                    wait = answerDeadline.Value - now;
                 } else {
                     wait = TimeSpan.FromSeconds(5);
                 }
@@ -475,6 +508,12 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         }
 
         private void CompletePending(BridgeControllerAsk ask) {
+            lock (gate) {
+                // The interaction is over, so the deadline that guarded it must not end the next one early.
+                answerDeadline = null;
+                lostAfterSilenceDeadline = null;
+            }
+
             pending.TrySetResult(ask);
         }
 
@@ -563,6 +602,10 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 lastMeasurementId = payload.MeasurementId;
                 state = BridgeState.WaitingForRequest;
                 stateReason = null;
+                // The controller has nothing in its hands yet, so the answer has to arrive within the silence
+                // timeout; once it announces a move it holds a capture window and the window deadlines take over.
+                answerDeadline = DateTimeOffset.UtcNow.AddMilliseconds(Options.SilenceTimeoutMs);
+                lostAfterSilenceDeadline = null;
             }
 
             payload.SessionId = SessionId;
@@ -590,6 +633,9 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 windowOpenedAt = DateTimeOffset.UtcNow;
                 windowSilenceDeadline = DateTimeOffset.UtcNow.AddMilliseconds(Options.SilenceTimeoutMs);
                 lostAfterSilenceDeadline = null;
+                // The controller answered by announcing its move: from here on the capture window it holds is what
+                // the run watches, because a long move is kept alive with keep-alives instead of an answer.
+                answerDeadline = null;
                 state = BridgeState.WindowOpen;
                 stateReason = null;
             }

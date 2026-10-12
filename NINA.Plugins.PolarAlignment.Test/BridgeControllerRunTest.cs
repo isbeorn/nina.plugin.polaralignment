@@ -105,15 +105,16 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public async Task Open_PublishesTheReferenceSweepState() {
+        public async Task Open_PublishesThePreparingStateWithTheSessionId() {
             var broker = new FakeMessageBroker();
             using var run = NewRun(broker, new CancellationTokenSource());
 
             await run.OpenAsync(1.0, false, CancellationToken.None);
 
+            // The controller takes its session id from this message, so it is the first state of a run: without it a
+            // controller answers under the id of its previous session and this run ignores everything it sends.
             var state = broker.Last(BridgeKind.SessionState).PayloadAs<BridgeSessionStatePayload>();
-            state.State.Should().Be(BridgeState.Measuring);
-            state.Reason.Should().Be(BridgeReason.ReferenceSweep);
+            state.State.Should().Be(BridgeState.Preparing);
             broker.Last(BridgeKind.SessionState).SessionId.Should().Be("session-1");
         }
 
@@ -542,6 +543,108 @@ namespace NINA.Plugins.PolarAlignment.Test {
             } finally {
                 BridgeHub.Shutdown();
             }
+        }
+
+        [Test]
+        public async Task PublishMeasurement_FailsTheRunWhenTheControllerNeverAnswers() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            BridgeRunFailedEventArgs reported = null;
+            run.RunFailed += (_, e) => reported = e;
+
+            var wait = run.PublishMeasurementAndWaitAsync(Measurement(), runTokens.Token);
+
+            var cancelled = false;
+            try { await wait; } catch (OperationCanceledException) { cancelled = true; }
+
+            cancelled.Should().BeTrue("a measurement that is never answered ends the run");
+            runTokens.IsCancellationRequested.Should().BeTrue();
+            reported.Should().NotBeNull();
+            reported.ControllerStoppedAnswering.Should().BeTrue();
+            reported.Reason.Should().Be(BridgeReason.SilenceTimeout);
+        }
+
+        [Test]
+        public async Task PublishMeasurement_IsNotKeptAliveByReadinessOrKeepAliveMessages() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var wait = run.PublishMeasurementAndWaitAsync(Measurement(), runTokens.Token);
+
+            // A controller that chats but never answers: these messages are not an answer to the measurement, so the
+            // run still has to end. Without the answer deadline the wait would poll for ever.
+            var chat = Task.Run(async () => {
+                for (var i = 0; i < 8; i++) {
+                    await Task.Delay(80);
+                    run.HandleEnvelope(Command(BridgeKind.ControllerReady, new BridgeControllerReadyPayload { HardwareConnected = true, HardwareReady = true }));
+                    run.HandleEnvelope(Command(BridgeKind.KeepAlive, new BridgeKeepAlivePayload { WindowId = "w1" }));
+                }
+            });
+
+            var cancelled = false;
+            try { await wait; } catch (OperationCanceledException) { cancelled = true; }
+            await chat;
+
+            cancelled.Should().BeTrue("readiness and keep-alive messages are not an answer to a measurement");
+        }
+
+        [Test]
+        public async Task KeepAliveWhileTheControllerHoldsTheWindow_KeepsTheRunWaiting() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var wait = run.PublishMeasurementAndWaitAsync(Measurement(), runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 1);
+
+            // The controller announces the move it plans - that is its answer and it opens the capture window - and
+            // then keeps that window alive for longer than a silence timeout, which is what a long move does.
+            run.HandleEnvelope(Command(BridgeKind.BeginAdjustment,
+                                       new BridgeAdjustmentRequestPayload { MeasurementId = "m1", PlannedAzimuthArcMin = 5 }));
+            await WaitUntilAsync(() => run.CurrentWindowId != null);
+
+            for (var i = 0; i < 6; i++) {
+                await Task.Delay(100);
+                run.HandleEnvelope(Command(BridgeKind.KeepAlive, new BridgeKeepAlivePayload { WindowId = run.CurrentWindowId }));
+            }
+
+            run.HandleEnvelope(Command(BridgeKind.RequestMeasurement, new BridgeMeasurementRequestPayload { WindowId = run.CurrentWindowId }));
+
+            (await wait).Kind.Should().Be(BridgeControllerAskKind.AdjustmentFinished);
+            runTokens.IsCancellationRequested.Should().BeFalse();
+        }
+
+        [Test]
+        public async Task EachMeasurementWaitsForItsOwnAnswer() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var first = run.PublishMeasurementAndWaitAsync(Measurement(), runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 1);
+            run.HandleEnvelope(Command(BridgeKind.RequestMeasurement, new BridgeMeasurementRequestPayload { Reason = BridgeReason.StepFinished }));
+            (await first).Kind.Should().Be(BridgeControllerAskKind.AdjustmentFinished);
+
+            var second = run.PublishMeasurementAndWaitAsync(Measurement(), runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 2);
+
+            // The answer of the first measurement must not be handed out again: the second wait stays pending until
+            // the controller answers the second measurement.
+            var answered = false;
+            _ = second.ContinueWith(_ => answered = true);
+            await Task.Delay(200);
+            answered.Should().BeFalse("a new measurement waits for its own answer, not for the previous one");
+
+            run.HandleEnvelope(Command(BridgeKind.RequestCompletion, new BridgeCompletionRequestPayload { Reason = BridgeReason.CompletionRequested }));
+
+            (await second).Kind.Should().Be(BridgeControllerAskKind.VerificationRequested);
         }
 
         [Test]
