@@ -524,10 +524,21 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                         await domeMediator.WaitForDomeSynchronization(token);
                     }
 
-                    // The review asks for the alignment hardware to be confirmed idle before the three reference
-                    // frames: an external controller that is still busy is reported here (warning only, see the
-                    // helper), because blocking the captures would stall a controller that connects after the sweep.
-                    WarnIfControllerIsNotReadyBeforeReferenceSweep();
+                    // The review asks for the controller and its hardware to be confirmed ready before the three
+                    // reference frames: those frames model the whole run, so a controller that is still busy is waited
+                    // for (and the run ends if it never becomes ready) instead of capturing frames no correction can
+                    // be built on.
+                    if (bridgeSession != null) {
+                        if (!await EnsureControllerIsReadyBeforeReferenceSweepAsync(bridgeSession, progress, localCTS.Token)) {
+                            throw new SequenceEntityFailedException($"{ControllerDisplayCapitalized} did not become ready before the reference frames.");
+                        }
+
+                        // The controller brings its hardware up as soon as the run starts, so the success the operator
+                        // has to see belongs here - it used to be shown at the hand-over after the reference frames.
+                        Notification.ShowSuccess(
+                            $"{ControllerDisplayCapitalized} connected to the alignment hardware and reports its axes as ready." + Environment.NewLine +
+                            "The correction is handed over to it after the three reference frames.");
+                    }
 
                     var solve1 = await Solve(TPAPAVM, 5.0, progress, localCTS.Token);
                     var refractionParameter = RefractionParameters.GetRefractionParameters(weatherDataMediator.GetInfo());
@@ -643,7 +654,18 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     var sw = Stopwatch.StartNew();
                     do {
-                        await WaitIfPaused(localCTS.Token, progress);
+                        if (await WaitIfPaused(localCTS.Token, progress)) {
+                            // The run really stood still, which means the controller stopped its axes for the pause: its
+                            // mechanics need the settle it asked for before the first capture after the resume, and it has
+                            // to report readiness again before the next measurement is handed over.
+                            var resumeSettle = bridgeSession?.TakeResumeSettleSeconds() ?? 0;
+                            if (resumeSettle > 0) {
+                                await CoreUtil.Wait(TimeSpan.FromSeconds(resumeSettle), localCTS.Token, progress, "Settling");
+                            }
+                            if (bridgeSession != null) {
+                                await RequireControllerReadyAfterPauseAsync(bridgeSession, localCTS.Token);
+                            }
+                        }
 
                         var continuousSolve = await Solve(TPAPAVM, 0, progress, localCTS.Token);
                         var totalErrorMinutes = double.NaN;

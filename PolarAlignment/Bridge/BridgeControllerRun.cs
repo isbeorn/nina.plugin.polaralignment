@@ -319,6 +319,21 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         }
 
         /// <summary>
+        /// The settle the controller wants before the first capture after a pause, and 0 while no pause is waiting to be
+        /// resumed. Its axes were stopped for the pause, so that moment belongs to the resume, not to the pause.
+        /// </summary>
+        private double resumeSettleSeconds;
+
+        /// <summary>Reads and clears the settle the controller asked for when it answered the pause.</summary>
+        public double TakeResumeSettleSeconds() {
+            lock (gate) {
+                var settle = resumeSettleSeconds;
+                resumeSettleSeconds = 0;
+                return settle;
+            }
+        }
+
+        /// <summary>
         /// Ends the interaction that is waiting for the controller's answer because the operator paused the run. The
         /// controller holds that answer until the resume, so waiting for it would keep the run inside the external step
         /// while the operator has nothing left to resume: the loop is released here and stands at its own pause check
@@ -433,6 +448,14 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                     var request = envelope.PayloadAs<BridgeMeasurementRequestPayload>();
                     if (!AcceptsAnswer(request?.WindowId, BridgeKind.RequestMeasurement)) { return; }
                     CloseWindow(request?.Reason ?? BridgeReason.StepFinished);
+
+                    // An answer that comes with the pause carries the settle the controller wants before the capture
+                    // that follows the resume: its axes were stopped, so the mechanics need that moment then.
+                    if (string.Equals(request?.Reason, BridgeReason.Paused, StringComparison.Ordinal)
+                        && request?.SettleSeconds > 0) {
+                        lock (gate) { resumeSettleSeconds = request.SettleSeconds.Value; }
+                    }
+
                     CompletePending(new BridgeControllerAsk {
                         Kind = BridgeControllerAskKind.AdjustmentFinished,
                         MeasurementId = lastMeasurementId,

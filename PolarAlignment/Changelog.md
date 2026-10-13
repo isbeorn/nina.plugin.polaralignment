@@ -2,6 +2,10 @@
 
 ## Version 2.2.8.1 (Feature-AutoPA-over-brokerBridge)
 
+### Changed — the "connected to the alignment hardware" success notification is shown when the run confirms the controller and its hardware before the reference frames (the controller now brings its link up at the start of the run), instead of at the hand-over after them
+### Changed — the controller and its hardware have to be ready before the three reference frames: the run waits for that readiness for the readiness timeout and ends with NoControllerReady (toast, no captures) when it never comes, so the frames that model the whole run are never captured with axes that are still turning
+### Changed — a pause asks the controller for its settle with the answer that ends the pause, and the run applies it to the first capture after the resume instead of waiting inside the pause
+### Changed — the readiness of the controller is awaited again at the top of the correction loop after a pause, not only right before the external step
 ### Fixed — a pause that arrives while the run is waiting for the controller's answer no longer leaves the run waiting for an answer only the resume could send: the pending interaction (and its capture window) is ended when the operator pauses, so the loop stands at its own pause check and the operator can resume it
 ### Changed — pressing pause reads as paused at once, so the resume button is offered even when the pause arrives between two pause checks instead of at the top of the loop
 ### Added — the external controller is now an alignment system the operator selects: the Polar Alignment System list shows every controller that is registered on the NINA message broker next to None, UPAS and OAPA, and external correction only runs while that entry is selected, so TPPA never connects to a controller on its own

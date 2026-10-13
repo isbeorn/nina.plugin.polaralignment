@@ -84,11 +84,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }
 
             if (session.ControllerHardwareConnected) {
-                // The firmware link is up: that is the success the operator has to see. Readiness is a second,
-                // separate step - a connected but busy controller gets a warning, not an error.
-                Notification.ShowSuccess(
-                    $"{ControllerDisplayCapitalized} connected to the alignment hardware." + Environment.NewLine +
-                    "Handing the correction over to the controller.");
+                // The link is up: the success notification for it is shown when the run confirms the controller and its
+                // hardware before the reference frames, so this only records the hand-over in the log.
+                Logger.Info($"[Bridge] Handing the correction over to {ControllerDisplay}; its hardware is connected.");
             }
 
             if (!session.ControllerHardwareConnected || !session.ControllerHardwareReady) {
@@ -119,7 +117,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
             var ask = await session.PublishMeasurementAndWaitAsync(measurement, token);
 
-            if (ask.Kind == BridgeControllerAskKind.AdjustmentFinished && ask.SettleSeconds > 0) {
+            // The settle of a pause belongs to the resume, not to this step: the axes were stopped for the pause, so
+            // waiting here would only add an unexplained wait inside the pause itself.
+            if (ask.Kind == BridgeControllerAskKind.AdjustmentFinished
+                && ask.SettleSeconds > 0
+                && !string.Equals(ask.Reason, BridgeReason.Paused, StringComparison.Ordinal)) {
                 // The controller finished a move: let its mechanics settle for as long as it asked (backlash
                 // release, vibration). This is the same wait our own adjustment systems do, so the operator reads
                 // "Settling" in the status bar instead of an unexplained pause.
@@ -130,33 +132,62 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         }
 
         /// <summary>
-        /// Checks that the controller reports its hardware as idle right before the three reference frames are captured,
-        /// which is what the review asks for. It only warns: a controller that deliberately connects its hardware after
-        /// the sweep (as MLAstroRPA does) would stall every run if the captures were blocked here.
+        /// Confirms that the controller and its hardware are ready before the three reference frames are captured,
+        /// which is what the review asks for: those frames model the whole run, so axes that are still turning would
+        /// build that model from a field that moved while it was measured. Returns false when that state is not
+        /// reached within the readiness timeout - the caller ends the run instead of capturing frames nobody can trust.
         /// </summary>
-        private void WarnIfControllerIsNotReadyBeforeReferenceSweep() {
-            var session = bridgeSession;
-            if (session == null || !session.IsActive) { return; }
+        private async Task<bool> EnsureControllerIsReadyBeforeReferenceSweepAsync(BridgeControllerRun session, IProgress<ApplicationStatus> progress, CancellationToken token) {
+            if (session.HasControllerFault) {
+                await EndRunBeforeReferenceSweepAsync(session, BridgeReason.ControllerFault, "the controller reported a fault");
+                return false;
+            }
 
             if (session.ControllerHardwareConnected && session.ControllerHardwareReady) {
-                Logger.Info($"[Bridge] {ControllerDisplayCapitalized} reports its hardware as ready before the reference sweep.");
-                return;
+                Logger.Info($"[Bridge] {ControllerDisplayCapitalized} reports its controller and its hardware as ready before the reference sweep.");
+                return true;
             }
 
-            var note = session.ControllerReadyNote;
-            var detail = string.IsNullOrWhiteSpace(note) ? string.Empty : $": {note}";
+            progress?.Report(GetStatus($"Waiting for {ControllerDisplayCapitalized} to bring its hardware up"));
+            var ready = await session.WaitForHardwareReadyAsync(TimeSpan.FromMilliseconds(session.Options.ReadyTimeoutMs), token);
+            token.ThrowIfCancellationRequested();
+            progress?.Report(GetStatus(string.Empty));
 
-            if (session.ControllerHardwareConnected) {
-                // The link is up but the axes are not idle: that is the case the operator has to act on.
-                Logger.Warning($"[Bridge] {ControllerDisplayCapitalized} is connected but not ready before the reference sweep{detail}. The three reference points are captured anyway.");
-                Notification.ShowWarning(
-                    $"{ControllerDisplayCapitalized} is connected but reports that its axes are not idle before the reference sweep{detail}." + Environment.NewLine +
-                    "The three reference points are captured anyway, and the correction waits for the controller afterwards.");
-                return;
+            if (ready && !session.HasControllerFault) {
+                Logger.Info($"[Bridge] {ControllerDisplayCapitalized} reports its controller and its hardware as ready before the reference sweep.");
+                return true;
             }
 
-            // No link yet: not an error, because a controller may bring its hardware up after the sweep.
-            Logger.Info($"[Bridge] {ControllerDisplayCapitalized} has not reported readiness before the reference sweep{detail}. The three reference points are captured, and the correction waits for the hardware afterwards.");
+            if (session.HasControllerFault) {
+                await EndRunBeforeReferenceSweepAsync(session, BridgeReason.ControllerFault, "the controller reported a fault");
+                return false;
+            }
+
+            var detail = session.ControllerHardwareConnected
+                ? "the controller is connected but reports that its axes are still busy"
+                : "the controller has not connected its alignment hardware";
+
+            Logger.Error($"[Bridge] {ControllerDisplayCapitalized} did not become ready within {session.Options.ReadyTimeoutMs} ms before the reference sweep: {detail}. The run ends instead of capturing frames that cannot be trusted.");
+            await EndRunBeforeReferenceSweepAsync(session, BridgeReason.NoControllerReady, detail);
+            return false;
+        }
+
+        /// <summary>
+        /// Ends a run that never reached the reference frames, so the operator reads why instead of a capture that went
+        /// ahead with a controller that was not ready.
+        /// </summary>
+        private async Task EndRunBeforeReferenceSweepAsync(BridgeControllerRun session, string reason, string detail) {
+            await session.EndAsync(reason, false, new BridgeSessionEndedPayload {
+                Achieved = false,
+                Detail = detail,
+                ToleranceUsedArcMin = session.Options.ToleranceArcMin
+            }, CancellationToken.None);
+
+            Logger.Error($"[Bridge] The run ended before the reference frames: {detail}.");
+            Notification.ShowError(
+                $"{ControllerDisplayCapitalized} did not report its controller and its hardware as ready before the reference frames ({detail})." + Environment.NewLine +
+                $"The alignment run was stopped after {session.Options.ReadyTimeoutMs / 1000} s, because a correction built on reference frames of moving axes is not reliable." + Environment.NewLine +
+                "Check the controller, then run the polar alignment again.");
         }
 
         /// <summary>
