@@ -2,6 +2,7 @@
 
 ## Version 2.2.8.1 (Feature-AutoPA-over-brokerBridge)
 
+### Changed — a run that never reaches the ready state before the reference frames is reported with a single error (the failing run carries the reason) instead of a second notification next to it
 ### Changed — the "connected to the alignment hardware" success notification is shown when the run confirms the controller and its hardware before the reference frames (the controller now brings its link up at the start of the run), instead of at the hand-over after them
 ### Changed — the controller and its hardware have to be ready before the three reference frames: the run waits for that readiness for the readiness timeout and ends with NoControllerReady (toast, no captures) when it never comes, so the frames that model the whole run are never captured with axes that are still turning
 ### Changed — a pause asks the controller for its settle with the answer that ends the pause, and the run applies it to the first capture after the resume instead of waiting inside the pause

@@ -134,18 +134,18 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// <summary>
         /// Confirms that the controller and its hardware are ready before the three reference frames are captured,
         /// which is what the review asks for: those frames model the whole run, so axes that are still turning would
-        /// build that model from a field that moved while it was measured. Returns false when that state is not
-        /// reached within the readiness timeout - the caller ends the run instead of capturing frames nobody can trust.
+        /// build that model from a field that moved while it was measured. Returns null when the controller is ready,
+        /// and the message for the one failure of the run when it is not - the caller throws it, so the operator reads
+        /// a single error instead of one per side.
         /// </summary>
-        private async Task<bool> EnsureControllerIsReadyBeforeReferenceSweepAsync(BridgeControllerRun session, IProgress<ApplicationStatus> progress, CancellationToken token) {
+        private async Task<string> EnsureControllerIsReadyBeforeReferenceSweepAsync(BridgeControllerRun session, IProgress<ApplicationStatus> progress, CancellationToken token) {
             if (session.HasControllerFault) {
-                await EndRunBeforeReferenceSweepAsync(session, BridgeReason.ControllerFault, "the controller reported a fault");
-                return false;
+                return await EndRunBeforeReferenceSweepAsync(session, BridgeReason.ControllerFault, "the controller reported a fault");
             }
 
             if (session.ControllerHardwareConnected && session.ControllerHardwareReady) {
                 Logger.Info($"[Bridge] {ControllerDisplayCapitalized} reports its controller and its hardware as ready before the reference sweep.");
-                return true;
+                return null;
             }
 
             progress?.Report(GetStatus($"Waiting for {ControllerDisplayCapitalized} to bring its hardware up"));
@@ -155,12 +155,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
             if (ready && !session.HasControllerFault) {
                 Logger.Info($"[Bridge] {ControllerDisplayCapitalized} reports its controller and its hardware as ready before the reference sweep.");
-                return true;
+                return null;
             }
 
             if (session.HasControllerFault) {
-                await EndRunBeforeReferenceSweepAsync(session, BridgeReason.ControllerFault, "the controller reported a fault");
-                return false;
+                return await EndRunBeforeReferenceSweepAsync(session, BridgeReason.ControllerFault, "the controller reported a fault");
             }
 
             var detail = session.ControllerHardwareConnected
@@ -168,15 +167,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 : "the controller has not connected its alignment hardware";
 
             Logger.Error($"[Bridge] {ControllerDisplayCapitalized} did not become ready within {session.Options.ReadyTimeoutMs} ms before the reference sweep: {detail}. The run ends instead of capturing frames that cannot be trusted.");
-            await EndRunBeforeReferenceSweepAsync(session, BridgeReason.NoControllerReady, detail);
-            return false;
+            return await EndRunBeforeReferenceSweepAsync(session, BridgeReason.NoControllerReady, detail);
         }
 
         /// <summary>
-        /// Ends a run that never reached the reference frames, so the operator reads why instead of a capture that went
-        /// ahead with a controller that was not ready.
+        /// Ends a run that never reached the reference frames. The run failing is the single notification for it, so this
+        /// only records the reason in the log and in the session end, and returns the text the caller throws.
         /// </summary>
-        private async Task EndRunBeforeReferenceSweepAsync(BridgeControllerRun session, string reason, string detail) {
+        private async Task<string> EndRunBeforeReferenceSweepAsync(BridgeControllerRun session, string reason, string detail) {
             await session.EndAsync(reason, false, new BridgeSessionEndedPayload {
                 Achieved = false,
                 Detail = detail,
@@ -184,10 +182,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             }, CancellationToken.None);
 
             Logger.Error($"[Bridge] The run ended before the reference frames: {detail}.");
-            Notification.ShowError(
-                $"{ControllerDisplayCapitalized} did not report its controller and its hardware as ready before the reference frames ({detail})." + Environment.NewLine +
-                $"The alignment run was stopped after {session.Options.ReadyTimeoutMs / 1000} s, because a correction built on reference frames of moving axes is not reliable." + Environment.NewLine +
-                "Check the controller, then run the polar alignment again.");
+
+            return $"{ControllerDisplayCapitalized} did not become ready before the reference frames ({detail})." + Environment.NewLine +
+                   "Check the controller, then run the polar alignment again.";
         }
 
         /// <summary>

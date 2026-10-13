@@ -529,8 +529,10 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     // for (and the run ends if it never becomes ready) instead of capturing frames no correction can
                     // be built on.
                     if (bridgeSession != null) {
-                        if (!await EnsureControllerIsReadyBeforeReferenceSweepAsync(bridgeSession, progress, localCTS.Token)) {
-                            throw new SequenceEntityFailedException($"{ControllerDisplayCapitalized} did not become ready before the reference frames.");
+                        // The failure of the run carries the reason, so no second notification is shown for it.
+                        var notReady = await EnsureControllerIsReadyBeforeReferenceSweepAsync(bridgeSession, progress, localCTS.Token);
+                        if (notReady != null) {
+                            throw new SequenceEntityFailedException(notReady);
                         }
 
                         // The controller brings its hardware up as soon as the run starts, so the success the operator
