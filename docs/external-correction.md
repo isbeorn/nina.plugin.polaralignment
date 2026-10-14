@@ -148,6 +148,11 @@ Rules:
 4. Every measurement gets a waiter of its own. A finished waiter is never reused, otherwise the answer of
    the previous measurement is handed out for the next one and the loop captures for ever.
 5. `KeepAlive` and `ControllerReady` are never an answer, but they keep a window alive.
+6. A pause is taken **once**. The pause topic reaches TPPA more than once, because every instance of the
+   alignment item subscribes to it in its constructor and the sequence factory clones the item; only the
+   instance that owns the running external step tells the controller, and only when the pause state really
+   changes. The interaction that is waiting is released by the first pause: a second one finds nothing to
+   release and cannot answer for it again.
 
 ## 7. Deadlines
 

@@ -15,6 +15,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
     /// </summary>
     public partial class PolarAlignment {
         private BridgeControllerRun bridgeSession;
+        private bool? bridgePauseNotified;
         private string bridgeSessionEndReason = BridgeReason.UserStop;
 
         /// <summary>
@@ -448,6 +449,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             // field would be closed on the hub side while the controller is never asked to stop.
             var session = bridgeSession ?? hub?.Session;
             bridgeSession = null;
+            bridgePauseNotified = null;
             if (session == null) {
                 Logger.Info("[Bridge] No external session to close: no stop request was sent to the controller.");
                 return;

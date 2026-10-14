@@ -678,6 +678,28 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public async Task PauseReleasesTheWaitingInteractionOnlyOnce() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            var wait = run.PublishMeasurementAndWaitAsync(Measurement(), runTokens.Token);
+            await WaitUntilAsync(() => broker.Count(BridgeKind.Measurement) == 1);
+
+            run.ReleaseInteractionForPause().Should().BeTrue("the interaction that was waiting is ended by the first pause");
+
+            // A pause reaches TPPA more than once - every instance of the item is subscribed to the topic - and the
+            // release runs off the broker thread, so the second call must not end a second interaction or answer for
+            // one that is already gone.
+            run.ReleaseInteractionForPause().Should().BeFalse();
+
+            var ask = await wait;
+            ask.Reason.Should().Be(BridgeReason.Paused);
+            runTokens.IsCancellationRequested.Should().BeFalse("a pause is not an end of the run");
+        }
+
+        [Test]
         public async Task EachMeasurementWaitsForItsOwnAnswer() {
             var broker = new FakeMessageBroker();
             var runTokens = new CancellationTokenSource();

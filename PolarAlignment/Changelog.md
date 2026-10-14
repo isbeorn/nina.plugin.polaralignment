@@ -2,6 +2,7 @@
 
 ## Version 2.2.8.1 (Feature-AutoPA-over-brokerBridge)
 
+### Fixed — one pause asks the controller to stop once: the pause topic is delivered to every instance of the alignment item (each instance subscribes in its constructor and the sequence factory clones the item), so the bridge notification is now made by the instance that owns the running external step and only when the pause state really changes, and the release of the waiting interaction is claimed under the lock so a second delivery cannot end it again
 ### Fixed — the capabilities answer goes to the controller that announced itself instead of to the controller that announced last, so two controllers listening on the broker (e.g. two MLAstro builds side by side) each receive their own answer
 ### Fixed — the "Automated adjustment settle time" row and the gear-ratio note belong to the built-in systems and are hidden while an external controller is selected: gating them on "a system is selected" showed them for a controller as well and drew the gear-ratio note on top of the note for the controller, because the selected controller has no ActiveSystem
 ### Removed — the fallback that continued a run with TPPA's own captures when the controller was gone before the hand-over: a controller lost while the reference frames are measured, or while it is still bringing its hardware up, cancels the run with ExternalLost and an error that asks to start again, so every phase ends on the same failure path

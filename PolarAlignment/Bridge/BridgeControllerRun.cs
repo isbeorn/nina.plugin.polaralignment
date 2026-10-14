@@ -338,12 +338,20 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
         /// controller holds that answer until the resume, so waiting for it would keep the run inside the external step
         /// while the operator has nothing left to resume: the loop is released here and stands at its own pause check
         /// instead. Nothing is sent to the controller - it was told about the pause already - and the capture window is
-        /// closed, because no move is going to happen inside it.
+        /// closed, because no move is going to happen inside it. Returns true when an interaction was ended, false when
+        /// there was nothing left to release (a second pause of the same run, or a pause that arrives too late).
         /// </summary>
-        public void ReleaseInteractionForPause() {
+        public bool ReleaseInteractionForPause() {
             BridgeControllerAsk ask;
             lock (gate) {
-                if (pendingInteraction == PendingInteraction.None) { return; }
+                if (pendingInteraction == PendingInteraction.None) { return false; }
+
+                // The interaction is claimed here, under the lock: a pause reaches TPPA more than once (the topic is
+                // subscribed by every instance of the item) and the release runs off the broker thread, so two calls can
+                // be in flight together. Only the first one may end the interaction and answer for it.
+                pendingInteraction = PendingInteraction.None;
+                answerDeadline = null;
+                lostAfterSilenceDeadline = null;
 
                 // The measurement was not corrected and the loop measures again after the resume, so the ask carries
                 // neither a window nor a settle time.
@@ -357,6 +365,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             Logger.Info("[Bridge] Paused while the controller was answering: the interaction is ended so the run can stand at the pause.");
             CloseWindow(BridgeReason.Paused);
             CompletePending(ask);
+            return true;
         }
 
         /// <summary>

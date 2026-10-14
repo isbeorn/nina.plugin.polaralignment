@@ -395,9 +395,14 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// a pause must not depend on the broker, and without a controller there is nothing to stop.
         /// </summary>
         private void NotifyBridgeOfPause(bool paused) {
-            var session = BridgeHub.Instance?.Session;
-            if (session == null || !session.IsActive) { return; }
+            // The pause topics are subscribed in the constructor and the sequence factory clones the item, so every
+            // instance hears a pause - the dockable's long lived one and the clones that never run. Only the instance
+            // that owns the running external step may tell the controller about it, and only a change of state is news:
+            // without both, one pause asks the controller to stop twice.
+            var session = bridgeSession;
+            if (session == null || !session.IsActive || bridgePauseNotified == paused) { return; }
 
+            bridgePauseNotified = paused;
             _ = Task.Run(async () => {
                 try {
                     await session.PublishPauseRequestAsync(paused,
