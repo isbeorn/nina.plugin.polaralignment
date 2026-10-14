@@ -730,14 +730,6 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             EndRun(reason, "The controller stopped answering.");
         }
 
-        /// <summary>
-        /// Ends the run because the controller that owns it disappeared while TPPA was holding the run: the
-        /// alignment loop calls this when its own pause wait notices the loss.
-        /// </summary>
-        public void CancelForLostController() {
-            FailLost(BridgeReason.ExternalLost);
-        }
-
         private void EndRun(string reason, string note) {
             _ = EndAsync(reason, false, new BridgeSessionEndedPayload { Detail = note }, CancellationToken.None);
             try { runTokens?.Cancel(); } catch (ObjectDisposedException) { }

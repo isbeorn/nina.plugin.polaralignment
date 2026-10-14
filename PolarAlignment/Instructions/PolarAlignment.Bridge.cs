@@ -44,10 +44,12 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             // bringing the link up takes a while (a wireless attempt, then a scan of every COM port).
             progress?.Report(GetStatus($"Waiting for {ControllerDisplay} to connect the alignment hardware"));
 
-            // Bringing the link up takes a while (a wireless attempt, then a scan of every COM port), so it gets a
-            // generous grace period: while the controller is still trying, the run waits instead of cancelling the
-            // alignment, because the axes are not touched until the controller answers the first measurement.
-            var readinessDeadline = DateTime.UtcNow.AddSeconds(30);
+            // Readiness was already confirmed before the reference frames, so this is the safety net for the case
+            // where the controller went busy again while they were captured: the run waits for it here for the same
+            // readiness timeout the rest of the run uses, and a controller that stays busy is only warned about -
+            // the axes are not touched until it answers the first measurement, and that answer deadline is what
+            // ends the run if the controller never becomes ready.
+            var readinessDeadline = DateTime.UtcNow.AddMilliseconds(session.Options.ReadyTimeoutMs);
             while (!session.HasControllerFault
                    && (!session.ControllerHardwareConnected || !session.ControllerHardwareReady)
                    && hub.IsControllerPresent && DateTime.UtcNow < readinessDeadline) {
@@ -268,9 +270,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                 progress?.Report(GetStatus($"Waiting for {ControllerDisplay}"));
                 await session.OpenAsync(AlignmentTolerance, TPAPAVM.UseContinuousErrorEstimator, token);
 
-                // No readiness wait here: the controller is only asked to connect once the reference sweep is
-                // finished (see the state published below). Waiting for it at session open would only delay
-                // the run, and it would keep a session alive for a controller that was switched off meanwhile.
+                // No readiness wait here: the controller is told that the sweep starts and brings its own link up on
+                // that state, which is why its readiness is confirmed right before the reference frames instead
+                // (see EnsureControllerIsReadyBeforeReferenceSweepAsync). Waiting here would only delay the run.
 
                 // Tell the controller that the reference sweep starts, so its UI does not look stuck.
                 await session.PublishSessionStateAsync(BridgeState.Measuring, BridgeReason.ReferenceSweep, token);
