@@ -2,6 +2,10 @@
 
 ## Version 2.2.8.1 (Feature-AutoPA-over-brokerBridge)
 
+### Changed — the hand-over after the reference sweep waits for the readiness the rest of the run waits for, instead of a timeout of its own, and it is named for what it is: the safety net behind the confirmation that is made before the reference frames
+### Removed — the helper that cancelled a run for a lost controller, which had no caller left once the external step stopped having a loop of its own
+### Changed — `docs/external-correction.md` now describes this branch: the controller is selected in the alignment system list, a run holds one interaction at a time with its deadlines, the controller and its hardware have to be ready before the reference frames, and a controller that goes quiet cancels the run instead of falling back to TPPA's own correction loop
+### Changed — the protocol document names the tests where they now live (`BridgeControllerRunTest.cs`) and lists the behaviour the controller side has to change, next to the presence window, the registry and the goodbye of a controller that switches its broker off
 ### Changed — a run that never reaches the ready state before the reference frames is reported with a single error (the failing run carries the reason) instead of a second notification next to it
 ### Changed — the "connected to the alignment hardware" success notification is shown when the run confirms the controller and its hardware before the reference frames (the controller now brings its link up at the start of the run), instead of at the hand-over after them
 ### Changed — the controller and its hardware have to be ready before the three reference frames: the run waits for that readiness for the readiness timeout and ends with NoControllerReady (toast, no captures) when it never comes, so the frames that model the whole run are never captured with axes that are still turning

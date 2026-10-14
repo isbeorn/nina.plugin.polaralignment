@@ -548,6 +548,30 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public async Task Hub_PrunesAControllerThatStopsAnnouncing() {
+            var broker = new FakeMessageBroker();
+            var hub = BridgeHub.EnsureInitialized(broker);
+            var silent = Guid.NewGuid();
+            var talking = Guid.NewGuid();
+            try {
+                await hub.OnMessageReceived(new ControllerMessage(Announce("QuietPolar"), silent));
+                await hub.OnMessageReceived(new ControllerMessage(Announce("AcmePolar"), talking));
+
+                // The presence window runs from the last announce of each controller, not from the last message on
+                // the topic: a controller that keeps announcing stays listed while a silent one leaves the list.
+                hub.RegisteredControllers.Single(entry => entry.SenderId == silent).LastSeenAt =
+                    DateTimeOffset.UtcNow.AddSeconds(-30);
+                await hub.OnMessageReceived(new ControllerMessage(Announce("AcmePolar"), talking));
+
+                hub.RegisteredControllers.Should().HaveCount(1);
+                hub.IsRegistered(silent).Should().BeFalse();
+                hub.IsRegistered(talking).Should().BeTrue();
+            } finally {
+                BridgeHub.Shutdown();
+            }
+        }
+
+        [Test]
         public async Task PublishMeasurement_FailsTheRunWhenTheControllerNeverAnswers() {
             var broker = new FakeMessageBroker();
             var runTokens = new CancellationTokenSource();
@@ -721,6 +745,25 @@ namespace NINA.Plugins.PolarAlignment.Test {
             broker.Count(BridgeKind.AdjustmentGranted).Should().Be(0);
             run.CurrentWindowId.Should().BeNull();
             runTokens.IsCancellationRequested.Should().BeFalse();
+        }
+
+        [Test]
+        public async Task AnAnswerWithoutAPendingInteraction_IsIgnored() {
+            var broker = new FakeMessageBroker();
+            var runTokens = new CancellationTokenSource();
+            using var run = NewRun(broker, runTokens);
+            await run.OpenAsync(1.0, false, CancellationToken.None);
+
+            // Nothing is waiting, so an answer of the controller cannot complete anything and must not be kept for
+            // whatever the run waits for next: it is only logged, the run is not cancelled and no measurement of our
+            // own is published.
+            run.HandleEnvelope(Command(BridgeKind.RequestMeasurement, new BridgeMeasurementRequestPayload { Reason = BridgeReason.StepFinished }));
+            run.HandleEnvelope(Command(BridgeKind.RequestCompletion, new BridgeCompletionRequestPayload { Reason = BridgeReason.CompletionRequested }));
+            await Task.Delay(200);
+
+            runTokens.IsCancellationRequested.Should().BeFalse();
+            broker.Count(BridgeKind.Measurement).Should().Be(0);
+            broker.Count(BridgeKind.SessionEnded).Should().Be(0);
         }
 
         [Test]
