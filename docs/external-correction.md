@@ -191,6 +191,10 @@ the controller never has to hard code them:
    acknowledgements all have deadlines; an expiry produces a `SessionEnded` with a reason.
 8. **No periodic self-triggered capture.** TPPA captures only on request - the controller's answer to a
    measurement, or its own loop between two answers.
+9. **An announcement is answered to the announcer.** When more than one controller is on the broker (two
+   builds of the same controller side by side) the capabilities reply goes to the controller that just
+   announced itself, not to the one that announced last, and each controller has to drop the traffic
+   TPPA addresses to another one.
 
 ## 9. When a controller is not there
 
@@ -221,6 +225,12 @@ the controller never has to hard code them:
 7. Say goodbye when the broker is switched off (`Cancel` with `BrokerDisabled`): the entry leaves the
    system list at once instead of after the presence window, and the selection clears with it.
 8. Read every tunable value from the `Capabilities` reply instead of hard coding it.
+9. Answer only its own traffic: TPPA addresses everything it publishes to the controller it is working
+   with, so a controller that hears a message addressed to another one (two builds side by side, each
+   with its own hardware) drops it instead of driving the axes.
+10. Report a hardware link that is lost while the axes are handed over: the run cannot go on, so it ends
+   with `Fault` (`FirmwareDisconnected`) and the operator reconnects and starts again - a controller
+   must never keep answering measurements from a dead link.
 
 ## 11. Tests
 
