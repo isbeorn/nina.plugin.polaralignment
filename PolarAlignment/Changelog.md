@@ -2,6 +2,10 @@
 
 ## Version 2.2.8.1 (Feature-AutoPA-over-brokerBridge)
 
+### Fixed — the "Automated adjustment settle time" row and the gear-ratio note belong to the built-in systems and are hidden while an external controller is selected: gating them on "a system is selected" showed them for a controller as well and drew the gear-ratio note on top of the note for the controller, because the selected controller has no ActiveSystem
+### Removed — the fallback that continued a run with TPPA's own captures when the controller was gone before the hand-over: a controller lost while the reference frames are measured, or while it is still bringing its hardware up, cancels the run with ExternalLost and an error that asks to start again, so every phase ends on the same failure path
+### Changed — the session teardown always asks the controller to stop and waits for its answer, because the only caller that skipped the stop request was that fallback
+### Changed — the toast that announces a controller and the one that reports it gone last as long as NINA's own notifications instead of a minute of their own
 ### Changed — the hand-over after the reference sweep waits for the readiness the rest of the run waits for, instead of a timeout of its own, and it is named for what it is: the safety net behind the confirmation that is made before the reference frames
 ### Removed — the helper that cancelled a run for a lost controller, which had no caller left once the external step stopped having a loop of its own
 ### Changed — `docs/external-correction.md` now describes this branch: the controller is selected in the alignment system list, a run holds one interaction at a time with its deadlines, the controller and its hardware have to be ready before the reference frames, and a controller that goes quiet cancels the run instead of falling back to TPPA's own correction loop

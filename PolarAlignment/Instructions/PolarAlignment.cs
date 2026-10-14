@@ -639,11 +639,11 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
 
                     await TPAPAVM.UseImageCenterAsReference(localCTS.Token);
 
-                    if (bridgeSession != null && !await PrepareExternalStepAsync(bridgeSession, progress, localCTS.Token)) {
-                        // The controller left before the correction started, so the awaited external step never
-                        // ran: the run continues with TPPA's own correction loop, exactly like a run without a
-                        // controller, and the session is closed without asking the controller to stop.
-                        await CloseBridgeSessionAsync(BridgeReason.ExternalLost, requestStop: false);
+                    if (bridgeSession != null) {
+                        // This hands the correction over to the controller and waits for it to report readiness. A
+                        // controller that is gone by then throws: silence does not prove that its axes stopped, so the
+                        // run is cancelled here instead of continuing with TPPA's own captures.
+                        await PrepareExternalStepAsync(bridgeSession, progress, localCTS.Token);
                     }
 
                     // A single lucky solve must not end the procedure: require consecutive

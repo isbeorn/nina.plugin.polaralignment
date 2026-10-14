@@ -176,8 +176,10 @@ the controller never has to hard code them:
    window, publishes `SessionState(SilenceTimeout)` and keeps the session open. Only after the grace
    period does it end the session as `ExternalLost`.
 4. **A controller that goes quiet does not hand the run back.** Silence does not prove that the
-   alignment hardware stopped, so an owner that is lost while the external step is active cancels the
-   run with its reason - TPPA does not continue with its own correction loop.
+   alignment hardware stopped, so a controller that is lost - while the external step is active, while
+   it is bringing its hardware up, or while the reference frames are being measured - cancels the run
+   with its reason; TPPA never continues with its own correction loop. The operator starts the
+   alignment again.
 5. **The controller and its hardware have to be ready before the three reference frames.** The run waits
    for that readiness for the readiness timeout and ends with `NoControllerReady` (one error, no
    captures) when it never comes, so the frames that model the whole run are never captured with axes
@@ -197,7 +199,7 @@ the controller never has to hard code them:
 | No controller selected | The stock code path runs, unchanged. |
 | `External` selected but the controller is not listed, or the alignment tolerance is zero | TPPA logs and warns, and runs its normal correction loop. |
 | Before the reference frames: no readiness within the readiness timeout | The run ends with `NoControllerReady` (one error, no captures). |
-| While the three reference points are measured: the controller stops answering | The run continues as a normal run, because the awaited external step has not started yet. |
+| While the three reference points are measured, or while the controller is still bringing its hardware up: the controller stops answering | The run is cancelled with `ExternalLost` and an error that asks to start the alignment again. The hand-over either hands the run over or ends it - it never falls back to the normal correction loop. |
 | During the external step: the controller cancels, reports a fault or stays silent past the grace period | The run is cancelled with that reason and reported to the operator; TPPA does not fall back to its own correction loop. |
 
 ## 10. Required controller behaviour

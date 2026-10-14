@@ -23,17 +23,38 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// and its hardware readiness is awaited. The correction itself is then driven by the same correction
         /// loop as any other alignment system, so this replaces the hand-over prompt of the older design.
         /// </summary>
-        /// <returns>
-        /// False when the controller left, so the caller continues with TPPA's own correction loop. True when the
-        /// controller owns the correction from here on.
-        /// </returns>
-        private async Task<bool> PrepareExternalStepAsync(BridgeControllerRun session, IProgress<ApplicationStatus> progress, CancellationToken token) {
+        /// <summary>
+        /// Ends the run when the controller is gone and nothing was handed over yet: the session end carries the
+        /// reason, the operator is told to start again, and the caller throws the returned exception, which cancels
+        /// the run. There is no fallback to TPPA's own captures, because a controller that goes silent does not
+        /// prove that its axes stopped.
+        /// </summary>
+        private async Task<OperationCanceledException> CancelForLostControllerAsync(BridgeControllerRun session, string detail) {
+            await session.EndAsync(BridgeReason.ExternalLost, false,
+                                   new BridgeSessionEndedPayload { Detail = detail },
+                                   CancellationToken.None);
+
+            Logger.Error($"[Bridge] The controller is gone before the correction: {detail}. The run is cancelled.");
+
+            Notification.ShowError($"{ControllerDisplayCapitalized} stopped answering before the correction started." + Environment.NewLine +
+                                   "Polar alignment is cancelled - check the controller, then run it again.");
+
+            return new OperationCanceledException("The controller stopped answering before the correction.");
+        }
+
+        /// <summary>
+        /// Connects the external step the way the other alignment systems are connected before the correction
+        /// loop starts: the session is already open, the controller is told that the reference sweep is finished
+        /// and its hardware readiness is awaited. The correction itself is then driven by the same correction
+        /// loop as any other alignment system, so this replaces the hand-over prompt of the older design.
+        /// </summary>
+        private async Task PrepareExternalStepAsync(BridgeControllerRun session, IProgress<ApplicationStatus> progress, CancellationToken token) {
             var hub = BridgeHub.Instance;
             if (hub?.IsControllerPresent != true) {
-                // The controller was switched off (or went away) during the reference sweep: there is nobody to
-                // hand the correction over to, so the run continues with its normal correction loop.
-                Logger.Info("[Bridge] The controller is gone before the correction. Continuing with the normal correction loop.");
-                return false;
+                // The controller was switched off (or went away) during the reference sweep, so the correction is
+                // never handed over: the run is cancelled instead of falling back to TPPA's own captures - the
+                // operator starts the alignment again.
+                throw await CancelForLostControllerAsync(session, "the controller stopped answering during the reference sweep");
             }
 
             // The reference sweep is finished: the controller is told, so it can bring its hardware up and report
@@ -59,12 +80,9 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             progress?.Report(GetStatus(string.Empty));
 
             if (!hub.IsControllerPresent) {
-                // The controller was switched off (or went away) while it was connecting: the normal correction
-                // loop continues, and the operator is told why the hand-over is gone.
-                Logger.Info("[Bridge] The controller is gone. Handing the run back to the normal correction loop.");
-                progress?.Report(GetStatus($"{ControllerDisplayCapitalized} is gone - continuing with the normal correction loop"));
-                Notification.ShowWarning($"{ControllerDisplayCapitalized} stopped answering. Three point polar alignment continues with its normal correction loop.");
-                return false;
+                // The controller was switched off (or went away) while it was bringing its hardware up: nothing is
+                // handed over, so the run is cancelled the same way.
+                throw await CancelForLostControllerAsync(session, "the controller stopped answering while it was connecting its hardware");
             }
 
             // A controller fault is final: it tried and reported that it cannot drive the run. Being slow to
@@ -100,8 +118,6 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
                     (string.IsNullOrWhiteSpace(readinessNote) ? "." : $": {readinessNote}.") + Environment.NewLine +
                     "Check the controller.");
             }
-
-            return true;
         }
 
         /// <summary>
@@ -426,7 +442,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
         /// Ends the session if the loop did not end it already. The reason distinguishes a user cancel
         /// from a failure of the run itself.
         /// </summary>
-        private async Task CloseBridgeSessionAsync(string reason = null, bool requestStop = true) {
+        private async Task CloseBridgeSessionAsync(string reason = null) {
             var hub = BridgeHub.Instance;
             // Fall back to the session the hub holds: without it a session that was never stored in the
             // field would be closed on the hub side while the controller is never asked to stop.
@@ -440,11 +456,7 @@ namespace NINA.Plugins.PolarAlignment.Instructions {
             try {
                 if (session.IsActive) {
                     var endReason = reason ?? bridgeSessionEndReason;
-                    // A controller that just went silent cannot acknowledge a stop request, so the
-                    // handover path closes the session without waiting for one.
-                    var hardwareStopStatus = requestStop
-                        ? await session.RequestStopAsync(endReason, CancellationToken.None)
-                        : BridgeHardwareStopStatus.Unknown;
+                    var hardwareStopStatus = await session.RequestStopAsync(endReason, CancellationToken.None);
                     await session.EndAsync(endReason, false, new BridgeSessionEndedPayload { HardwareStopStatus = hardwareStopStatus }, CancellationToken.None);
                 }
             } catch (Exception ex) {
