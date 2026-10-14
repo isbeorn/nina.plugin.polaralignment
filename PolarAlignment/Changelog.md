@@ -2,6 +2,8 @@
 
 ## Version 2.2.8.1 (Feature-AutoPA-over-brokerBridge)
 
+### Fixed — the alignment system list keeps a stable order (the registered controllers are sorted by name): with two controllers announcing every few seconds the entries swapped places on every announcement and the selection moved with them
+### Fixed — the toast that announces a controller and the one that reports it gone carry a lifetime again: without one NINA keeps them on screen until the operator closes them by hand, and they appear on their own at every start
 ### Fixed — one pause asks the controller to stop once: the pause topic is delivered to every instance of the alignment item (each instance subscribes in its constructor and the sequence factory clones the item), so the bridge notification is now made by the instance that owns the running external step and only when the pause state really changes, and the release of the waiting interaction is claimed under the lock so a second delivery cannot end it again
 ### Fixed — the capabilities answer goes to the controller that announced itself instead of to the controller that announced last, so two controllers listening on the broker (e.g. two MLAstro builds side by side) each receive their own answer
 ### Fixed — the "Automated adjustment settle time" row and the gear-ratio note belong to the built-in systems and are hidden while an external controller is selected: gating them on "a system is selected" showed them for a controller as well and drew the gear-ratio note on top of the note for the controller, because the selected controller has no ActiveSystem

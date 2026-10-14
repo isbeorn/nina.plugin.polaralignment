@@ -67,7 +67,13 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             get {
                 lock (gate) {
                     PruneExpiredControllers();
-                    return registrations.Values.OrderByDescending(controller => controller.LastSeenAt).ToList();
+                    // Ordered by name, not by who announced last: two controllers announce every few seconds, and
+                    // ordering by the latest announce made the entries swap places on every announcement, which also
+                    // rebuilt the selection list under the operator and moved the entry he had picked.
+                    return registrations.Values
+                                        .OrderBy(controller => controller.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                                        .ThenBy(controller => controller.SenderId)
+                                        .ToList();
                 }
             }
         }

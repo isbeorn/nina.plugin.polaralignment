@@ -111,6 +111,12 @@ namespace NINA.Plugins.PolarAlignment {
         private readonly Dictionary<Guid, string> knownControllers = new Dictionary<Guid, string>();
 
         /// <summary>
+        /// Lifetime of the "a controller appeared" / "a controller left" toast: long enough to be read, short enough
+        /// that it does not sit on screen until the operator closes it (without a lifetime NINA never retires it).
+        /// </summary>
+        private static readonly TimeSpan ControllerToastLifetime = TimeSpan.FromSeconds(10);
+
+        /// <summary>
         /// The selected entry of <see cref="SystemOptions"/>. The settings keep the system type plus the broker
         /// identity of the controller, so the choice survives a restart and is matched again once that controller
         /// announces itself.
@@ -244,15 +250,18 @@ namespace NINA.Plugins.PolarAlignment {
             if (systemListInitialized) {
                 foreach (var controller in current.Where(entry => !knownControllers.ContainsKey(entry.Key))) {
                     Logger.Info($"[Bridge] {controller.Value} is available as an alignment system.");
-                    // No lifetime of its own: the toast lasts exactly as long as NINA's own notifications do.
-                    Notification.ShowInformation($"{controller.Value} is available as an alignment system. Select it under \"Polar Alignment System\" to let it drive the alignment.");
+                    // A lifetime of its own: without one NINA keeps the toast on screen until the operator closes
+                    // it, and this one arrives on its own at every start (NINA's own toasts pass a lifetime too).
+                    Notification.ShowInformation($"{controller.Value} is available as an alignment system. Select it under \"Polar Alignment System\" to let it drive the alignment.",
+                                                 ControllerToastLifetime);
                 }
                 foreach (var known in knownControllers.Where(entry => !current.ContainsKey(entry.Key))) {
                     Logger.Info($"[Bridge] {known.Value} left the alignment system list.");
                     var selectionNote = string.Equals(SavedControllerSetting, known.Key.ToString("N"), StringComparison.Ordinal)
                         ? " The alignment system selection was cleared with it."
                         : string.Empty;
-                    Notification.ShowInformation($"{known.Value} is no longer connected to the message broker and is removed from the alignment system list.{selectionNote}");
+                    Notification.ShowWarning($"{known.Value} is no longer connected to the message broker and is removed from the alignment system list.{selectionNote}",
+                                             ControllerToastLifetime);
                 }
             }
 
