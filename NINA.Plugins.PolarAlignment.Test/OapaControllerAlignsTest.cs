@@ -433,6 +433,27 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
+        public void TheSettleTimeAndTheGearRatioNote_AreHiddenWhileAnExternalControllerIsSelected() {
+            // Both rows belong to the built-in systems: an external controller brings its own settle time and its
+            // gear ratio does not apply. Gating them on "a system is selected" showed them for a controller too,
+            // because ActiveSystem is null for it and a binding that cannot be resolved leaves the element visible -
+            // which also drew the gear-ratio note on top of the note for a controller.
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "PolarAlignment", "Options.xaml"))) {
+                dir = dir.Parent;
+            }
+            var xaml = System.IO.File.ReadAllText(System.IO.Path.Combine(dir.FullName, "PolarAlignment", "Options.xaml"));
+            var start = xaml.IndexOf("Grid.Row=\"23\"", StringComparison.Ordinal);
+            var end = xaml.IndexOf("Grid.Row=\"25\"", start, StringComparison.Ordinal);
+            var rows = xaml.Substring(start, end - start);
+
+            rows.Should().Contain("Automated adjustment settle time").And.Contain("Make sure to set your gear ratio");
+            rows.Should().NotContain("Binding IsSystemSelected");
+            System.Text.RegularExpressions.Regex.Matches(rows, @"Visibility=""\{Binding IsLocalSystemSelected").Count.Should().Be(3);
+            rows.Should().Contain("Binding IsExternalSelected");
+        }
+
+        [Test]
         public void TheMoveCapSent_StaysWithinWhatTheControllerAccepts() {
             // The controller says how far it goes ($M?); firmware before 1.3.2 cannot say, and stops at 120'.
             var settings = new Properties.Settings();

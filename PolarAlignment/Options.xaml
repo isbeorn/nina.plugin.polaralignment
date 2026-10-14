@@ -481,7 +481,11 @@
                                     Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             </Grid>
                         </StackPanel>
-                        <Grid Grid.Row="23" Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <!-- The settle time belongs to the built-in systems: an external controller brings its own (it
+                             travels with the answer of the pause), and gating these rows on IsSystemSelected kept
+                             them visible for it, because ActiveSystem is null for a controller and a binding that
+                             cannot be resolved leaves the element visible. -->
+                        <Grid Grid.Row="23" Visibility="{Binding IsLocalSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock
                                 Margin="0,5,0,0"
                                 VerticalAlignment="Center"
@@ -492,7 +496,7 @@
                         <Grid
                             Grid.Row="23"
                             Grid.Column="1"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            Visibility="{Binding IsLocalSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <ninactrl:UnitTextBox
                                 MinWidth="80"
                                 Margin="5,5,0,0"
@@ -503,10 +507,12 @@
                                 Unit="s"
                                 Visibility="{Binding ActiveSystem.DoAutomatedAdjustments, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </Grid>
+                        <!-- One note per row and per kind of system: the gear ratio belongs to the built-in systems,
+                             and gating it on IsSystemSelected drew it on top of the note for a controller. -->
                         <Grid
                             Grid.Row="24"
                             Grid.ColumnSpan="2"
-                            Visibility="{Binding IsSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            Visibility="{Binding IsLocalSystemSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock
                                 Margin="0,5,0,0"
                                 FontStyle="Italic"
@@ -521,7 +527,7 @@
                                 Margin="0,5,0,0"
                                 FontStyle="Italic"
                                 TextWrapping="Wrap"
-                                Text="TPPA only measures and reports the alignment error: the selected controller drives the alignment hardware over the NINA message broker, so the run needs it to stay connected." />
+                                Text="TPPA only measures and reports the alignment error: the selected controller drives the alignment hardware over the NINA message broker, so the run needs it to stay connected. Its correction steps and its settle time are set on the controller." />
                         </Grid>
                         <Button
                             Grid.Row="25"
