@@ -244,14 +244,15 @@ namespace NINA.Plugins.PolarAlignment {
             if (systemListInitialized) {
                 foreach (var controller in current.Where(entry => !knownControllers.ContainsKey(entry.Key))) {
                     Logger.Info($"[Bridge] {controller.Value} is available as an alignment system.");
-                    Notification.ShowInformation($"{controller.Value} is available as an alignment system. Select it under \"Polar Alignment System\" to let it drive the alignment.", TimeSpan.FromMinutes(1));
+                    // No lifetime of its own: the toast lasts exactly as long as NINA's own notifications do.
+                    Notification.ShowInformation($"{controller.Value} is available as an alignment system. Select it under \"Polar Alignment System\" to let it drive the alignment.");
                 }
                 foreach (var known in knownControllers.Where(entry => !current.ContainsKey(entry.Key))) {
                     Logger.Info($"[Bridge] {known.Value} left the alignment system list.");
                     var selectionNote = string.Equals(SavedControllerSetting, known.Key.ToString("N"), StringComparison.Ordinal)
                         ? " The alignment system selection was cleared with it."
                         : string.Empty;
-                    Notification.ShowInformation($"{known.Value} is no longer connected to the message broker and is removed from the alignment system list.{selectionNote}", TimeSpan.FromMinutes(1));
+                    Notification.ShowInformation($"{known.Value} is no longer connected to the message broker and is removed from the alignment system list.{selectionNote}");
                 }
             }
 
