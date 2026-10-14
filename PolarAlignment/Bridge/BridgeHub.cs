@@ -261,6 +261,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
 
             var foreignAnnounce = false;
             var registered = false;
+            string announceAddress = null;
             lock (gate) {
                 // A controller that fills no sender id (an older build) is identified by the name it announced,
                 // so it can still appear in the system selection and be chosen by the operator.
@@ -279,6 +280,13 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                     if (announce != null) {
                         controller.Name = announce.Controller;
                         controller.Version = announce.ControllerVersion;
+                        // The answer belongs to the controller that announced itself, not to whichever controller
+                        // announced last: with two controllers on the broker (two MLAstro builds) each one has to
+                        // receive its own capabilities instead of traffic meant for the other one. A controller that
+                        // announced no name is answered under the MLAstro default it is addressed with.
+                        announceAddress = string.IsNullOrWhiteSpace(announce.Controller)
+                            ? BridgeContract.ControllerRecipient
+                            : announce.Controller;
                     }
 
                     // The owner of a running session never changes: a second controller that announces itself
@@ -297,7 +305,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             }
 
             if (announce != null) {
-                return PublishCapabilitiesAsync(CancellationToken.None);
+                return PublishCapabilitiesAsync(CancellationToken.None, announceAddress);
             }
 
             // A controller that switches its broker off says goodbye instead of falling silent: dropping it right
@@ -342,7 +350,11 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
             Logger.Warning($"[Bridge] Ignored a '{envelope.Kind}' message from a controller that does not own the running session.");
         }
 
-        public Task PublishCapabilitiesAsync(CancellationToken token) {
+        /// <summary>
+        /// Answers a controller announcement. The reply goes to <paramref name="recipient"/> when the caller knows
+        /// who announced itself, because more than one controller can be registered at the same time.
+        /// </summary>
+        public Task PublishCapabilitiesAsync(CancellationToken token, string recipient = null) {
             var activeSession = Session;
             var options = activeSession?.Options ?? new BridgeOptions();
 
@@ -372,7 +384,7 @@ namespace NINA.Plugins.PolarAlignment.Bridge {
                 commandId: Guid.NewGuid().ToString("N"),
                 replyTo: null,
                 sequenceNumber: 0,
-                recipient: ControllerAddress,
+                recipient: recipient ?? ControllerAddress,
                 payload: payload);
 
             Logger.Debug("[Bridge] Answered controller capabilities announcement.");
