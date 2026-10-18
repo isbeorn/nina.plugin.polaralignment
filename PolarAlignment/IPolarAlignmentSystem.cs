@@ -5,8 +5,18 @@ using System.Threading.Tasks;
 namespace NINA.Plugins.PolarAlignment {
     public enum PolarAlignmentSystemType {
         None,
+
+        /// <summary>UPAS (Avalon) hardware, driven by TPPA over a serial port.</summary>
         UPAS,
-        OAPA
+
+        /// <summary>OAPA hardware, driven by TPPA over a serial port or WiFi.</summary>
+        OAPA,
+
+        /// <summary>
+        /// An external controller on the NINA message broker (MLAstroRPA). TPPA commands no axis itself: the
+        /// selected controller drives the alignment hardware, and the run only happens while it is registered.
+        /// </summary>
+        External
     }
 
     public enum Axis {
