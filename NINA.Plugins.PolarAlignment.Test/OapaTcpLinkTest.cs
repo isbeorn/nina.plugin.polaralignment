@@ -28,11 +28,12 @@ namespace NINA.Plugins.PolarAlignment.Test {
             public readonly ConcurrentQueue<string> Received = new();
             public volatile bool Silent;
             public volatile bool HangUpOnNextLine;
-            public volatile string Version = "1.3.0";
+            public volatile string Version = "1.3.3";
             public readonly ConcurrentDictionary<string, string> Replies = new();
             public int Accepted;
 
             public FakeController() {
+                Replies["$P?"] = "<P|protocol:1|>";
                 listener.Start();
                 _ = Task.Run(AcceptLoop);
             }
@@ -103,7 +104,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             link.WriteLine("?");
 
             // SerialPort.ReadLine with NewLine "\n" keeps the '\r' of the firmware's println.
-            link.ReadLine().Should().Be("<Idle|MPos:0.00,0.00,0.00|V:1.3.0|>\r");
+            link.ReadLine().Should().Be("<Idle|MPos:0.00,0.00,0.00|V:1.3.3|>\r");
             link.ReadLine().Should().Be("ok\r");
             link.IsOpen.Should().BeTrue();
         }
@@ -197,15 +198,61 @@ namespace NINA.Plugins.PolarAlignment.Test {
         }
 
         [Test]
-        public void FirmwareOlderThan130_IsFlaggedWhenConnecting() {
-            // The shared connection check warns below the minimum; 1.3.0 is where the
-            // controller runs the alignment, so a 1.2.x board is named at connection instead
-            // of when TPPA's first reading goes nowhere.
+        [NonParallelizable]
+        public void OnlyADeviceThatReportsTheProtocol_IsDrivenForAlignment() {
+            // What a device can do is decided by the protocol version it reports ($P?), not
+            // by a firmware version number, so any device can implement the protocol. One
+            // that does not answer it - firmware before 1.3.3 acknowledges the unknown
+            // command with "ok" - gets hand moves only: no alignment parameters are pushed.
+            using (var controller = new FakeController()) {
+                using var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address);
+                system.ProtocolVersion.Should().Be(1);
+                system.RunsAlignment.Should().BeTrue();
+                controller.Received.Should().Contain(line => line.StartsWith("$M="));
+            }
+
+            using var older = new FakeController { Version = "1.3.2" };
+            older.Replies.TryRemove("$P?", out _);
+            using var olderSystem = UniversalPolarAlignmentOAPA.ConnectOverWifi(older.Address);
+            olderSystem.ProtocolVersion.Should().Be(0);
+            olderSystem.RunsAlignment.Should().BeFalse();
+            older.Received.Should().NotContain(line => line.StartsWith("$M=") || line.StartsWith("$T="));
+        }
+
+        [TestCase("<P|protocol:1|>", 1)]
+        [TestCase("<P|protocol:2|>", 2)]
+        [TestCase("ok", 0)]
+        [TestCase("error", 0)]
+        [TestCase(null, 0)]
+        public void TheProtocolVersion_IsWhatTheDeviceReports_Or0(string reply, int expected) {
+            UniversalPolarAlignmentOAPA.ParseProtocolVersion(reply).Should().Be(expected);
+        }
+
+        [Test]
+        public void ADeviceWithoutTheProtocol_IsWarnedAbout_NotOneWithAnotherFirmwareNumber() {
+            // The warning follows the protocol, not the firmware number: a third-party device
+            // that reports the protocol gets none whatever its own version, and an OAPA board
+            // on firmware that predates the protocol is told which version to install. The
+            // shared check on the firmware number is off for OAPA: it runs before $P? is read.
             using var controller = new FakeController();
             using var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address);
-
             system.GetType().GetProperty("MinimumFirmwareVersion", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                .GetValue(system).Should().Be(UniversalPolarAlignmentOAPA.AlignmentFirmwareVersion);
+                .GetValue(system).Should().BeNull();
+
+            UniversalPolarAlignmentOAPA.ProtocolWarning(1).Should().BeNull();
+            UniversalPolarAlignmentOAPA.ProtocolWarning(0).Should().Contain(UniversalPolarAlignmentOAPA.AlignmentFirmwareVersion);
+        }
+
+        [TestCase("OAT-1.13.10")]
+        [TestCase("1.3.3-beta")]
+        [TestCase("2.0")]
+        [NonParallelizable]
+        public void AThirdPartyVersionInAnyFormat_StillConnects_AndIsShownAsReported(string version) {
+            using var controller = new FakeController { Version = version };
+            using var system = UniversalPolarAlignmentOAPA.ConnectOverWifi(controller.Address);
+
+            system.FirmwareVersion.Should().Be(version);
+            system.RunsAlignment.Should().BeTrue();
         }
 
         [Test]

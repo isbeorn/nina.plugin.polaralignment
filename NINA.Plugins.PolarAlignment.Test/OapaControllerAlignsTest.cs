@@ -64,9 +64,15 @@ namespace NINA.Plugins.PolarAlignment.Test {
             }
 
             public Queue<string> Statuses = new();
+            public string DefaultStatus = "<L|phase:moving_x|outcome:none|source:nina|moves:3|az:-2.10|alt:0.40|plan:-1.60,0.00|reason:Continuing corrections.|>";
+            public volatile bool StatusThrows;
 
-            public string AlignmentStatus() => Statuses.Count > 0 ? Statuses.Dequeue()
-                : "<L|phase:moving_x|outcome:none|source:nina|moves:3|az:-2.10|alt:0.40|plan:-1.60,0.00|reason:Continuing corrections.|>";
+            public string AlignmentStatus() {
+                if (StatusThrows) { throw new System.IO.IOException("the link is gone"); }
+                lock (Statuses) {
+                    return Statuses.Count > 0 ? Statuses.Dequeue() : DefaultStatus;
+                }
+            }
 
             public int CalibrationRequests;
             public string Calibration = "<K|state:done|x:15.02,+1|y:14.98,-1|xplay:6.10,5.90,U|yplay:0.40,0.60,F|reason:Calibration complete|>";
@@ -332,6 +338,134 @@ namespace NINA.Plugins.PolarAlignment.Test {
             vm.TotalErrorDisplay.Should().Be("\u2014");
         }
 
+        private static string LoopStatus(string phase, int moves) =>
+            $"<L|phase:{phase}|outcome:none|source:nina|moves:{moves}|az:1.00|alt:1.00|plan:0.50,0.50|reason:r|>";
+
+        /// <summary>Waits up to 5 s for the first publish, so a test whose pause never comes fails instead of hanging.</summary>
+        private static async Task WaitForFirstPublish(List<string> published) {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline) {
+                lock (published) { if (published.Count > 0) { return; } }
+                await Task.Delay(5);
+            }
+        }
+
+        /// <summary>A panel that publishes TPPA's pause and resume into a list, polling fast.</summary>
+        private static (OapaTestVm vm, List<string> published) PausingVm(FakeController controller) {
+            var published = new List<string>();
+            var vm = new OapaTestVm {
+                Hardware = controller,
+                PublishTppaControl = topic => { lock (published) { published.Add(topic); } return Task.CompletedTask; },
+                MoveWatchPoll = TimeSpan.FromMilliseconds(5),
+                MoveStartWindow = TimeSpan.FromMilliseconds(300),
+                MovePauseLimit = TimeSpan.FromSeconds(30),
+            };
+            vm.ControllerAligns = true;
+            return (vm, published);
+        }
+
+        [Test]
+        public void TheTopics_AreTheOnesTppaListensTo() {
+            string Field(string name) => (string)typeof(Instructions.PolarAlignment)
+                .GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).GetValue(null);
+            UniversalPolarAlignmentOAPAVM.PauseTopic.Should().Be(Field("PauseAlignmentTopic"));
+            UniversalPolarAlignmentOAPAVM.ResumeTopic.Should().Be(Field("ResumeAlignmentTopic"));
+        }
+
+        [Test]
+        public async Task AMoveTheControllerStarts_PausesTppa_UntilTheMoveEnds() {
+            // Frames TPPA takes while the axes move are thrown away by the controller anyway:
+            // pausing TPPA for the move saves the exposures and the solves.
+            var controller = new FakeController { DefaultStatus = LoopStatus("waiting", 3) };
+            foreach (var status in new[] { LoopStatus("waiting", 2), LoopStatus("waiting", 2), LoopStatus("moving_y", 3), LoopStatus("moving_y", 3) }) {
+                controller.Statuses.Enqueue(status);
+            }
+            var (vm, published) = PausingVm(controller);
+
+            vm.OnAlignmentError(30, -20);
+            await vm.MoveWatch;
+
+            published.Should().Equal(UniversalPolarAlignmentOAPAVM.PauseTopic, UniversalPolarAlignmentOAPAVM.ResumeTopic);
+        }
+
+        [Test]
+        public async Task NoMove_LeavesTppaAlone() {
+            var controller = new FakeController { DefaultStatus = LoopStatus("waiting", 2) };
+            var (vm, published) = PausingVm(controller);
+
+            vm.OnAlignmentError(0.2, 0.1);
+            await vm.MoveWatch;
+
+            published.Should().BeEmpty();
+        }
+
+        [Test]
+        public async Task AMoveOverBeforeTheFirstLook_NeedsNoPause() {
+            var controller = new FakeController { DefaultStatus = LoopStatus("waiting", 3) };
+            controller.Statuses.Enqueue(LoopStatus("waiting", 2));
+            var (vm, published) = PausingVm(controller);
+
+            vm.OnAlignmentError(1.0, 0.5);
+            (await Task.WhenAny(vm.MoveWatch, Task.Delay(250))).Should().BeSameAs(vm.MoveWatch, "the move count says the move is already over");
+
+            published.Should().BeEmpty();
+        }
+
+        [Test]
+        public async Task TurningControllerAlignsOffDuringAMove_ResumesTppa() {
+            var controller = new FakeController { DefaultStatus = LoopStatus("moving_x", 3) };
+            var (vm, published) = PausingVm(controller);
+
+            vm.OnAlignmentError(30, -20);
+            await WaitForFirstPublish(published);
+            vm.ControllerAligns = false;
+
+            (await Task.WhenAny(vm.MoveWatch, Task.Delay(2000))).Should().BeSameAs(vm.MoveWatch, "the resume follows the option, not the time limit");
+            published.Should().Equal(UniversalPolarAlignmentOAPAVM.PauseTopic, UniversalPolarAlignmentOAPAVM.ResumeTopic);
+        }
+
+        [Test]
+        public async Task ALostLinkDuringAMove_ResumesTppa() {
+            // TPPA must never stay paused because of the controller: whatever ends the watch,
+            // the resume goes out.
+            var controller = new FakeController { DefaultStatus = LoopStatus("moving_x", 3) };
+            var (vm, published) = PausingVm(controller);
+
+            vm.OnAlignmentError(30, -20);
+            await WaitForFirstPublish(published);
+            controller.StatusThrows = true;
+
+            (await Task.WhenAny(vm.MoveWatch, Task.Delay(2000))).Should().BeSameAs(vm.MoveWatch);
+
+            published.Should().Equal(UniversalPolarAlignmentOAPAVM.PauseTopic, UniversalPolarAlignmentOAPAVM.ResumeTopic);
+        }
+
+        [Test]
+        public async Task AMoveThatNeverEnds_ResumesTppaAfterTheLimit() {
+            var controller = new FakeController { DefaultStatus = LoopStatus("moving_x", 3) };
+            var (vm, published) = PausingVm(controller);
+            vm.MovePauseLimit = TimeSpan.FromMilliseconds(200);
+
+            vm.OnAlignmentError(30, -20);
+            (await Task.WhenAny(vm.MoveWatch, Task.Delay(2000))).Should().BeSameAs(vm.MoveWatch, "the limit ends the pause");
+
+            published.Should().Equal(UniversalPolarAlignmentOAPAVM.PauseTopic, UniversalPolarAlignmentOAPAVM.ResumeTopic);
+        }
+
+        // The log line that closes a pause names what ended it, so the limit, a lost link or a
+        // silent controller is never written up as the end of the move.
+        [TestCase("idle", true, true, "move ended")]
+        [TestCase("ended", true, true, "move ended")]
+        [TestCase("moving_x", true, true, "still moving at the pause limit")]
+        [TestCase("moving_y", true, true, "still moving at the pause limit")]
+        [TestCase("", true, true, "no status from the controller")]
+        [TestCase("moving_x", false, true, "Controller aligns turned off")]
+        [TestCase("moving_x", true, false, "link lost")]
+        [TestCase("moving_x", false, false, "link lost")]
+        public void ThePauseEnd_IsLoggedWithWhatEndedIt(string phase, bool controllerAligns, bool connected, string expected) {
+            UniversalPolarAlignmentOAPAVM.WhatEndedThePause(phase, controllerAligns, connected).Should().Be(expected);
+        }
+
         [Test]
         public void TppaNeverDrivesAnOapaAxis_WhateverTheSharedSettingSays() {
             // The controller moves the axes; TPPA only measures. The shared setting belongs to
@@ -373,7 +507,7 @@ namespace NINA.Plugins.PolarAlignment.Test {
             vm.OnAlignmentError(15.0, -6.0);
 
             controller.Forwarded.Should().BeEmpty();
-            vm.ControllerStatus.Should().Contain("1.3.0");
+            vm.ControllerStatus.Should().Contain(UniversalPolarAlignmentOAPA.AlignmentFirmwareVersion);
         }
 
         [Test]
@@ -813,16 +947,6 @@ namespace NINA.Plugins.PolarAlignment.Test {
 
             await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("*did not start*");
             solver.Captures.Should().BeLessThanOrEqualTo(3);
-        }
-
-        [TestCase("1.3.0", true)]
-        [TestCase("1.10.0", true)]
-        [TestCase("1.2.3", false)]
-        [TestCase("1.2.2", false)]
-        [TestCase(null, false)]
-        [TestCase("", false)]
-        public void OnlyFirmware130AndLaterRunsTheAlignment(string version, bool expected) {
-            UniversalPolarAlignmentOAPA.FirmwareAtLeast(version, "1.3.0").Should().Be(expected);
         }
 
         [TestCase("<L|phase:waiting|outcome:none|source:nina|moves:0|az:-|alt:-|plan:0.00,0.00|reason:Waiting for an error measurement|>",

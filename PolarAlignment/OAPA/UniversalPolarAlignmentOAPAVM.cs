@@ -52,6 +52,9 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             // opened long before the controller is connected.
             OapaSettingsMigration.EnsureCurrent();
             errorForwarder = new OapaErrorForwarder(messageBroker, OnAlignmentError);
+            if (messageBroker != null) {
+                PublishTppaControl = topic => messageBroker.Publish(new OapaTppaControlMessage(topic));
+            }
             if (imagingMediator != null && plateSolverFactory != null) {
                 calibrationSolver = new OapaPlateSolveSampler(profileService, imagingMediator, telescopeMediator, plateSolverFactory);
             }
@@ -318,6 +321,99 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
             }
         }
 
+        // ----- Pausing TPPA while the controller moves -----
+
+        // The instruction's own pause and resume topics; a test pins them against it.
+        internal const string PauseTopic = "PolarAlignmentPlugin_PolarAlignment_PauseAlignment";
+        internal const string ResumeTopic = "PolarAlignmentPlugin_PolarAlignment_ResumeAlignment";
+
+        /// <summary>Publishes a pause or resume to TPPA; null without a message broker, and then nothing is paused.</summary>
+        internal Func<string, Task> PublishTppaControl;
+
+        /// <summary>How often the controller is asked while a move is watched.</summary>
+        internal TimeSpan MoveWatchPoll = TimeSpan.FromMilliseconds(250);
+
+        /// <summary>How long after a reading a move it caused may start.</summary>
+        internal TimeSpan MoveStartWindow = TimeSpan.FromSeconds(2);
+
+        /// <summary>The longest pause: TPPA is resumed after it, whatever the controller says.</summary>
+        internal TimeSpan MovePauseLimit = TimeSpan.FromMinutes(3);
+
+        /// <summary>The watch started by the last reading; tests await it.</summary>
+        internal Task MoveWatch = Task.CompletedTask;
+
+        private int moveWatchRunning;
+
+        private static bool IsMoving(string phase) => phase == "moving_x" || phase == "moving_y";
+
+        private static string Field(System.Collections.Generic.IReadOnlyDictionary<string, string> fields, string key) =>
+            fields.TryGetValue(key, out var value) ? value : "";
+
+        /// <summary>What ended a pause, for the log line that resumes TPPA.</summary>
+        internal static string WhatEndedThePause(string phase, bool controllerAligns, bool connected) =>
+            !connected ? "link lost"
+            : !controllerAligns ? "Controller aligns turned off"
+            : IsMoving(phase) ? "still moving at the pause limit"
+            : string.IsNullOrEmpty(phase) ? "no status from the controller"
+            : "move ended";
+
+        /// <summary>
+        /// Frames TPPA exposes while the axes move are of no use: the controller discards what
+        /// arrives before its move has settled. So when a reading starts a move, TPPA is paused
+        /// for it and resumed when it ends, which saves those exposures and solves. Whatever ends
+        /// the watch - the move, the option turned off, a lost link, an error or the time limit -
+        /// TPPA is resumed: it must never stay paused because of the controller.
+        /// </summary>
+        private void WatchForAMove(IOapaAlignmentController controller, string statusAtReading) {
+            if (PublishTppaControl == null || Interlocked.CompareExchange(ref moveWatchRunning, 1, 0) != 0) {
+                return;
+            }
+            var atReading = OapaControllerStatus.Parse(statusAtReading);
+            int.TryParse(Field(atReading, "moves"), out var movesAtReading);
+            MoveWatch = Task.Run(async () => {
+                var paused = false;
+                var endedBy = "watching the move failed";
+                try {
+                    // A move starts on the controller's next pass after the reading.
+                    var phase = Field(atReading, "phase");
+                    var startBy = DateTime.UtcNow + MoveStartWindow;
+                    while (!IsMoving(phase)) {
+                        if (DateTime.UtcNow >= startBy) {
+                            return;
+                        }
+                        await Task.Delay(MoveWatchPoll);
+                        var now = OapaControllerStatus.Parse(controller.AlignmentStatus());
+                        phase = Field(now, "phase");
+                        // A move that started and ended between two polls needs no pause.
+                        if (!IsMoving(phase) && int.TryParse(Field(now, "moves"), out var moves) && moves > movesAtReading) {
+                            return;
+                        }
+                    }
+                    await PublishTppaControl(PauseTopic);
+                    paused = true;
+                    Logger.Info("OAPA controller: moving, TPPA paused until the move ends");
+                    var resumeBy = DateTime.UtcNow + MovePauseLimit;
+                    while (IsMoving(phase) && ControllerAligns && upa?.Connected == true && DateTime.UtcNow < resumeBy) {
+                        await Task.Delay(MoveWatchPoll);
+                        phase = Field(OapaControllerStatus.Parse(controller.AlignmentStatus()), "phase");
+                    }
+                    endedBy = WhatEndedThePause(phase, ControllerAligns, upa?.Connected == true);
+                } catch (Exception ex) {
+                    Logger.Warning($"OAPA controller: watching the move failed: {ex.Message}");
+                } finally {
+                    if (paused) {
+                        try {
+                            await PublishTppaControl(ResumeTopic);
+                            Logger.Info($"OAPA controller: {endedBy}, TPPA resumed");
+                        } catch (Exception ex) {
+                            Logger.Error($"OAPA controller: resuming TPPA failed: {ex.Message}");
+                        }
+                    }
+                    Interlocked.Exchange(ref moveWatchRunning, 0);
+                }
+            });
+        }
+
         /// <summary>One TPPA reading, in arcminutes, on its way to the controller.</summary>
         internal void OnAlignmentError(double azimuthArcmin, double altitudeArcmin, double? toleranceArcmin = null) {
             lastTppaReadingUtc = DateTime.UtcNow;
@@ -340,6 +436,7 @@ namespace NINA.Plugins.PolarAlignment.OAPA {
                 var status = controller.AlignmentStatus();
                 Logger.Info($"OAPA controller: reading az {azimuthArcmin:F2}' alt {altitudeArcmin:F2}' -> {reply}; {status}");
                 CopyBoardEvents(controller);
+                WatchForAMove(controller, status);
                 ControllerStatus = OapaControllerStatus.Describe(status);
                 var phase = OapaControllerStatus.Parse(status).TryGetValue("phase", out var p) ? p : "";
                 if (lastControllerPhase == "calibrating" && phase != "calibrating") {
