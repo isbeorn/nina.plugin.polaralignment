@@ -29,15 +29,14 @@ namespace NINA.Plugins.PolarAlignment {
         /// </summary>
         private const double MaximumMoveMagnitude = 5.0;
         /// <summary>
-        /// Small damping term used as a numerical floor and as regularization when
-        /// inverting the local response model.
+        /// Small damping term used to regularize the local response model.
         /// </summary>
         private const double NormalEquationDamping = 1e-6;
         /// <summary>
-        /// A candidate move must predict at least a slight reduction in total error before
-        /// the controller will accept it.
+        /// Relative roundoff guard for the damped two-axis solve. Unlike an absolute
+        /// determinant cutoff, this does not reject small actuator gains.
         /// </summary>
-        private const double MinimumExpectedImprovementFactor = 0.99;
+        private const double RelativeDeterminantTolerance = 1e-12;
         /// <summary>
         /// If a non-probe move makes the measured total error materially worse, the learned
         /// model is treated as stale and discarded.
@@ -105,8 +104,8 @@ namespace NINA.Plugins.PolarAlignment {
         /// Creates the next automated move.
         ///
         /// Before the response matrix becomes observable, this returns small probe moves
-        /// to learn the hardware sign and gain. After that, it returns the safest corrective
-        /// move that is predicted to reduce the residual error norm.
+        /// to learn the hardware sign and gain. After that, it returns an improving corrective
+        /// move or holds still, unless an axis still needs a probe to produce a measured response.
         /// </summary>
         public AutomatedAdjustmentPlan CreatePlan() {
             if (!hasObservation) {
@@ -118,6 +117,10 @@ namespace NINA.Plugins.PolarAlignment {
                 if (correctivePlan.HasMovement) {
                     return correctivePlan;
                 }
+
+                var needsXProbe = responseModel.AzimuthDeltaPerXUnit == 0 && responseModel.AltitudeDeltaPerXUnit == 0;
+                var needsYProbe = responseModel.AzimuthDeltaPerYUnit == 0 && responseModel.AltitudeDeltaPerYUnit == 0;
+                return needsXProbe || needsYProbe ? CreateProbePlan(needsXProbe, needsYProbe) : correctivePlan;
             }
 
             return CreateProbePlan();
@@ -151,19 +154,19 @@ namespace NINA.Plugins.PolarAlignment {
         }
 
         /// <summary>
-        /// Creates a probe move on the less-observed axis so the sample set becomes informative
-        /// in both columns of the local response matrix.
+        /// Creates a probe move on the less-observed eligible axis, comparing excitation in
+        /// axis-specific probe units so the coarser X probe does not cause repeated Y probes.
         /// </summary>
-        private AutomatedAdjustmentPlan CreateProbePlan() {
+        private AutomatedAdjustmentPlan CreateProbePlan(bool probeX = true, bool probeY = true) {
             var xExcitation = 0.0;
             var yExcitation = 0.0;
 
             foreach (var sample in samples) {
-                xExcitation += Math.Abs(sample.XMagnitude);
-                yExcitation += Math.Abs(sample.YMagnitude);
+                xExcitation += Math.Abs(sample.XMagnitude) / XAxisProbeMagnitude;
+                yExcitation += Math.Abs(sample.YMagnitude) / YAxisProbeMagnitude;
             }
 
-            if (xExcitation <= yExcitation) {
+            if (probeX && (!probeY || xExcitation <= yExcitation)) {
                 return new AutomatedAdjustmentPlan(XAxisProbeMagnitude,
                                                    0,
                                                    true,
@@ -181,15 +184,21 @@ namespace NINA.Plugins.PolarAlignment {
         ///
         /// The controller evaluates a damped two-axis least-squares step and one-axis fallback
         /// moves, then keeps the candidate that predicts the largest reduction in residual norm.
+        /// If damping removes the entire two-axis step at the move deadband, the bounded full
+        /// step is also considered and must still predict an improvement.
         /// </summary>
         private AutomatedAdjustmentPlan CreateCorrectivePlan(ResponseModel responseModel, AutomatedAdjustmentObservation observation) {
             var currentNorm = observation.TotalErrorDegrees;
             var candidates = new List<AutomatedAdjustmentPlan>();
 
             if (TrySolveLeastSquaresCommand(responseModel, observation, out var rawX, out var rawY)) {
-                candidates.Add(CreateScaledPlan(rawX, rawY, 0.5, "Adaptive two-axis correction"));
+                var dampedPlan = CreateScaledPlan(rawX, rawY, 0.5, "Adaptive two-axis correction");
+                candidates.Add(dampedPlan);
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.25, "Adaptive two-axis correction"));
                 candidates.Add(CreateScaledPlan(rawX, rawY, 0.125, "Adaptive two-axis correction"));
+                if (!dampedPlan.HasMovement) {
+                    candidates.Add(CreateScaledPlan(rawX, rawY, 1.0, "Adaptive two-axis correction"));
+                }
             }
 
             if (TryCreateSingleAxisPlan(responseModel.AzimuthDeltaPerXUnit,
@@ -217,7 +226,7 @@ namespace NINA.Plugins.PolarAlignment {
                 }
 
                 var predictedNorm = PredictErrorNorm(responseModel, observation, candidate);
-                if (predictedNorm < bestPredictedNorm * MinimumExpectedImprovementFactor) {
+                if (predictedNorm < bestPredictedNorm) {
                     bestPredictedNorm = predictedNorm;
                     bestPlan = candidate;
                 }
@@ -303,7 +312,7 @@ namespace NINA.Plugins.PolarAlignment {
                          + responseModel.AltitudeDeltaPerYUnit * observation.AltitudeErrorDegrees);
 
             var determinant = m00 * m11 - m01 * m01;
-            if (Math.Abs(determinant) <= NormalEquationDamping) {
+            if (!double.IsFinite(determinant) || determinant <= m00 * m11 * RelativeDeterminantTolerance) {
                 xMagnitude = 0;
                 yMagnitude = 0;
                 return false;
